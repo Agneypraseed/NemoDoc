@@ -15,6 +15,9 @@ export interface Annotation {
   color: HighlightColor;
   rects: Rect[];
   createdAt: number;
+  kind?: "highlight" | "underline" | "pen" | "sticky" | "area";
+  points?: { x: number; y: number }[];
+  tags?: string[];
 }
 export interface SlideElement {
   kind: "text" | "image";
@@ -43,6 +46,14 @@ export interface Source {
   slides?: Slide[];
   size: number;
   createdAt: number;
+  bookmarks?: number[];
+  readingState?: {
+    page: number;
+    mode: ViewMode;
+    zoom: number;
+    fraction: number;
+  };
+  ocr?: Record<number, { text: string; regions: (Rect & { text: string })[] }>;
 }
 export interface Citation {
   id: number;
@@ -69,4 +80,40 @@ export interface AIStatus {
   configured: boolean;
   model: string;
   local: boolean;
+}
+export interface StudyItem {
+  question: string;
+  answer: string;
+  choices?: string[];
+  correct?: number;
+  citationIds: number[];
+}
+export interface StudyArtifact {
+  id: string;
+  notebookId: string;
+  kind: "flashcards" | "quiz" | "guide" | "mindmap";
+  title: string;
+  content: string;
+  items: StudyItem[];
+  citations: Citation[];
+  createdAt: number;
+  nodes?: {
+    id: string;
+    label: string;
+    parentId?: string;
+    citationIds: number[];
+  }[];
+}
+export interface ConnectionSettings {
+  baseUrl: string;
+  model: string;
+  embeddingModel: string;
+  visionModel: string;
+  embeddingBaseUrl: string;
+  visionBaseUrl: string;
+  semantic: boolean;
+  rerank: boolean;
+  rerankUrl: string;
+  rerankModel: string;
+  hasApiKey: boolean;
 }

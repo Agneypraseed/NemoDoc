@@ -1,6 +1,14 @@
 import express from "express";
 import { z } from "zod";
 import { retrieve } from "./retrieval.ts";
+import {
+  SettingsStore,
+  settingsSchema,
+  isLocal,
+  providerJSON,
+} from "./settings.ts";
+import { SemanticRetriever } from "./semantic.ts";
+import { registerFeatures } from "./features.ts";
 
 export interface Config {
   apiKey: string;
@@ -29,11 +37,14 @@ const schema = z.object({
     .min(1)
     .max(30),
 });
-export function createApp(config: Config, fetcher: typeof fetch = fetch) {
+export function createApp(
+  initialConfig: Config,
+  fetcher: typeof fetch = fetch,
+  options: { settingsFile?: string } = {},
+) {
   const app = express();
-  const local = ["localhost", "127.0.0.1", "[::1]"].includes(
-    new URL(config.baseUrl).hostname,
-  );
+  const store = new SettingsStore(initialConfig, options.settingsFile);
+  const retriever = new SemanticRetriever(fetcher);
   app.disable("x-powered-by");
   app.use((req, res, next) => {
     if (req.method === "POST" && req.headers.origin) {
@@ -49,15 +60,75 @@ export function createApp(config: Config, fetcher: typeof fetch = fetch) {
     }
     next();
   });
-  app.use(express.json({ limit: "8mb" }));
-  app.get("/api/status", (_req, res) =>
+  app.use(express.json({ limit: "12mb" }));
+  app.get("/api/settings", (_req, res) => res.json(store.public()));
+  app.post("/api/settings", (req, res) => {
+    const parsed = settingsSchema.safeParse(req.body);
+    if (!parsed.success)
+      return res
+        .status(400)
+        .json({
+          error:
+            "Use valid model IDs and HTTPS endpoints, or local HTTP endpoints.",
+        });
+    try {
+      store.save(parsed.data);
+      res.json(store.public());
+    } catch {
+      res
+        .status(500)
+        .json({
+          error:
+            "Could not save the connection settings. Check local file access.",
+        });
+    }
+  });
+  app.post("/api/settings/test", async (_req, res) => {
+    const config = store.value,
+      started = Date.now();
+    try {
+      const result = await providerJSON(
+        fetcher,
+        config.baseUrl.replace(/\/$/, "") + "/chat/completions",
+        {
+          model: config.model,
+          stream: false,
+          max_tokens: 64,
+          chat_template_kwargs: { enable_thinking: false },
+          messages: [
+            { role: "user", content: "Reply with the single word ready." },
+          ],
+        },
+        config,
+        AbortSignal.timeout(30000),
+      );
+      if (!result.choices?.some((choice: any) => typeof choice.message?.content === 'string' && choice.message.content.trim())) throw new Error('The endpoint returned no chat response. Check its model ID.');
+      res.json({
+        ok: true,
+        model: config.model,
+        latencyMs: Date.now() - started,
+      });
+    } catch (e) {
+      res
+        .status(502)
+        .json({
+          error:
+            e instanceof Error ? e.message : "Could not reach the endpoint.",
+        });
+    }
+  });
+  registerFeatures(app, store, retriever, fetcher);
+  app.get("/api/status", (_req, res) => {
+    const config = store.value;
     res.json({
-      configured: !!config.apiKey || local,
+      configured: !!config.apiKey || isLocal(config.baseUrl),
       model: config.model,
-      local,
-    }),
-  );
+      local: isLocal(config.baseUrl),
+    });
+  });
   app.post("/api/chat", async (req, res) => {
+    const config = store.value,
+      local = isLocal(config.baseUrl);
     const parsed = schema.safeParse(req.body);
     if (!parsed.success)
       return res.status(400).json({
@@ -66,10 +137,20 @@ export function createApp(config: Config, fetcher: typeof fetch = fetch) {
     if (!config.apiKey && !local)
       return res.status(503).json({
         error:
-          "Add NVIDIA_API_KEY to your .env file, then restart the server. Your documents and notes are ready to use.",
+          "Add your NVIDIA_API_KEY in Settings or the .env file. Your documents and notes are ready to use.",
       });
     const { question, history, sources } = parsed.data;
-    const citations = retrieve(
+    const questionWithHistory =
+      question +
+      " " +
+      history
+        .filter((m) => m.role === "user")
+        .slice(-1)
+        .map((m) => m.content)
+        .join(" ");
+    let mode = "keyword",
+      warning = "";
+    let citations = retrieve(
       sources,
       question +
         " " +
@@ -82,7 +163,7 @@ export function createApp(config: Config, fetcher: typeof fetch = fetch) {
     if (!citations.length)
       return res.status(422).json({
         error:
-          "These sources have no extractable text. Use a text-based PDF or PowerPoint file; OCR is not included yet.",
+          "These sources have no extractable text. Use Recognize page text (OCR) on scanned pages, then try again.",
       });
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 120000);
@@ -90,6 +171,22 @@ export function createApp(config: Config, fetcher: typeof fetch = fetch) {
     const send = (event: string, data: unknown) =>
       res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     try {
+      if (config.semantic) {
+        try {
+          const result = await retriever.search(
+            sources,
+            questionWithHistory,
+            config,
+            controller.signal,
+          );
+          citations = result.citations;
+          mode = result.mode;
+        } catch (e) {
+          if (controller.signal.aborted) throw e;
+          warning =
+            "Semantic retrieval is unavailable; this answer uses keyword matches. Check the embedding connection in Settings.";
+        }
+      }
       const response = await fetcher(
         `${config.baseUrl.replace(/\/$/, "")}/chat/completions`,
         {
@@ -134,6 +231,7 @@ export function createApp(config: Config, fetcher: typeof fetch = fetch) {
       res.setHeader("X-Accel-Buffering", "no");
       res.flushHeaders();
       send("sources", citations);
+      send("retrieval", { mode, warning });
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "",

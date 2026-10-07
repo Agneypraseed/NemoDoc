@@ -4,11 +4,16 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { createApp } from "./app.ts";
 
-const app = createApp({
-  apiKey: process.env.NVIDIA_API_KEY ?? "",
-  baseUrl: process.env.NVIDIA_BASE_URL ?? "https://integrate.api.nvidia.com/v1",
-  model: process.env.NVIDIA_MODEL ?? "nvidia/nemotron-3-nano-30b-a3b",
-});
+const app = createApp(
+  {
+    apiKey: process.env.NVIDIA_API_KEY ?? "",
+    baseUrl:
+      process.env.NVIDIA_BASE_URL ?? "https://integrate.api.nvidia.com/v1",
+    model: process.env.NVIDIA_MODEL ?? "nvidia/nemotron-3-nano-30b-a3b",
+  },
+  fetch,
+  { settingsFile: path.resolve("data/settings.json") },
+);
 if (existsSync("dist/index.html")) {
   app.use(express.static(path.resolve("dist")));
   app.get("/{*splat}", (_req, res) =>

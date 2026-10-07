@@ -8,5 +8,6 @@ test-results/
 *.log
 *.tsbuildinfo
 public/pdfjs/
+data/
 .DS_Store
 Thumbs.db
