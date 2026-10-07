@@ -14,7 +14,7 @@ The requested scope is all ten additions from the feature discussion. Keep local
 - [x] Side-by-side document reading and source-grounded comparison.
 - [x] API/unit/browser tests, rendered UI review, and production build.
 - [x] Changes committed locally by subsystem.
-- [ ] Verified push to origin/main (pending explicit approval after automatic review rejection).
+- [x] Verified push to origin/main after explicit user approval.
 
 Existing API/model credentials are never included in backups or Git. Hosted inference requires a configured key; local endpoints remain supported. Use mocked provider responses for deterministic tests and clearly report live-provider verification limits.
 
@@ -40,4 +40,4 @@ Live NVIDIA inference was not exercised without user credentials. AI tests use d
 
 ## Delivery status
 
-Automatic approval review rejected the attempted push because it treated the earlier instruction not to push as still active and the GitHub destination as unverified. No push was executed. The destination is `https://github.com/Agneypraseed/NemoDoc.git`; explicit approval is required before retrying. The final local changes and verification are complete.
+The user explicitly approved publishing to `https://github.com/Agneypraseed/NemoDoc.git`. The three upgrade commits were pushed to `origin/main`; remote branch verification matched local commit `27beee22808efddafc05dd909e85ded2e52a6b25`. This delivery record is committed and pushed afterward. All requested features and verification are complete.
