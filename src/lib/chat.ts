@@ -5,6 +5,7 @@ export async function streamChat(
   signal: AbortSignal,
   onDelta: (text: string) => void,
   onSources: (citations: Citation[]) => void,
+  onRetrieval?: (info: { mode: string; warning?: string }) => void,
 ) {
   const response = await fetch("/api/chat", {
     method: "POST",
@@ -38,6 +39,7 @@ export async function streamChat(
     const payload = JSON.parse(data);
     if (event === "delta") onDelta(payload);
     if (event === "sources") onSources(payload);
+    if (event === "retrieval") onRetrieval?.(payload);
     if (event === "error") throw new Error(payload);
   };
   try {

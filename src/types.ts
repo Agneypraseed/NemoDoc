@@ -44,6 +44,7 @@ export interface Source {
   blob: Blob;
   pages: string[];
   slides?: Slide[];
+  pageAspects?: number[];
   size: number;
   createdAt: number;
   bookmarks?: number[];

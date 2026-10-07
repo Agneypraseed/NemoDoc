@@ -187,7 +187,9 @@ export async function importDocument(
       "Choose a PDF or PowerPoint (.pptx). Export older .ppt files as PDF first.",
     );
   progress(`Opening ${file.name}…`);
-  let pages: string[], slides: Slide[] | undefined;
+  let pages: string[],
+    slides: Slide[] | undefined,
+    pageAspects: number[] | undefined;
   if (extension === "pdf") {
     const task = pdfjs.getDocument({
       ...pdfOptions,
@@ -199,9 +201,12 @@ export async function importDocument(
       if (doc.numPages > 500)
         throw new Error("Choose a PDF with 500 pages or fewer.");
       pages = [];
+      pageAspects = [];
       for (let i = 1; i <= doc.numPages; i++) {
         progress(`Reading page ${i} of ${doc.numPages}…`);
         const page = await doc.getPage(i);
+        const viewport = page.getViewport({ scale: 1 });
+        pageAspects.push(viewport.height / viewport.width);
         const content = await page.getTextContent();
         pages.push(
           content.items
@@ -233,6 +238,7 @@ export async function importDocument(
     blob: file,
     pages,
     slides,
+    pageAspects,
     size: file.size,
     createdAt: Date.now(),
   };

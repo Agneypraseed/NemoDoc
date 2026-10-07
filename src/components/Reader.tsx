@@ -13,9 +13,22 @@ import {
   Plus,
   Search,
   X,
+  Bookmark,
+  PanelLeft,
+  Pencil,
+  StickyNote,
+  Undo2,
+  Redo2,
+  ScanText,
+  Image,
 } from "lucide-react";
 import { pdfjs, pdfOptions } from "../lib/documents";
 import { download } from "../lib/storage";
+import { ReaderNavigation } from "./ReaderNavigation";
+import { AnnotationOverlay } from "./AnnotationOverlay";
+import { exportAnnotatedPdf } from "../lib/pdf-export";
+import { evidenceRects } from "../lib/evidence";
+import { slideImage } from "../lib/page-image";
 import type {
   Annotation,
   HighlightColor,
@@ -41,6 +54,15 @@ interface Props {
   onAsk: (quote: string, page: number) => void;
   onSelectAnnotation: (annotation: Annotation) => void;
   onUpload: () => void;
+  onUpdateSource?: (source: Source) => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  evidence?: { page: number; text: string; key: number };
+  onOCR?: (page: number, image: string) => void;
+  onVisual?: (page: number, image: string) => void;
+  keyboardEnabled?: boolean;
 }
 
 function PdfPage({
@@ -48,16 +70,18 @@ function PdfPage({
   number,
   width,
   onError,
+  initialAspect,
 }: {
   doc: pdfjs.PDFDocumentProxy;
   number: number;
   width: number;
   onError: (error: string) => void;
+  initialAspect: number;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null),
     text = useRef<HTMLDivElement>(null);
   const container = useRef<HTMLDivElement>(null);
-  const [aspect, setAspect] = useState(792 / 612),
+  const [aspect, setAspect] = useState(initialAspect),
     [near, setNear] = useState(false);
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -141,6 +165,15 @@ export function Reader({
   onAsk,
   onSelectAnnotation,
   onUpload,
+  onUpdateSource,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
+  evidence,
+  onOCR,
+  onVisual,
+  keyboardEnabled = true,
 }: Props) {
   const [mode, setMode] = useState<ViewMode>("vertical"),
     [zoom, setZoom] = useState(100),
@@ -161,19 +194,85 @@ export function Reader({
     sizeRef = useRef<HTMLDivElement>(null);
   const [available, setAvailable] = useState(700);
   const [navigation, setNavigation] = useState(0);
+  const [showNavigation, setShowNavigation] = useState(false);
+  const [tool, setTool] = useState<"select" | "pen" | "sticky">("select");
+  const [pen, setPen] = useState<{
+    page: number;
+    points: { x: number; y: number }[];
+  }>();
+  const [support, setSupport] = useState<Rect[]>([]);
+  const [pageAspects, setPageAspects] = useState<number[]>([]);
+  const updateRef = useRef(onUpdateSource);
+  updateRef.current = onUpdateSource;
+  const sourceRef = useRef(source);
+  sourceRef.current = source;
+  const fractionRef = useRef(0),
+    resumeRef = useRef(false);
+  const persistTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const persist = () => {
+    clearTimeout(persistTimer.current);
+    persistTimer.current = setTimeout(() => {
+      const current = sourceRef.current;
+      if (current)
+        updateRef.current?.({
+          ...current,
+          readingState: {
+            page: currentPage.current,
+            mode,
+            zoom,
+            fraction: fractionRef.current,
+          },
+        });
+    }, 300);
+  };
   const pagesRef = useRef(new Map<number, HTMLDivElement>());
   const count = source?.pages.length ?? 0;
   const pageWidth = Math.max(
     180,
     (Math.min(
-      mode === "book" ? (available - 76) / 2 : available - 76,
+      mode === "book"
+        ? (available - 76 - (showNavigation ? 120 : 0)) / 2
+        : available - 76 - (showNavigation ? 120 : 0),
       source?.kind === "pptx" ? 860 : 650,
     ) *
       zoom) /
       100,
   );
   const currentPage = useRef(page);
-  currentPage.current = page;
+  useEffect(() => {
+    currentPage.current = page;
+  }, [page]);
+  useEffect(() => () => clearTimeout(persistTimer.current), []);
+  useEffect(() => {
+    if (source) persist();
+  }, [mode, zoom]);
+  useEffect(() => {
+    if (!evidence) {
+      setSupport([]);
+      return;
+    }
+    let attempts = 0;
+    const timer = setInterval(() => {
+      const element = pagesRef.current.get(evidence.page);
+      if (element) {
+        const rects = evidenceRects(element, evidence.text);
+        if (rects.length) {
+          setSupport(rects);
+          const root = scroller.current;
+          if (root && mode === "vertical")
+            root.scrollTop =
+              root.scrollTop +
+              element.getBoundingClientRect().top -
+              root.getBoundingClientRect().top +
+              rects[0].y * element.clientHeight -
+              80;
+          clearInterval(timer);
+        }
+      }
+      if (++attempts >= 30) clearInterval(timer);
+    }, 100);
+    return () => clearInterval(timer);
+  }, [evidence?.key, doc, mode]);
   useEffect(() => {
     const observer = new ResizeObserver((entries) =>
       setAvailable(entries[0].contentRect.width),
@@ -185,11 +284,18 @@ export function Reader({
     setPageInput(String(page));
   }, [page]);
   useEffect(() => {
+    clearTimeout(persistTimer.current);
     setDoc(undefined);
     setError("");
     setSelection(undefined);
     setQuery("");
-    setZoom(100);
+    setZoom(source?.readingState?.zoom ?? 100);
+    setMode(source?.readingState?.mode ?? "vertical");
+    fractionRef.current =
+      source?.readingState?.page === page ? source.readingState.fraction : 0;
+    resumeRef.current = fractionRef.current > 0;
+    setTool("select");
+    setSupport([]);
     if (!source || source.kind !== "pdf") return;
     let disposed = false;
     let task: pdfjs.PDFDocumentLoadingTask | undefined;
@@ -200,8 +306,26 @@ export function Reader({
         task = pdfjs.getDocument({ ...pdfOptions, data });
         return task.promise;
       })
-      .then((pdf) => {
-        if (pdf && !disposed) setDoc(pdf);
+      .then(async (pdf) => {
+        if (pdf && !disposed) {
+          const dimensions =
+            source.pageAspects ??
+            (await Promise.all(
+              Array.from({ length: pdf.numPages }, async (_, i) => {
+                const p = await pdf.getPage(i + 1);
+                const v = p.getViewport({ scale: 1 });
+                return v.height / v.width;
+              }),
+            ));
+          if (disposed) return;
+          setPageAspects(dimensions);
+          setDoc(pdf);
+          if (!source.pageAspects && sourceRef.current?.id === source.id)
+            updateRef.current?.({
+              ...sourceRef.current,
+              pageAspects: dimensions,
+            });
+        }
       })
       .catch(() => {
         if (!disposed)
@@ -221,9 +345,24 @@ export function Reader({
     if (!element || !root) return;
     // Navigation preserves the active page across layout and zoom changes.
     if (mode === "horizontal")
-      root.scrollTo({ left: element.offsetLeft - root.offsetLeft - 30 });
-    else root.scrollTo({ top: element.offsetTop - root.offsetTop - 30 });
-  }, [page, mode, zoom, source?.id, doc, navigation, navigationKey]);
+      root.scrollTo({
+        left:
+          root.scrollLeft +
+          element.getBoundingClientRect().left -
+          root.getBoundingClientRect().left -
+          30,
+      });
+    else
+      root.scrollTo({
+        top:
+          root.scrollTop +
+          element.getBoundingClientRect().top -
+          root.getBoundingClientRect().top -
+          30 +
+          (resumeRef.current ? fractionRef.current * element.clientHeight : 0),
+      });
+    resumeRef.current = false;
+  }, [page, mode, zoom, source?.id, doc, navigation, navigationKey, pageWidth]);
   useEffect(() => {
     const root = scroller.current;
     if (!root || mode === "book") return;
@@ -238,7 +377,9 @@ export function Reader({
           const rect = element.getBoundingClientRect();
           const distance =
             mode === "vertical"
-              ? Math.abs(rect.top - rootRect.top - 30)
+              ? rect.top <= rootRect.top + 31
+                ? rootRect.top + 31 - rect.top
+                : Infinity
               : Math.abs(rect.left - rootRect.left - 30);
           if (distance < closest) {
             closest = distance;
@@ -248,6 +389,19 @@ export function Reader({
         // Update the counter without forcing the user to a page boundary.
         currentPage.current = active;
         setPageInput(String(active));
+        const element = pagesRef.current.get(active);
+        fractionRef.current =
+          element && mode === "vertical"
+            ? Math.max(
+                0,
+                Math.min(
+                  1,
+                  (rootRect.top + 30 - element.getBoundingClientRect().top) /
+                    element.clientHeight,
+                ),
+              )
+            : 0;
+        persist();
       });
     };
     root.addEventListener("scroll", scroll, { passive: true });
@@ -255,9 +409,10 @@ export function Reader({
       root.removeEventListener("scroll", scroll);
       cancelAnimationFrame(raf);
     };
-  }, [mode, source?.id, doc]);
+  }, [mode, zoom, source?.id, doc]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (!keyboardEnabled) return;
       if (
         ["INPUT", "TEXTAREA"].includes((event.target as HTMLElement).tagName) ||
         (event.target as HTMLElement).isContentEditable
@@ -267,6 +422,12 @@ export function Reader({
         setSelection(undefined);
         setAreaTool(false);
         setSearchOpen(false);
+        setTool("select");
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
+        event.preventDefault();
+        if (event.shiftKey) onRedo?.();
+        else onUndo?.();
       }
       if (event.key === "ArrowRight")
         navigate(
@@ -284,7 +445,7 @@ export function Reader({
     setSelection(undefined);
   };
   const capture = () => {
-    if (areaTool) return;
+    if (areaTool || tool !== "select") return;
     const selected = window.getSelection();
     if (
       !selected ||
@@ -324,7 +485,7 @@ export function Reader({
       y: Math.max(90, bounds.top - 12),
     });
   };
-  const save = (note: boolean) => {
+  const save = (note: boolean, kind: Annotation["kind"] = "highlight") => {
     if (!selection || !source) return;
     const annotation: Annotation = {
       id: crypto.randomUUID(),
@@ -335,6 +496,7 @@ export function Reader({
       color,
       rects: selection.rects,
       createdAt: Date.now(),
+      kind,
     };
     onAnnotate(annotation);
     if (note) onSelectAnnotation(annotation);
@@ -347,6 +509,23 @@ export function Reader({
       x: Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)),
       y: Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)),
     };
+  };
+  const pageImage = async (number: number) => {
+    if (doc && source?.kind === "pdf") {
+      const pdfPage = await doc.getPage(number);
+      const base = pdfPage.getViewport({ scale: 1 });
+      const viewport = pdfPage.getViewport({
+        scale: Math.min(1800 / base.width, 1800 / base.height),
+      });
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      await pdfPage.render({ canvas, viewport }).promise;
+      return canvas.toDataURL("image/jpeg", 0.85);
+    }
+    const slide = source?.slides?.[number - 1];
+    if (!slide) throw new Error("Open a page before using visual tools.");
+    return slideImage(slide);
   };
   const visiblePages =
     mode === "book"
@@ -383,6 +562,38 @@ export function Reader({
         </div>
         <div className="toolbar-actions">
           <button
+            className={`icon-button ${showNavigation ? "selected" : ""}`}
+            aria-label="Toggle page navigation"
+            disabled={!source}
+            onClick={() => setShowNavigation(!showNavigation)}
+          >
+            <PanelLeft size={17} />
+          </button>
+          <button
+            className="icon-button"
+            aria-label="Bookmark current page"
+            aria-pressed={!!source?.bookmarks?.includes(Number(pageInput))}
+            disabled={!source}
+            onClick={() => {
+              if (source) {
+                const number = currentPage.current;
+                const bookmarks = source.bookmarks?.includes(number)
+                  ? source.bookmarks.filter((p) => p !== number)
+                  : [...(source.bookmarks ?? []), number].sort((a, b) => a - b);
+                onUpdateSource?.({ ...source, bookmarks });
+              }
+            }}
+          >
+            <Bookmark
+              size={16}
+              fill={
+                source?.bookmarks?.includes(Number(pageInput))
+                  ? "currentColor"
+                  : "none"
+              }
+            />
+          </button>
+          <button
             className={`icon-button ${searchOpen ? "selected" : ""}`}
             title="Find in document"
             aria-label="Find in document"
@@ -390,6 +601,26 @@ export function Reader({
             onClick={() => setSearchOpen(!searchOpen)}
           >
             <Search size={17} />
+          </button>
+          <button
+            className="icon-button"
+            aria-label="Export annotated PDF"
+            title="Export annotated PDF"
+            disabled={source?.kind !== "pdf"}
+            onClick={() => {
+              if (source)
+                void exportAnnotatedPdf(source, annotations)
+                  .then((blob) =>
+                    download(
+                      blob,
+                      source.name.replace(/\.pdf$/i, " - annotated.pdf"),
+                    ),
+                  )
+                  .catch((e) => setError(e.message));
+            }}
+          >
+            <Download size={17} />
+            <span className="annotation-export-dot" />
           </button>
           <button
             className="icon-button"
@@ -401,6 +632,95 @@ export function Reader({
             <Download size={17} />
           </button>
         </div>
+      </div>
+      <div
+        className="annotation-tools"
+        role="toolbar"
+        aria-label="Annotation tools"
+      >
+        <button
+          className={`tool-button ${tool === "pen" ? "active" : ""}`}
+          aria-label="Pen tool"
+          aria-pressed={tool === "pen"}
+          onClick={() => {
+            setTool(tool === "pen" ? "select" : "pen");
+            setAreaTool(false);
+          }}
+        >
+          <Pencil size={14} />
+          Pen
+        </button>
+        <button
+          className={`tool-button ${tool === "sticky" ? "active" : ""}`}
+          aria-label="Sticky note tool"
+          aria-pressed={tool === "sticky"}
+          onClick={() => {
+            setTool(tool === "sticky" ? "select" : "sticky");
+            setAreaTool(false);
+          }}
+        >
+          <StickyNote size={14} />
+          Note
+        </button>
+        <div className="highlight-colors">
+          {(["yellow", "mint", "lavender"] as const).map((c) => (
+            <button
+              key={c}
+              className={`color-dot ${c} ${color === c ? "chosen" : ""}`}
+              aria-label={`Tool color ${c}`}
+              onClick={() => setColor(c)}
+            />
+          ))}
+        </div>
+        <span className="tools-spacer" />
+        <button
+          className="icon-button small"
+          aria-label="Undo annotation"
+          disabled={!canUndo}
+          onClick={onUndo}
+        >
+          <Undo2 size={14} />
+        </button>
+        <button
+          className="icon-button small"
+          aria-label="Redo annotation"
+          disabled={!canRedo}
+          onClick={onRedo}
+        >
+          <Redo2 size={14} />
+        </button>
+        <button
+          className="tool-button"
+          aria-label="Recognize page text"
+          disabled={!source || (source.kind === "pdf" && !doc)}
+          onClick={async () => {
+            try {
+              const number = currentPage.current;
+              onOCR?.(number, await pageImage(number));
+            } catch (e) {
+              setError((e as Error).message);
+            }
+          }}
+        >
+          <ScanText size={14} />
+          OCR
+        </button>
+        <button
+          className="tool-button"
+          aria-label="Ask about page image"
+          disabled={!source || (source.kind === "pdf" && !doc)}
+          onClick={async () => {
+            try {
+              const number = currentPage.current;
+              onVisual?.(number, await pageImage(number));
+            } catch (e) {
+              setError((e as Error).message);
+            }
+          }}
+        >
+          <Image size={14} />
+          Ask image
+        </button>
       </div>
       <div className="reader-controls">
         <div className="segmented view-switch" aria-label="Reading layout">
@@ -470,6 +790,7 @@ export function Reader({
             disabled={!source}
             onClick={() => {
               setAreaTool(!areaTool);
+              setTool("select");
               setSelection(undefined);
             }}
           >
@@ -554,178 +875,277 @@ export function Reader({
           finish.
         </div>
       )}
-      <div
-        className={`page-scroller ${mode} ${areaTool ? "area-tool" : ""}`}
-        ref={scroller}
-        onMouseUp={capture}
-        onTouchEnd={() => setTimeout(capture, 50)}
-        onScroll={() => setSelection(undefined)}
-      >
-        {!source ? (
-          <div className="reader-empty">
-            <BookOpen size={38} strokeWidth={1} />
-            <h2>Room for a new perspective.</h2>
-            <p>
-              Add a PDF or slide deck.
-              <br />
-              Make the margins your own.
-            </p>
-            <button className="primary-button" onClick={onUpload}>
-              <Plus size={16} /> Add a source
-            </button>
-          </div>
-        ) : source.kind === "pdf" && !doc && !error ? (
-          <div className="reader-empty">
-            <span className="spinner" />
-            <p>Opening your document…</p>
-          </div>
-        ) : (
-          visiblePages.map((number) => (
-            <div className="page-shell" key={`${source.id}-${number}`}>
-              <div
-                className="document-page"
-                data-page={number}
-                ref={(el) => {
-                  if (el) pagesRef.current.set(number, el);
-                  else pagesRef.current.delete(number);
-                }}
-                style={{ width: pageWidth }}
-                onPointerDown={(event) => {
-                  if (!areaTool) return;
-                  event.preventDefault();
-                  event.currentTarget.setPointerCapture(event.pointerId);
-                  const start = position(event);
-                  setArea({
-                    page: number,
-                    start,
-                    rect: { ...start, width: 0, height: 0 },
-                  });
-                }}
-                onPointerMove={(event) => {
-                  if (!area || area.page !== number) return;
-                  const end = position(event);
-                  setArea({
-                    ...area,
-                    rect: {
-                      x: Math.min(area.start.x, end.x),
-                      y: Math.min(area.start.y, end.y),
-                      width: Math.abs(end.x - area.start.x),
-                      height: Math.abs(end.y - area.start.y),
-                    },
-                  });
-                }}
-                onPointerUp={(event) => {
-                  if (!area || !source) return;
-                  if (area.rect.width > 0.005 && area.rect.height > 0.005) {
-                    const annotation: Annotation = {
-                      id: crypto.randomUUID(),
-                      sourceId: source.id,
+      <div className="reader-stage">
+        {showNavigation && source && (
+          <ReaderNavigation
+            source={source}
+            doc={doc}
+            page={Number(pageInput)}
+            navigate={navigate}
+          />
+        )}
+        <div
+          className={`page-scroller ${mode} ${areaTool || tool !== "select" ? "area-tool" : ""}`}
+          ref={scroller}
+          onMouseUp={capture}
+          onTouchEnd={() => setTimeout(capture, 50)}
+          onScroll={() => setSelection(undefined)}
+        >
+          {!source ? (
+            <div className="reader-empty">
+              <BookOpen size={38} strokeWidth={1} />
+              <h2>Room for a new perspective.</h2>
+              <p>
+                Add a PDF or slide deck.
+                <br />
+                Make the margins your own.
+              </p>
+              <button className="primary-button" onClick={onUpload}>
+                <Plus size={16} /> Add a source
+              </button>
+            </div>
+          ) : source.kind === "pdf" && !doc && !error ? (
+            <div className="reader-empty">
+              <span className="spinner" />
+              <p>Opening your document…</p>
+            </div>
+          ) : (
+            visiblePages.map((number) => (
+              <div className="page-shell" key={`${source.id}-${number}`}>
+                <div
+                  className="document-page"
+                  data-page={number}
+                  ref={(el) => {
+                    if (el) pagesRef.current.set(number, el);
+                    else pagesRef.current.delete(number);
+                  }}
+                  style={{ width: pageWidth }}
+                  onPointerDown={(event) => {
+                    if (tool === "sticky") {
+                      const start = position(event);
+                      const a: Annotation = {
+                        id: crypto.randomUUID(),
+                        sourceId: source.id,
+                        page: number,
+                        quote: "Sticky note",
+                        note: "",
+                        color,
+                        kind: "sticky",
+                        rects: [{ ...start, width: 0.035, height: 0.028 }],
+                        createdAt: Date.now(),
+                      };
+                      onAnnotate(a);
+                      onSelectAnnotation(a);
+                      setTool("select");
+                      return;
+                    }
+                    if (tool === "pen") {
+                      event.preventDefault();
+                      event.currentTarget.setPointerCapture(event.pointerId);
+                      setPen({ page: number, points: [position(event)] });
+                      return;
+                    }
+                    if (!areaTool) return;
+                    event.preventDefault();
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                    const start = position(event);
+                    setArea({
                       page: number,
-                      quote: "Area highlight",
-                      note: "",
-                      color,
-                      rects: [area.rect],
-                      createdAt: Date.now(),
-                    };
-                    onAnnotate(annotation);
-                    onSelectAnnotation(annotation);
-                  }
-                  event.currentTarget.releasePointerCapture(event.pointerId);
-                  setArea(undefined);
-                  setAreaTool(false);
-                }}
-                onPointerCancel={() => setArea(undefined)}
-              >
-                {source.kind === "pdf" && doc ? (
-                  <PdfPage
-                    doc={doc}
-                    number={number}
-                    width={pageWidth}
-                    onError={setError}
-                  />
-                ) : (
-                  source.slides?.[number - 1] && (
-                    <div
-                      className="slide-render"
-                      style={{
-                        aspectRatio: `${source.slides[number - 1].width} / ${source.slides[number - 1].height}`,
-                      }}
-                    >
-                      {source.slides[number - 1].elements.map((element, i) => (
-                        <div
-                          key={i}
-                          className={`slide-element ${element.kind}`}
-                          style={{
-                            left: `${element.x * 100}%`,
-                            top: `${element.y * 100}%`,
-                            width: `${element.width * 100}%`,
-                            height: `${element.height * 100}%`,
-                            fontSize:
-                              ((element.fontSize ?? 20) * pageWidth) /
-                              ((source.slides![number - 1].width / 914400) *
-                                72),
-                            fontWeight: element.bold ? 600 : 400,
-                            color: element.color,
-                          }}
-                        >
-                          {element.kind === "image" ? (
-                            <img
-                              src={element.image}
-                              alt="Embedded slide content"
-                              draggable={false}
-                            />
-                          ) : (
-                            element.text
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )
-                )}
-                <div className="annotation-layer">
-                  {annotations
-                    .filter(
-                      (a) => a.sourceId === source.id && a.page === number,
+                      start,
+                      rect: { ...start, width: 0, height: 0 },
+                    });
+                  }}
+                  onPointerMove={(event) => {
+                    if (pen?.page === number) {
+                      const point = position(event);
+                      setPen((previous) =>
+                        previous
+                          ? { ...previous, points: [...previous.points, point] }
+                          : previous,
+                      );
+                      return;
+                    }
+                    if (!area || area.page !== number) return;
+                    const end = position(event);
+                    setArea({
+                      ...area,
+                      rect: {
+                        x: Math.min(area.start.x, end.x),
+                        y: Math.min(area.start.y, end.y),
+                        width: Math.abs(end.x - area.start.x),
+                        height: Math.abs(end.y - area.start.y),
+                      },
+                    });
+                  }}
+                  onPointerUp={(event) => {
+                    if (pen?.page === number) {
+                      if (pen.points.length > 1) {
+                        const xs = pen.points.map((p) => p.x),
+                          ys = pen.points.map((p) => p.y);
+                        onAnnotate({
+                          id: crypto.randomUUID(),
+                          sourceId: source.id,
+                          page: number,
+                          kind: "pen",
+                          quote: "Pen annotation",
+                          note: "",
+                          color,
+                          points: pen.points,
+                          rects: [
+                            {
+                              x: Math.min(...xs),
+                              y: Math.min(...ys),
+                              width: Math.max(...xs) - Math.min(...xs),
+                              height: Math.max(...ys) - Math.min(...ys),
+                            },
+                          ],
+                          createdAt: Date.now(),
+                        });
+                      }
+                      setPen(undefined);
+                      event.currentTarget.releasePointerCapture(
+                        event.pointerId,
+                      );
+                      return;
+                    }
+                    if (!area || !source) return;
+                    if (area.rect.width > 0.005 && area.rect.height > 0.005) {
+                      const annotation: Annotation = {
+                        id: crypto.randomUUID(),
+                        sourceId: source.id,
+                        page: number,
+                        quote: "Area highlight",
+                        note: "",
+                        color,
+                        rects: [area.rect],
+                        createdAt: Date.now(),
+                        kind: "area",
+                      };
+                      onAnnotate(annotation);
+                      onSelectAnnotation(annotation);
+                    }
+                    event.currentTarget.releasePointerCapture(event.pointerId);
+                    setArea(undefined);
+                    setAreaTool(false);
+                  }}
+                  onPointerCancel={() => {
+                    setArea(undefined);
+                    setPen(undefined);
+                  }}
+                >
+                  {source.kind === "pdf" && doc ? (
+                    <PdfPage
+                      doc={doc}
+                      number={number}
+                      width={pageWidth}
+                      onError={setError}
+                      initialAspect={pageAspects[number - 1] ?? 792 / 612}
+                    />
+                  ) : (
+                    source.slides?.[number - 1] && (
+                      <div
+                        className="slide-render"
+                        style={{
+                          aspectRatio: `${source.slides[number - 1].width} / ${source.slides[number - 1].height}`,
+                        }}
+                      >
+                        {source.slides[number - 1].elements.map(
+                          (element, i) => (
+                            <div
+                              key={i}
+                              className={`slide-element ${element.kind}`}
+                              style={{
+                                left: `${element.x * 100}%`,
+                                top: `${element.y * 100}%`,
+                                width: `${element.width * 100}%`,
+                                height: `${element.height * 100}%`,
+                                fontSize:
+                                  ((element.fontSize ?? 20) * pageWidth) /
+                                  ((source.slides![number - 1].width / 914400) *
+                                    72),
+                                fontWeight: element.bold ? 600 : 400,
+                                color: element.color,
+                              }}
+                            >
+                              {element.kind === "image" ? (
+                                <img
+                                  src={element.image}
+                                  alt="Embedded slide content"
+                                  draggable={false}
+                                />
+                              ) : (
+                                element.text
+                              )}
+                            </div>
+                          ),
+                        )}
+                      </div>
                     )
-                    .map((annotation) =>
-                      annotation.rects.map((r, i) => (
-                        <button
-                          key={`${annotation.id}-${i}`}
-                          className={`highlight ${annotation.color}`}
-                          title={annotation.note || annotation.quote}
-                          aria-label={`Annotation: ${annotation.note || annotation.quote}`}
+                  )}
+                  <AnnotationOverlay
+                    annotations={annotations.filter(
+                      (a) => a.sourceId === source.id && a.page === number,
+                    )}
+                    onSelect={onSelectAnnotation}
+                    evidence={evidence?.page === number ? support : []}
+                  />
+                  {pen?.page === number && (
+                    <svg
+                      className={`pen-overlay pending ${color}`}
+                      viewBox="0 0 1 1"
+                      preserveAspectRatio="none"
+                    >
+                      <polyline
+                        points={pen.points
+                          .map((p) => `${p.x},${p.y}`)
+                          .join(" ")}
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth=".004"
+                      />
+                    </svg>
+                  )}
+                  {source.ocr?.[number]?.regions.length ? (
+                    <div className="ocr-text">
+                      {source.ocr[number].regions.map((r, i) => (
+                        <span
+                          key={i}
                           style={{
                             left: `${r.x * 100}%`,
                             top: `${r.y * 100}%`,
                             width: `${r.width * 100}%`,
                             height: `${r.height * 100}%`,
                           }}
-                          onClick={() => onSelectAnnotation(annotation)}
-                        />
-                      )),
+                        >
+                          {r.text}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className="annotation-layer">
+                    {area?.page === number && (
+                      <div
+                        className={`highlight pending ${color}`}
+                        style={{
+                          left: `${area.rect.x * 100}%`,
+                          top: `${area.rect.y * 100}%`,
+                          width: `${area.rect.width * 100}%`,
+                          height: `${area.rect.height * 100}%`,
+                        }}
+                      />
                     )}
-                  {area?.page === number && (
-                    <div
-                      className={`highlight pending ${color}`}
-                      style={{
-                        left: `${area.rect.x * 100}%`,
-                        top: `${area.rect.y * 100}%`,
-                        width: `${area.rect.width * 100}%`,
-                        height: `${area.rect.height * 100}%`,
-                      }}
-                    />
-                  )}
+                  </div>
+                </div>
+                <div className="page-caption">
+                  <span>
+                    {source.kind === "pptx" ? "SLIDE" : "PAGE"}{" "}
+                    {String(number).padStart(2, "0")}
+                  </span>
                 </div>
               </div>
-              <div className="page-caption">
-                <span>
-                  {source.kind === "pptx" ? "SLIDE" : "PAGE"}{" "}
-                  {String(number).padStart(2, "0")}
-                </span>
-              </div>
-            </div>
-          ))
-        )}
+            ))
+          )}
+        </div>
       </div>
       <div className="reader-footer">
         <span>
@@ -794,6 +1214,7 @@ export function Reader({
             <Highlighter size={14} />
             Highlight
           </button>
+          <button onClick={() => save(false, "underline")}>Underline</button>
           <button onClick={() => save(true)}>
             <MessageSquarePlus size={14} />
             Note

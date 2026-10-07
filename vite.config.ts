@@ -8,5 +8,16 @@ export default defineConfig({
     strictPort: true,
     proxy: { "/api": "http://127.0.0.1:3001" },
   },
-  build: { chunkSizeWarningLimit: 1400 },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "pdf-render": ["pdfjs-dist"],
+          "pdf-export": ["pdf-lib"],
+          markdown: ["react-markdown", "remark-gfm"],
+          archive: ["jszip"],
+        },
+      },
+    },
+  },
 });

@@ -132,6 +132,35 @@ test("real PDF and PowerPoint uploads persist in a new notebook", async ({
   await expect(page.locator(".slide-render")).toContainText(
     "Real PowerPoint slide title",
   );
+  await page.route("**/api/vision", (route) =>
+    route.fulfill({
+      json: { content: "The slide title describes a real PowerPoint source." },
+    }),
+  );
+  await page
+    .getByRole("button", { name: "Ask about page image", exact: true })
+    .click();
+  await expect(page.locator(".visual-context img")).toBeVisible();
+  const pixels = await page
+    .locator(".visual-context img")
+    .evaluate(async (element) => {
+      const img = element as HTMLImageElement;
+      await img.decode();
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0);
+      const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      let dark = 0;
+      for (let i = 0; i < data.length; i += 4)
+        if (data[i] < 160 && data[i + 1] < 160 && data[i + 2] < 160) dark++;
+      return dark;
+    });
+  expect(pixels).toBeGreaterThan(300);
+  await page
+    .getByRole("button", { name: "Remove page image", exact: true })
+    .click();
   await page.reload();
   await expect(
     page.getByRole("heading", { name: "My reading list" }),

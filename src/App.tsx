@@ -37,7 +37,20 @@ import { createDemo } from "./lib/demo";
 import { importDocument } from "./lib/documents";
 import { download, storage } from "./lib/storage";
 import { streamChat } from "./lib/chat";
-import type { AIStatus, Annotation, Message, Notebook, Source } from "./types";
+import { createBackup, readBackup } from "./lib/backup";
+import { apiJSON } from "./lib/api";
+import { ConnectionSettings } from "./components/ConnectionSettings";
+import { NotebookSearch } from "./components/NotebookSearch";
+import { StudyStudio } from "./components/StudyStudio";
+import type {
+  AIStatus,
+  Annotation,
+  Message,
+  Notebook,
+  Source,
+  StudyArtifact,
+  Citation,
+} from "./types";
 
 function Brand({ small = false }: { small?: boolean }) {
   return (
@@ -56,8 +69,32 @@ export default function App() {
     [sourceId, setSourceId] = useState(""),
     [page, setPage] = useState(1);
   const [navigationKey, setNavigationKey] = useState(0);
+  const [artifacts, setArtifacts] = useState<StudyArtifact[]>([]);
+  const [searchNotebook, setSearchNotebook] = useState(false);
+  const [evidence, setEvidence] = useState<{
+    page: number;
+    text: string;
+    key: number;
+  }>();
+  const [compareId, setCompareId] = useState(""),
+    [comparePage, setComparePage] = useState(1);
+  const [retrievalInfo, setRetrievalInfo] = useState("");
+  const [ocrBusy, setOcrBusy] = useState(false),
+    [ocrError, setOcrError] = useState("");
+  const [visual, setVisual] = useState<{
+    image: string;
+    sourceId: string;
+    page: number;
+  }>();
+  const featureAbort = useRef<AbortController>(null);
+  const [annotationFilter, setAnnotationFilter] = useState("");
+  const [historyVersion, setHistoryVersion] = useState(0);
+  const undoStack = useRef<Annotation[][]>([]),
+    redoStack = useRef<Annotation[][]>([]);
+  const lastEdit = useRef({ key: "", time: 0 });
+  const backupInput = useRef<HTMLInputElement>(null);
   const [enabled, setEnabled] = useState<Set<string>>(new Set()),
-    [tab, setTab] = useState<"chat" | "notes">("chat");
+    [tab, setTab] = useState<"chat" | "notes" | "studio">("chat");
   const [status, setStatus] = useState<AIStatus>({
     configured: false,
     model: "nvidia/nemotron-3-nano-30b-a3b",
@@ -124,6 +161,7 @@ export default function App() {
       setNotebooks(saved.notebooks);
       setSources(saved.sources);
       setAnnotations(saved.annotations);
+      setArtifacts(saved.artifacts);
       let rememberedNotebook = "",
         rememberedSource = "";
       try {
@@ -143,6 +181,11 @@ export default function App() {
           saved.sources.find((s) => s.notebookId === active)?.id ??
           "",
       );
+      const resumedSource =
+        saved.sources.find(
+          (s) => s.notebookId === active && s.id === rememberedSource,
+        ) ?? saved.sources.find((s) => s.notebookId === active);
+      setPage(resumedSource?.readingState?.page ?? 1);
       setEnabled(new Set(saved.sources.map((s) => s.id)));
       setReady(true);
     })().catch(() => {
@@ -160,6 +203,7 @@ export default function App() {
     return () => {
       alive = false;
       abort.current?.abort();
+      featureAbort.current?.abort();
     };
   }, []);
   useEffect(() => {
@@ -190,29 +234,149 @@ export default function App() {
   const openNotebook = (id: string) => {
     abort.current?.abort();
     setActiveId(id);
-    setSourceId(sources.find((s) => s.notebookId === id)?.id ?? "");
-    setPage(1);
+    const resumed = sources.find((s) => s.notebookId === id);
+    setSourceId(resumed?.id ?? "");
+    setPage(resumed?.readingState?.page ?? 1);
+    setCompareId("");
+    setVisual(undefined);
+    setEvidence(undefined);
+    featureAbort.current?.abort();
     setContext(undefined);
     setSelectedAnnotation(undefined);
     setChatError("");
     setSidebarOpen(false);
     setModal(null);
   };
-  const openSource = (id: string, pageNumber = 1) => {
+  const openSource = (id: string, pageNumber?: number) => {
     setSourceId(id);
-    setPage(pageNumber);
+    setPage(
+      pageNumber ?? sources.find((s) => s.id === id)?.readingState?.page ?? 1,
+    );
     setNavigationKey((key) => key + 1);
     setContext(undefined);
     setSidebarOpen(false);
+    setEvidence(undefined);
+  };
+  const showCitation = (c: Citation) => {
+    if (!sources.some((s) => s.id === c.sourceId)) {
+      notify("This source has been removed from the notebook.");
+      return;
+    }
+    openSource(c.sourceId, c.page);
+    setEvidence({ page: c.page, text: c.text, key: Date.now() });
+  };
+  const saveArtifact = (a: StudyArtifact) => {
+    setArtifacts((list) =>
+      list.some((x) => x.id === a.id)
+        ? list.map((x) => (x.id === a.id ? a : x))
+        : [...list, a],
+    );
+    void storage.artifact(a).catch(reportStorageError);
+  };
+  const deleteArtifact = (id: string) => {
+    const value = artifacts.find((a) => a.id === id);
+    setArtifacts((list) => list.filter((a) => a.id !== id));
+    void storage.removeArtifact(id).catch(reportStorageError);
+    if (value) notify("Study material deleted", () => saveArtifact(value));
+  };
+  const recognizePage = async (
+    target: Source,
+    number: number,
+    image: string,
+  ) => {
+    if (ocrBusy) return;
+    const controller = new AbortController();
+    featureAbort.current = controller;
+    setOcrBusy(true);
+    setOcrError("");
+    try {
+      const result = await apiJSON<{
+        text: string;
+        regions: (import("./types").Rect & { text: string })[];
+      }>("/api/ocr", { image }, controller.signal);
+      // Merge into the latest source to retain bookmarks and navigation saved during OCR.
+      setSources((list) =>
+        list.map((s) => {
+          if (s.id !== target.id) return s;
+          const pages = [...s.pages];
+          const old = s.ocr?.[number]?.text;
+          const original = old
+            ? pages[number - 1].replace(old, "").trim()
+            : pages[number - 1];
+          pages[number - 1] = [original, result.text]
+            .filter(Boolean)
+            .join("\n\n");
+          const updated = { ...s, pages, ocr: { ...s.ocr, [number]: result } };
+          void storage.source(updated).catch(reportStorageError);
+          return updated;
+        }),
+      );
+      notify("Page text recognized, saved, and ready to search.");
+    } catch (e) {
+      if ((e as Error).name !== "AbortError") setOcrError((e as Error).message);
+    } finally {
+      setOcrBusy(false);
+    }
+  };
+  const askImage = (target: Source, number: number, image: string) => {
+    setVisual({ image, sourceId: target.id, page: number });
+    setContext(undefined);
+    setTab("chat");
+    setPanelOpen(true);
+    setDraft("Explain the chart, table, or diagram on this page.");
+    setTimeout(() => composer.current?.focus(), 80);
+  };
+  const changeAnnotations = (next: Annotation[], mergeKey = "") => {
+    if (
+      !mergeKey ||
+      lastEdit.current.key !== mergeKey ||
+      Date.now() - lastEdit.current.time > 800
+    ) {
+      undoStack.current.push(annotations);
+      if (undoStack.current.length > 100) undoStack.current.shift();
+    }
+    lastEdit.current = { key: mergeKey, time: Date.now() };
+    redoStack.current = [];
+    void storage
+      .replaceAnnotations(annotations, next)
+      .catch(reportStorageError);
+    setAnnotations(next);
+    setHistoryVersion((v) => v + 1);
+  };
+  const undoAnnotation = () => {
+    const previous = undoStack.current.pop();
+    if (!previous) return;
+    redoStack.current.push(annotations);
+    void storage
+      .replaceAnnotations(annotations, previous)
+      .catch(reportStorageError);
+    setAnnotations(previous);
+    lastEdit.current.key = "";
+    setHistoryVersion((v) => v + 1);
+  };
+  const redoAnnotation = () => {
+    const next = redoStack.current.pop();
+    if (!next) return;
+    undoStack.current.push(annotations);
+    void storage
+      .replaceAnnotations(annotations, next)
+      .catch(reportStorageError);
+    setAnnotations(next);
+    setHistoryVersion((v) => v + 1);
+  };
+  const updateSource = (value: Source) => {
+    setSources((list) => list.map((s) => (s.id === value.id ? value : s)));
+    void storage.source(value).catch(reportStorageError);
   };
   const addAnnotation = (value: Annotation) => {
-    setAnnotations((list) => [...list, value]);
-    void storage.annotation(value).catch(reportStorageError);
+    changeAnnotations([...annotations, value]);
     notify("Highlight saved to your notebook");
   };
   const editAnnotation = (value: Annotation) => {
-    setAnnotations((list) => list.map((a) => (a.id === value.id ? value : a)));
-    void storage.annotation(value).catch(reportStorageError);
+    changeAnnotations(
+      annotations.map((a) => (a.id === value.id ? value : a)),
+      value.id,
+    );
   };
   const selectAnnotation = (value: Annotation) => {
     setSelectedAnnotation(value.id);
@@ -290,6 +454,10 @@ export default function App() {
       await storage.removeSource(value.id);
       setSources((list) => list.filter((s) => s.id !== value.id));
       setAnnotations((list) => list.filter((a) => a.sourceId !== value.id));
+      undoStack.current = [];
+      redoStack.current = [];
+      setHistoryVersion((v) => v + 1);
+      if (compareId === value.id) setCompareId("");
       if (sourceId === value.id)
         openSource(notebookSources.find((s) => s.id !== value.id)?.id ?? "");
       notify("Source removed", () => {
@@ -307,8 +475,7 @@ export default function App() {
   };
   const removeAnnotation = async (value: Annotation) => {
     try {
-      await storage.removeAnnotation(value.id);
-      setAnnotations((list) => list.filter((a) => a.id !== value.id));
+      changeAnnotations(annotations.filter((a) => a.id !== value.id));
       setSelectedAnnotation(undefined);
       notify("Highlight removed", () => {
         addAnnotation(value);
@@ -316,6 +483,41 @@ export default function App() {
     } catch {
       reportStorageError();
     }
+  };
+  const backupNotebook = async () => {
+    if (!notebook) return;
+    try {
+      const blob = await createBackup({
+        notebooks: [notebook],
+        sources: notebookSources,
+        annotations: notebookAnnotations,
+        artifacts: artifacts.filter((a) => a.notebookId === notebook.id),
+      });
+      download(
+        blob,
+        `${notebook.title.replace(/[^\p{L}\p{N} -]/gu, "") || "Notebook"} - backup.zip`,
+      );
+      notify("Complete notebook backup downloaded");
+    } catch {
+      notify("Unable to create this backup. Try again.");
+    }
+  };
+  const restoreNotebook = async (file: File) => {
+    try {
+      const restored = await readBackup(file);
+      await storage.restore(restored);
+      setNotebooks((list) => [...list, ...restored.notebooks]);
+      setSources((list) => [...list, ...restored.sources]);
+      setAnnotations((list) => [...list, ...restored.annotations]);
+      setArtifacts((list) => [...list, ...restored.artifacts]);
+      setEnabled(
+        (prev) => new Set([...prev, ...restored.sources.map((s) => s.id)]),
+      );
+      notify(`${restored.notebooks.length} notebook restored`);
+    } catch (e) {
+      notify(e instanceof Error ? e.message : "Could not restore this backup.");
+    }
+    if (backupInput.current) backupInput.current.value = "";
   };
   const exportNotes = () => {
     if (!notebook) return;
@@ -343,19 +545,23 @@ export default function App() {
     );
     notify("Notes exported");
   };
-  const send = async (question = draft) => {
+  const send = async (question = draft, onlySources?: Source[]) => {
     if (!notebook || !question.trim() || streaming.current) return;
-    if (!enabledSources.length && !context) {
+    if (!enabledSources.length && !context && !visual && !onlySources?.length) {
       setChatError("Select at least one source in the sidebar first.");
       return;
     }
     const target = notebook.id;
-    const fullQuestion = context
-      ? `${question}\n\nSelected passage from ${source?.name}, page ${context.page}:\n${context.quote}`
-      : question;
-    const selectedSources = context
-      ? notebookSources.filter((s) => s.id === context.sourceId)
-      : enabledSources;
+    const fullQuestion =
+      context && !onlySources
+        ? `${question}\n\nSelected passage from ${sources.find((s) => s.id === context.sourceId)?.name}, page ${context.page}:\n${context.quote}`
+        : question;
+    const selectedSources =
+      onlySources ??
+      (context
+        ? notebookSources.filter((s) => s.id === context.sourceId)
+        : enabledSources);
+    const imageQuestion = onlySources ? undefined : visual;
     const user: Message = {
       id: crypto.randomUUID(),
       role: "user",
@@ -379,38 +585,68 @@ export default function App() {
       );
     setDraft("");
     setContext(undefined);
+    setVisual(undefined);
+    setRetrievalInfo("");
     setChatError("");
     setBusy(true);
     streaming.current = true;
     abort.current = new AbortController();
     refresh();
     try {
-      await streamChat(
-        {
-          question: fullQuestion,
-          history: originalMessages
-            .filter((m) => m.content)
-            .slice(-12)
-            .map(({ role, content }) => ({
-              role,
-              content: content.slice(0, 16000),
+      if (imageQuestion) {
+        const result = await apiJSON<{ content: string }>(
+          "/api/vision",
+          { image: imageQuestion.image, question },
+          abort.current.signal,
+        );
+        const imageSource = notebookSources.find(
+          (s) => s.id === imageQuestion.sourceId,
+        );
+        answer.content = result.content + "\n\n[1]";
+        answer.citations = [
+          {
+            id: 1,
+            sourceId: imageQuestion.sourceId,
+            sourceName: imageSource?.name ?? "Page image",
+            page: imageQuestion.page,
+            text:
+              imageSource?.pages[imageQuestion.page - 1] ||
+              "Visual answer based on this page image.",
+          },
+        ];
+        refresh();
+      } else {
+        await streamChat(
+          {
+            question: fullQuestion,
+            history: originalMessages
+              .filter((m) => m.content)
+              .slice(-12)
+              .map(({ role, content }) => ({
+                role,
+                content: content.slice(0, 16000),
+              })),
+            sources: selectedSources.map(({ id, name, pages }) => ({
+              id,
+              name,
+              pages,
             })),
-          sources: selectedSources.map(({ id, name, pages }) => ({
-            id,
-            name,
-            pages,
-          })),
-        },
-        abort.current.signal,
-        (text) => {
-          answer.content += text;
-          refresh();
-        },
-        (citations) => {
-          answer.citations = citations;
-          refresh();
-        },
-      );
+          },
+          abort.current.signal,
+          (text) => {
+            answer.content += text;
+            refresh();
+          },
+          (citations) => {
+            answer.citations = citations;
+            refresh();
+          },
+          (info) =>
+            setRetrievalInfo(
+              info.warning || `Sources retrieved by ${info.mode}`,
+            ),
+        );
+      }
     } catch (error) {
       if (!(error instanceof Error && error.name === "AbortError"))
         setChatError(
@@ -454,6 +690,16 @@ export default function App() {
         }
       }}
     >
+      <input
+        ref={backupInput}
+        type="file"
+        accept=".zip"
+        className="sr-only"
+        aria-label="Restore notebook backup"
+        onChange={(e) => {
+          if (e.target.files?.[0]) void restoreNotebook(e.target.files[0]);
+        }}
+      />
       <input
         ref={input}
         className="sr-only"
@@ -654,6 +900,23 @@ export default function App() {
             <strong>{notebook?.title ?? "Welcome"}</strong>
           </div>
           <div className="header-actions">
+            <button
+              className="subtle-button backup-action"
+              aria-label="Back up notebook"
+              onClick={() => void backupNotebook()}
+              disabled={!notebook}
+            >
+              <Download size={14} />
+              <span>Backup</span>
+            </button>
+            <button
+              className="subtle-button backup-action"
+              aria-label="Restore backup"
+              onClick={() => backupInput.current?.click()}
+            >
+              <Upload size={14} />
+              <span>Restore</span>
+            </button>
             <span className="saved-indicator">
               <Check size={13} />
               Saved locally
@@ -704,18 +967,173 @@ export default function App() {
             {saveError}
           </div>
         )}
-        <div className="work-area">
-          <Reader
-            source={source}
-            annotations={annotations}
-            page={page}
-            navigationKey={navigationKey}
-            setPage={setPage}
-            onAnnotate={addAnnotation}
-            onAsk={askSelection}
-            onSelectAnnotation={selectAnnotation}
-            onUpload={() => input.current?.click()}
-          />
+        <div className={`work-area ${compareId ? "comparing" : ""}`}>
+          <div className="reading-workspace">
+            <div className="reading-actions">
+              <button
+                className="subtle-button"
+                disabled={!enabledSources.length}
+                onClick={() => setSearchNotebook(true)}
+              >
+                <Search size={14} />
+                Search ideas
+              </button>
+              <button
+                className="subtle-button"
+                disabled={notebookSources.length < 2}
+                onClick={() => {
+                  if (compareId) setCompareId("");
+                  else {
+                    const second = notebookSources.find(
+                      (s) => s.id !== sourceId,
+                    );
+                    if (second) {
+                      setCompareId(second.id);
+                      setComparePage(second.readingState?.page ?? 1);
+                      setPanelOpen(false);
+                    }
+                  }
+                }}
+              >
+                <Layers size={14} />
+                {compareId ? "Close comparison" : "Compare sources"}
+              </button>
+            </div>
+            {compareId && (
+              <div className="comparison-controls">
+                <label>
+                  Left
+                  <select
+                    aria-label="Left comparison source"
+                    value={sourceId}
+                    onChange={(e) => openSource(e.target.value)}
+                  >
+                    {notebookSources.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Right
+                  <select
+                    aria-label="Right comparison source"
+                    value={compareId}
+                    onChange={(e) => {
+                      setCompareId(e.target.value);
+                      setComparePage(1);
+                    }}
+                  >
+                    {notebookSources.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  className="primary-button"
+                  disabled={busy || sourceId === compareId}
+                  onClick={() => {
+                    const pair = notebookSources.filter(
+                      (s) => s.id === sourceId || s.id === compareId,
+                    );
+                    setVisual(undefined);
+                    setContext(undefined);
+                    setTab("chat");
+                    setPanelOpen(true);
+                    void send(
+                      "Compare these two sources. Explain agreements, differences, and complementary ideas, citing both sources.",
+                      pair,
+                    );
+                  }}
+                >
+                  Compare ideas
+                </button>
+              </div>
+            )}
+            {ocrBusy && (
+              <div className="ocr-progress" role="status">
+                <LoaderCircle className="spin" size={14} />
+                Recognizing page text…
+                <button
+                  aria-label="Cancel OCR"
+                  onClick={() => featureAbort.current?.abort()}
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+            {ocrError && (
+              <div className="form-error" role="alert">
+                {ocrError}
+                <button
+                  className="icon-button small"
+                  aria-label="Dismiss OCR error"
+                  onClick={() => setOcrError("")}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )}
+            <div className="readers-grid">
+              <Reader
+                source={source}
+                annotations={annotations}
+                page={page}
+                navigationKey={navigationKey}
+                setPage={setPage}
+                onAnnotate={addAnnotation}
+                onAsk={askSelection}
+                onSelectAnnotation={selectAnnotation}
+                onUpload={() => input.current?.click()}
+                onUpdateSource={updateSource}
+                onUndo={undoAnnotation}
+                onRedo={redoAnnotation}
+                canUndo={undoStack.current.length > 0}
+                canRedo={redoStack.current.length > 0}
+                evidence={evidence}
+                onOCR={(number, image) => {
+                  if (source) void recognizePage(source, number, image);
+                }}
+                onVisual={(number, image) => {
+                  if (source) askImage(source, number, image);
+                }}
+              />
+              {compareId && (
+                <Reader
+                  source={notebookSources.find((s) => s.id === compareId)}
+                  annotations={annotations}
+                  page={comparePage}
+                  navigationKey={0}
+                  setPage={setComparePage}
+                  onAnnotate={addAnnotation}
+                  onAsk={(quote, number) => {
+                    setContext({ quote, page: number, sourceId: compareId });
+                    setTab("chat");
+                    setPanelOpen(true);
+                  }}
+                  onSelectAnnotation={selectAnnotation}
+                  onUpload={() => input.current?.click()}
+                  onUpdateSource={updateSource}
+                  keyboardEnabled={false}
+                  onOCR={(number, image) => {
+                    const second = notebookSources.find(
+                      (s) => s.id === compareId,
+                    );
+                    if (second) void recognizePage(second, number, image);
+                  }}
+                  onVisual={(number, image) => {
+                    const second = notebookSources.find(
+                      (s) => s.id === compareId,
+                    );
+                    if (second) askImage(second, number, image);
+                  }}
+                />
+              )}
+            </div>
+          </div>
           <aside className="assistant-panel" aria-label="Notebook assistant">
             <div className="panel-tabs">
               <div>
@@ -738,6 +1156,13 @@ export default function App() {
                     </span>
                   )}
                 </button>
+                <button
+                  className={tab === "studio" ? "active" : ""}
+                  onClick={() => setTab("studio")}
+                >
+                  <Layers size={15} />
+                  Studio
+                </button>
               </div>
               <button
                 className="icon-button small"
@@ -749,7 +1174,16 @@ export default function App() {
                 <Plus size={17} />
               </button>
             </div>
-            {tab === "chat" ? (
+            {tab === "studio" ? (
+              <StudyStudio
+                notebookId={activeId}
+                sources={enabledSources}
+                artifacts={artifacts}
+                onSave={saveArtifact}
+                onDelete={deleteArtifact}
+                onCitation={showCitation}
+              />
+            ) : tab === "chat" ? (
               <>
                 <div className="chat-scroll">
                   {!notebook?.messages.length ? (
@@ -847,7 +1281,7 @@ export default function App() {
                                           (c) =>
                                             c.id === Number(href.slice(10)),
                                         );
-                                        if (c) openSource(c.sourceId, c.page);
+                                        if (c) showCitation(c);
                                       }}
                                     >
                                       {children}
@@ -889,9 +1323,7 @@ export default function App() {
                                     <button
                                       key={c.id}
                                       title={c.text}
-                                      onClick={() =>
-                                        openSource(c.sourceId, c.page)
-                                      }
+                                      onClick={() => showCitation(c)}
                                     >
                                       <span>{c.id}</span>
                                       {c.sourceName
@@ -909,6 +1341,27 @@ export default function App() {
                   <div ref={chatBottom} />
                 </div>
                 <div className="chat-composer-area">
+                  {retrievalInfo && (
+                    <small className="retrieval-info" role="status">
+                      {retrievalInfo}
+                    </small>
+                  )}
+                  {visual && (
+                    <div className="visual-context">
+                      <img
+                        src={visual.image}
+                        alt="Selected page for visual question"
+                      />
+                      <span>Page {visual.page} · ask about this image</span>
+                      <button
+                        className="icon-button small"
+                        aria-label="Remove page image"
+                        onClick={() => setVisual(undefined)}
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  )}
                   {chatError && (
                     <div className="chat-error" role="alert">
                       {chatError}
@@ -1035,6 +1488,13 @@ export default function App() {
                   HIGHLIGHTS & ANNOTATIONS
                   <span>{notebookAnnotations.length}</span>
                 </div>
+                <input
+                  className="annotation-filter"
+                  aria-label="Filter annotations"
+                  placeholder="Filter by note, passage, or tag…"
+                  value={annotationFilter}
+                  onChange={(e) => setAnnotationFilter(e.target.value)}
+                />
                 {!notebookAnnotations.length ? (
                   <div className="notes-empty">
                     <NotebookPen size={28} strokeWidth={1.2} />
@@ -1047,6 +1507,13 @@ export default function App() {
                   </div>
                 ) : (
                   notebookAnnotations
+                    .filter(
+                      (a) =>
+                        !annotationFilter ||
+                        `${a.quote} ${a.note} ${(a.tags ?? []).join(" ")} ${a.kind ?? "highlight"}`
+                          .toLowerCase()
+                          .includes(annotationFilter.toLowerCase()),
+                    )
                     .sort((a, b) => b.createdAt - a.createdAt)
                     .map((a) => (
                       <div
@@ -1085,6 +1552,20 @@ export default function App() {
                           }
                         />
                         <div className="annotation-colors">
+                          <input
+                            className="annotation-tags"
+                            aria-label="Annotation tags"
+                            placeholder="tags, separated by commas"
+                            value={(a.tags ?? []).join(", ")}
+                            onChange={(e) =>
+                              editAnnotation({
+                                ...a,
+                                tags: e.target.value
+                                  .split(",")
+                                  .map((t) => t.trimStart()),
+                              })
+                            }
+                          />
                           {(["yellow", "mint", "lavender"] as const).map(
                             (c) => (
                               <button
@@ -1214,53 +1695,21 @@ export default function App() {
       )}
       {modal === "settings" && (
         <Modal title="Your AI connection" onClose={() => setModal(null)}>
-          <div className="connection-status">
-            <span
-              className={`status-dot ${status.configured ? "" : "offline"}`}
-            />
-            <strong>
-              {status.configured
-                ? "Endpoint configured"
-                : "NVIDIA connection needs a key"}
-            </strong>
-          </div>
-          <p className="modal-description">
-            NemoDoc uses NVIDIA's open Nemotron model. Set the connection in the
-            project's <code>.env</code> file and restart the server.
-          </p>
-          <pre className="config-example">
-            NVIDIA_API_KEY=your-key-here{"\n"}
-            NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1{"\n"}
-            NVIDIA_MODEL=nvidia/nemotron-3-nano-30b-a3b
-          </pre>
-          <a
-            className="primary-button"
-            href="https://build.nvidia.com/settings/api-keys"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Get an NVIDIA API key
-            <ArrowRight size={15} />
-          </a>
-          <div className="settings-divider" />
-          <h3>Prefer local inference?</h3>
-          <p className="modal-description">
-            Point <code>NVIDIA_BASE_URL</code> to your running NVIDIA NIM
-            endpoint (for example, <code>http://127.0.0.1:8000/v1</code>) and
-            set its model ID. A loopback endpoint can run without an API key.
-          </p>
-          <div className="privacy-note">
-            <ShieldCheck size={19} />
-            <p>
-              Documents and notes stay in this browser. When you ask a question,
-              retrieved text excerpts and conversation messages go to your
-              configured model endpoint.
-            </p>
-          </div>
-          <small className="settings-model">
-            Configured model: {status.model}
-          </small>
+          <ConnectionSettings
+            onSaved={() => {
+              void apiJSON<AIStatus>("/api/status")
+                .then(setStatus)
+                .catch(() => {});
+            }}
+          />
         </Modal>
+      )}
+      {searchNotebook && (
+        <NotebookSearch
+          sources={enabledSources}
+          onCitation={showCitation}
+          onClose={() => setSearchNotebook(false)}
+        />
       )}
       {modal === "help" && (
         <Modal title="A few things to know" onClose={() => setModal(null)}>
@@ -1294,8 +1743,9 @@ export default function App() {
               <p>
                 <strong>Keep what matters</strong>Your library persists in this
                 browser. Download originals and export notes before clearing
-                site data. OCR and legacy .ppt import are not included in this
-                MVP.
+                site data. Use notebook backups to retain documents, notes,
+                conversations, and study materials. Legacy .ppt files need
+                conversion to PDF or .pptx.
               </p>
             </div>
           </div>
