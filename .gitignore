@@ -7,5 +7,6 @@ playwright-report/
 test-results/
 *.log
 *.tsbuildinfo
+public/pdfjs/
 .DS_Store
 Thumbs.db

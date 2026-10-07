@@ -40,4 +40,8 @@ The app runs locally. With the default hosted NVIDIA endpoint, selected source e
 
 `npm run check`, `npm test`, `npm run build`, and `npm run test:e2e`.
 
+Install the browser for end-to-end checks once with `npx playwright install chromium`. API tests mock NVIDIA responses; browser tests cover real PDF and PowerPoint uploads, selection, annotations, persistence, layouts, export, and citation navigation. A live model response requires your own key or running local NIM.
+
+PDF workers, character maps, fonts, and image decoders are served locally. `npm install` prepares the generated PDF assets; rerun `npm run postinstall` if you remove `public/pdfjs`.
+
 This repository is intended for local use and has no configured remote.
