@@ -65,22 +65,18 @@ export function createApp(
   app.post("/api/settings", (req, res) => {
     const parsed = settingsSchema.safeParse(req.body);
     if (!parsed.success)
-      return res
-        .status(400)
-        .json({
-          error:
-            "Use valid model IDs and HTTPS endpoints, or local HTTP endpoints.",
-        });
+      return res.status(400).json({
+        error:
+          "Use valid model IDs and HTTPS endpoints, or local HTTP endpoints.",
+      });
     try {
       store.save(parsed.data);
       res.json(store.public());
     } catch {
-      res
-        .status(500)
-        .json({
-          error:
-            "Could not save the connection settings. Check local file access.",
-        });
+      res.status(500).json({
+        error:
+          "Could not save the connection settings. Check local file access.",
+      });
     }
   });
   app.post("/api/settings/test", async (_req, res) => {
@@ -102,19 +98,25 @@ export function createApp(
         config,
         AbortSignal.timeout(30000),
       );
-      if (!result.choices?.some((choice: any) => typeof choice.message?.content === 'string' && choice.message.content.trim())) throw new Error('The endpoint returned no chat response. Check its model ID.');
+      if (
+        !result.choices?.some(
+          (choice: any) =>
+            typeof choice.message?.content === "string" &&
+            choice.message.content.trim(),
+        )
+      )
+        throw new Error(
+          "The endpoint returned no chat response. Check its model ID.",
+        );
       res.json({
         ok: true,
         model: config.model,
         latencyMs: Date.now() - started,
       });
     } catch (e) {
-      res
-        .status(502)
-        .json({
-          error:
-            e instanceof Error ? e.message : "Could not reach the endpoint.",
-        });
+      res.status(502).json({
+        error: e instanceof Error ? e.message : "Could not reach the endpoint.",
+      });
     }
   });
   registerFeatures(app, store, retriever, fetcher);

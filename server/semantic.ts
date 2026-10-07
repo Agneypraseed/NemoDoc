@@ -141,7 +141,17 @@ export class SemanticRetriever {
         signal,
       );
       const rankings = data.rankings ?? data.results;
-      if (!Array.isArray(rankings))
+      if (
+        !Array.isArray(rankings) ||
+        !rankings.length ||
+        new Set(rankings.map((r) => r.index)).size !== rankings.length ||
+        rankings.some(
+          (r) =>
+            !Number.isInteger(r.index) ||
+            !selected[r.index] ||
+            !Number.isFinite(r.logit ?? r.relevance_score),
+        )
+      )
         throw new Error("The reranker returned an invalid result.");
       selected = rankings
         .filter((r) => Number.isInteger(r.index) && selected[r.index])

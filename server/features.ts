@@ -66,16 +66,14 @@ export function registerFeatures(
         res.json(await run(req.body, controller.signal));
       } catch (e) {
         if (!res.destroyed)
-          res
-            .status(e instanceof z.ZodError ? 400 : 502)
-            .json({
-              error:
-                e instanceof z.ZodError
-                  ? "This request has invalid fields."
-                  : e instanceof Error
-                    ? e.message
-                    : "The model request failed.",
-            });
+          res.status(e instanceof z.ZodError ? 400 : 502).json({
+            error:
+              e instanceof z.ZodError
+                ? "This request has invalid fields."
+                : e instanceof Error
+                  ? e.message
+                  : "The model request failed.",
+          });
       } finally {
         clearTimeout(timeout);
       }
