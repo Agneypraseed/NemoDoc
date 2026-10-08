@@ -16,10 +16,10 @@ NemoDoc is a personal research and study agent for the [Personal AI track](https
 ## Verification record
 
 - TypeScript check: passed during implementation.
-- API/data checks: 25 passed, including agent execution, scoped memory, forged citations, unauthorized tool calls, bounded iteration, follow-up permissions, cancellation, serial execution, source revocation, provider changes, durable scheduling and restart behavior.
+- API/data checks: 27 passed, including agent execution, scoped memory, forged citations, unauthorized tool calls, bounded iteration, follow-up permissions, cancellation, serial execution, source revocation, provider changes, durable scheduling, restart behavior, nullable provider tool responses, Nebius capability defaults and constrained study output.
 - Production build: passed after the final application changes. Rollup reports harmless annotation warnings from Zod; compilation and bundling succeed.
 - Browser checks: the 11 existing flows and 2 new agent/provider flows pass. New coverage uses a real local worker with deterministic provider responses, closes the browser while a task becomes due, reopens the inbox and saves its cited artifact to Studio. It also covers source consent, memory editing/deletion, custom skills, quiz progress memory and provider presets. Desktop and mobile screenshots are checked; the mobile screenshot waits for the existing sidebar transition to settle.
-- Live Nebius/NVIDIA inference: pending the user's credentials. Mock response tests do not establish real hosted inference or hackathon runtime eligibility. Never replace this line with a live-success claim unless a real provider response was observed.
+- Live Nebius/NVIDIA inference: verified on 2026-10-08 with actual responses from `nvidia/Nemotron-3_5-Lightning` on Token Factory. PDF chat/citations, quiz generation, progress memory, personalized plans, cited agent flashcards and a scheduled quiz completed with the browser closed. Real Qwen embeddings and MiniCPM image/OCR calls also succeeded. See [live verification](LIVE_VERIFICATION.md) for setup, isolation and limits; deterministic tests remain separate from live evidence.
 
 ## Live verification
 
