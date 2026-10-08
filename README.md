@@ -1,95 +1,102 @@
 # NemoDoc
 
-A local personal research and study agent powered by NVIDIA Nemotron. Read and annotate PDFs and slides, keep editable memory, and run reusable study workflows with cited evidence on a schedule.
+A local personal research and study agent powered by NVIDIA Nemotron through Nebius Token Factory. Bring your PDFs and slides, read and annotate them, ask questions with page citations, and turn what you learn into a study plan that remembers your progress.
+
+![NemoDoc reader showing a two-page book layout](docs/screenshots/reader.png)
+
+## What works today
+
+- **Read your sources:** import PDFs and PowerPoint files, switch between vertical, horizontal, and two-page book views, and use zoom, thumbnails, bookmarks, and document search.
+- **Annotate as you read:** select text to highlight or underline it, add notes, draw with the pen, and organize annotations with tags and undo/redo.
+- **Ask with evidence:** chat about selected sources or passages, follow citations back to the page, search by meaning, and ask about page images. OCR makes scanned page text selectable and searchable.
+- **Build study materials:** generate and edit flashcards, quizzes, study guides, and interactive mind maps in Studio. Check quiz answers and save missed questions as progress memory.
+- **Use a personal agent:** keep editable goals, deadlines, preferences, and learning progress. Run reusable skills now or on a daily/weekly schedule using sources you approve.
+- **Keep your work:** compare two sources side by side, export Markdown notes and annotated PDFs, and back up or restore complete notebooks as ZIP files.
+
+## How to use it
+
+1. **Create a notebook and add sources.** Use the **+** in the top toolbar and **Add source**. The included sample notebook lets you explore immediately.
+2. **Read, select, and annotate.** Choose a reading layout, mark passages, and collect your thoughts in **Notes**.
+3. **Ask from the bottom chat bar.** Send a question or select **Suggestions** to open the prompt cards. A card fills your draft for review before sending. Close the assistant with **X** and reopen it with the chat icon; your conversation and draft stay available.
+4. **Practice in Studio.** Create a quiz or flashcard deck from selected sources. After a quiz, choose **Remember quiz result** to help the agent focus on missed topics.
+5. **Set up your agent.** In **Agent → Memory**, add your goal and preferences. In **Sources**, approve extracted text for the local worker. Choose a skill—paper review, weekly briefing, weak-topic practice, or exam preparation—and create a task. Review its cited results and save its materials to Studio.
+
+## A look inside
+
+### Source-grounded chat
+
+The composer stays at the bottom of the workspace. Suggested questions appear when requested, and answer citations open the supporting source page.
+
+![Chat with a page citation and on-demand suggested questions](docs/screenshots/chat.png)
+
+### Study Studio
+
+Keep generated materials beside your reading. Flip flashcards, answer quizzes, explore mind maps, and edit or export the results.
+
+![Studio with study tools and a sample flashcard deck](docs/screenshots/studio.png)
+
+### Your personal agent
+
+Reusable skills work with notebook memory and approved sources. Scheduled tasks continue with the browser closed while the local server is running; results arrive in the activity inbox.
+
+![Personal agent showing reusable research and study skills](docs/screenshots/personal-agent.png)
+
+Screenshots use the included sample notebook. Chat and Studio content shown here uses deterministic demo responses. Actual Nebius inference was tested separately; see the [live verification record](docs/LIVE_VERIFICATION.md).
 
 ## Run locally
 
-Requires Node.js 22 or newer.
+Requires **Node.js 22 or newer**.
 
-```powershell
+```sh
 npm install
-Copy-Item .env.example .env
 npm run dev
 ```
 
-Open http://127.0.0.1:5173. A sample notebook is included. Reading, markup, exports, and backups work without a model connection. Open **Settings**, choose **Nebius**, **NVIDIA hosted**, or **Local inference**, enter the provider key if required, then choose **Save & test**. The `.env` file remains an optional starting configuration; saved Settings take precedence. Changing `.env` requires restarting the server. Keep keys out of chat, screenshots, and commits.
+Open [localhost:5173](http://127.0.0.1:5173). Reading, annotations, exports, and backups work before connecting a model.
 
-For a production build: `npm run build`, then `npm start` and open http://127.0.0.1:3001.
+For AI features, open **Settings**, select **Nebius**, enter a **Nebius Token Factory API key**, and choose **Save & test**. Use an NVIDIA Nemotron model available in your provider's model catalog. The verified configuration uses:
 
-The chat input stays at the bottom of the workspace while you read, annotate or use Studio. Close the assistant with its **X** and reopen the conversation using the chat icon beside Send; closing keeps the conversation and current draft. **Suggestions** opens the question cards when needed. Selecting a card fills the input for review before sending. Escape or clicking outside dismisses the cards. The **+** in the top toolbar creates a notebook.
+| Capability                                 | Model                           |
+| ------------------------------------------ | ------------------------------- |
+| Chat, study generation, and personal agent | `nvidia/Nemotron-3_5-Lightning` |
+| Semantic search                            | `Qwen/Qwen3-Embedding-8B`       |
+| Page-image questions and OCR               | `openbmb/MiniCPM-V-4_5`         |
 
-## Personal agent
+Get started with the [Nebius Token Factory quickstart](https://docs.tokenfactory.nebius.com/quickstart). The app also supports NVIDIA-hosted and local compatible inference endpoints through Settings. Optional embedding and vision features require compatible models; keyword retrieval works without embeddings.
 
-Open the **Agent** tab:
+Alternatively, copy `.env.example` to `.env`, set `NEBIUS_API_KEY`, and restart the server. Saved Settings take precedence over environment defaults. Credentials stay on the local server and are excluded from Git.
 
-1. Add a goal and deadline, preferences, or weak topics under **Memory**. Memories are scoped to this notebook and can be edited or deleted.
-2. Under **Sources**, select documents and explicitly approve caching their extracted text on your local server. The cache is a snapshot: reapprove sources after OCR or other text changes. Original PDFs/slides stay in browser storage.
-3. Choose a reusable skill: **Review a paper**, **Weekly briefing**, **Quiz weak topics**, or **Prepare for an exam**. Edit these workflows or add your own under **Skills**.
-4. Create a task with its own permitted sources. Run now, choose a future time, or repeat daily/weekly. Progress writes and one follow-up review are optional permissions. All tasks can update this notebook's study plan and save study materials.
-5. Review results in the activity inbox. Page citations open the reader. Save generated practice or guides to **Studio**. After answering a Studio quiz, **Remember quiz result** records the score and missed questions for future agent runs.
+For a production build:
 
-The model selects tools in a real OpenAI-compatible function-calling loop. The local server dispatches only bounded tools: search approved text, read an approved page, save cited materials, update a plan, remember progress if allowed, and schedule one non-recursive review if allowed. The agent has no shell, arbitrary filesystem, email or external calendar tools. It uses keyword retrieval independently of the optional embedding setup. A run permits at most eight model calls, twenty actions and three minutes. Failures pause tasks; action history remains available when a run is cancelled. A task stays bound to the provider/model approved at creation; changing that connection requires a new task.
+```sh
+npm run build
+npm start
+```
 
-Keep `npm run dev` or `npm start` running for background tasks. Closing the browser does not stop the worker. Stopping the local server does. On restart an overdue recurring task runs once, then schedules its next interval from that run; it does not replay every missed interval. An interrupted run is marked as interrupted and never replayed automatically. Tasks are serial, so a later task waits for an earlier one. This MVP is a single-user local service, not a multi-user hosted deployment or an OS startup service.
+Then open [localhost:3001](http://127.0.0.1:3001). Keep the server running for scheduled agent tasks.
 
-Agent memory, skills, source snapshots, plans, task history and runtime receipts persist in ignored `data/agent.json`. **Agent → Sources → Export agent data** downloads this separate JSON archive; it can contain private source text and past context. Notebook ZIP backups cover browser data and do not include server agent state. To move the complete local agent installation, preserve `data/agent.json` separately alongside notebook ZIPs; the agent file refers to notebook/source IDs from its original browser library, so restored ZIPs with new IDs need source reapproval and new tasks. The separate JSON export is an archive, not an automatic restore importer. Never publish `data/`.
+## Storage and current limits
 
-Revoking a source clears its cached text and pauses affected active tasks. Removing a source in the reader also revokes agent access; undo restores the browser document and requires reapproval for the agent. Past results and run disclosures retain their historical text. **Erase all agent data** removes that history, memories, tasks, plans, snapshots and receipts across all notebooks. It leaves browser notebooks intact. Files are local and ignored by Git, but are not encrypted at rest; use your OS account/disk protections. Hosted inference sends the task, skill, notebook memory/plan, source names and retrieved passages to the selected provider. Each run shows its sent context and actions. There is no automatic provider fallback.
+Original documents, annotations, conversations, and Studio materials live in your browser's IndexedDB. Agent memory, approved text snapshots, schedules, and run history live in ignored `data/agent.json`. Hosted AI requests send the relevant text, context, or selected page image to your chosen provider.
 
-## Nebius and free NVIDIA options
+Notebook ZIP backups cover browser data; export agent data separately from **Agent → Sources**. Browser libraries are specific to their URL, so use a backup when moving between development and production. This MVP runs as a single-user local app.
 
-| Connection                               | Access and cost                                                                                                                                                          | Hackathon runtime                                                                                        |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| Nebius Token Factory                     | Paid inference or limited promotional credits; the Builder Program currently offers eligible, verified members $25 in Token Factory credits, expiring after 90 days.     | A successful runtime call using an NVIDIA open model satisfies the runtime route described in the rules. |
-| NVIDIA hosted                            | Free Developer Program API access for prototyping, subject to availability/rate limits and program terms. Production NIM use has separate licensing requirements.        | NVIDIA-hosted calls alone do not satisfy the Nebius runtime requirement.                                 |
-| Local open model / NIM-compatible server | No hosted per-token fee for your own open-weight runtime. Hardware costs and model/runtime licenses still apply; NIM development access and production licensing differ. | Local inference alone does not satisfy the Nebius runtime requirement.                                   |
+PowerPoint import reconstructs text and embedded images. Export complex decks to PDF for faithful charts and layouts. OCR and generated answers can need review against the original source.
 
-For Nebius, use `https://api.tokenfactory.nebius.com/v1` and a Token Factory key. **Save connection**, then **Load saved provider’s model catalog** to get exact account-visible IDs. The preset `nvidia/Nemotron-3_5-Lightning` follows the current official cookbook; select another NVIDIA Nemotron ID from the catalog if it is unavailable. The agent requires function calling. No model download or local inference runtime is bundled. Choose the actual served ID when connecting a local model.
+## Development and verification
 
-The Nebius preset and environment defaults use `Qwen/Qwen3-Embedding-8B` for semantic search and `openbmb/MiniCPM-V-4_5` for image questions/OCR. NVIDIA Nemotron powers chat, study generation and the personal agent. All three models were available in the account-visible catalog during live verification. Semantic chat retrieval and reranking remain off by default; enable advanced capabilities only after checking their served model IDs. The current preset does not assume a Nebius reranking service is available.
+Built with React, TypeScript, Vite, Express, PDF.js, and local IndexedDB storage.
 
-The opt-in live suite sends an original, non-sensitive fixture to real Nebius endpoints and uses isolated notebook/agent state. It requires a `NEBIUS_API_KEY` in `.env` or the environment and consumes inference credits. In PowerShell, run `$env:NEMODOC_LIVE='1'` followed by `npx playwright test tests/e2e/live.spec.ts`; afterward remove the opt-in with `Remove-Item Env:NEMODOC_LIVE`. Sanitized evidence and a screenshot are written to ignored `test-results/`. Normal browser tests skip these live cases. See the [live verification record](docs/LIVE_VERIFICATION.md).
+```sh
+npm run check
+npm test
+npm run build
+npx playwright install chromium
+npm run test:e2e
+```
 
-For local Nano inference, follow NVIDIA's [Nemotron 3 Nano model card and vLLM setup](https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16#use-it-with-vllm), including its tool-call and reasoning parsers. Use **Local inference** and enter the server's exact served model name. A model name containing `nemotron` enables the documented `chat_template_kwargs.enable_thinking=false` option for local endpoints; configure other served aliases on the inference server to return final content within the app's output limit. The [model card's governing license](https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16#licenseterms-of-use) is NVIDIA's Nemotron Open Model License, separate from this app's MIT license. This setup needs suitable GPU resources; free NVIDIA hosted prototyping avoids downloading/running the weights yourself.
+Regular tests use deterministic AI responses. Real Nebius calls have also verified document Q&A and citations, study generation, semantic retrieval, vision/OCR, and agent execution with the browser closed. The [live verification record](docs/LIVE_VERIFICATION.md) includes the opt-in command to repeat those checks with your own key.
 
-The key stays on the server. Changing the chat host clears the previous provider key unless a replacement is supplied; a key is not forwarded to another provider's embedding/vision/reranking host. Advanced models must be available from the selected provider, with compatible capabilities. Keyword chat/agent retrieval works without embeddings; visual Q&A and OCR require an image-capable model. The connection test verifies chat only. A successful response creates a local timestamp/model/endpoint receipt, which is evidence of the call rather than a certification of hackathon eligibility. Model names alone do not verify the model's license or eligibility.
+More detail: [personal agent guide](docs/PERSONAL_AGENT.md) · [workspace acceptance checks](docs/UPGRADE.md).
 
-Sources: [Nebius quickstart](https://docs.tokenfactory.nebius.com/quickstart), [function calling](https://docs.tokenfactory.nebius.com/ai-models-inference/function-calling), [Nemotron cookbook](https://github.com/nebius/token-factory-cookbook/blob/main/models/nemotron/README.md), [NVIDIA free prototyping terms](https://docs.api.nvidia.com/nim/docs/product), [Nebius Builder credit terms](https://nebius.com/builders-terms-and-conditions). Free access and model availability can change; check these terms before relying on them.
-
-## NVIDIA integration
-
-The server calls NVIDIA's compatible chat completions API. Default models are `nvidia/nemotron-3-nano-30b-a3b` for chat and study generation, `nvidia/llama-nemotron-embed-1b-v2` for embeddings, and `nvidia/nemotron-nano-12b-v2-vl` for visual questions and OCR. Optional reranking uses `nvidia/rerank-qa-mistral-4b`.
-
-Settings supports separate chat, embedding, vision, and reranking endpoints. **NVIDIA hosted** fills the hosted URLs; **Local inference** fills loopback examples. Start those services separately and set their actual URLs and model IDs. Loopback HTTP endpoints can run without a key. All other endpoints require HTTPS and a key. Connection settings are saved to ignored `data/settings.json` on the local server; the browser never receives the saved API key. The connection test verifies chat. Embedding, vision, and reranking errors are reported when those features run.
-
-**Search ideas** uses semantic retrieval across selected sources. Enabling semantic retrieval in Settings also applies it to chat and study tools. Passage embeddings are cached in server memory by content, model, endpoint, and credential identity; restarting clears this cache. Chat falls back to keyword retrieval with a visible notice when embedding or reranking requests fail. OCR uses a vision transcription prompt and validates the returned text and layout.
-
-References: [Nemotron chat](https://docs.api.nvidia.com/nim/reference/nvidia-nemotron-3-nano-30b-a3b), [embedding request modes](https://docs.api.nvidia.com/nim/reference/nvidia-llama-nemotron-embed-1b-v2-infer), [vision image inputs](https://docs.api.nvidia.com/nim/reference/nvidia-nemotron-nano-12b-v2-vl-infer), [reranking](https://docs.api.nvidia.com/nim/reference/nvidia-nv-rerankqa-mistral-4b-v3-infer), [local NIM API](https://docs.nvidia.com/nim/large-language-models/latest/api-reference.html).
-
-## Notebook workspace
-
-- Local notebooks and PDF / PowerPoint (.pptx) sources.
-- Selectable text, colored highlights, underlines, freehand pen, sticky notes, and area marks. Notes support tags, filtering, and undo/redo (Ctrl/Cmd+Z and Shift+Z outside text fields).
-- Vertical, horizontal, and two-page book layouts; zoom, thumbnails, PDF outlines, bookmarks, and saved reading position. Bookmarks and view preferences are stored with each source.
-- Source-grounded NVIDIA chat. Citation clicks open the source page and highlight the supporting excerpt when it matches the rendered text.
-- Search inside a document or search selected sources by meaning; optional reranking.
-- **OCR** recognizes the current page, retains a selectable text layer, and makes the transcription searchable and usable in chat. **Ask image** attaches a rendered PDF page or reconstructed slide for questions about diagrams, charts, and tables.
-- **Studio** generates flashcards, multiple-choice quizzes, Markdown study guides, and interactive mind maps. Flip cards, check quiz answers, explore and collapse map branches, edit generated content, and export materials. Materials and their citations persist locally.
-- **Compare sources** opens two independent readers. **Compare ideas** sends exactly that pair to grounded chat.
-- Export notes as Markdown, download originals, and export annotated PDFs with visible marks and native Unicode comments. PPTX markup is retained in backups; export a deck to PDF before using annotated PDF export.
-- **Backup** downloads a complete notebook ZIP: original files, annotations, OCR, reading preferences, notes, conversations, and study materials. **Restore** validates the archive, remaps IDs, and adds a new notebook with a `(restored)` suffix. Existing notebooks stay intact. Backups never include credentials.
-- Documents and notebook data persist in the browser's IndexedDB. Existing MVP libraries migrate automatically.
-
-PowerPoint import reconstructs text boxes and embedded raster images; complex themes, native charts, SmartArt, video, and animations are not reproduced. Export slides to PDF for exact visual fidelity and visual analysis of those elements. OCR layout is approximate and model-generated; dense pages or unclear scans can need correction outside the app. Citations identify retrieved evidence, and generated answers still need review against the source.
-
-The app runs locally. Hosted search sends selected source text and queries to the embedding/reranking APIs; chat and study generation send retrieved excerpts; OCR and visual questions send the selected page image. Choose local NIM services for local inference. Browser storage is origin-specific: development and production URLs have separate libraries. Use a backup to move between them or before clearing site data. Imports allow 50 MB and 500 pages per source. AI requests allow up to 30 selected sources. Restore allows a 250 MB archive, up to 50 MB per original file and 500 MB of expanded originals.
-
-## Checks
-
-`npm run check`, `npm test`, `npm run build`, and `npm run test:e2e`.
-
-Install the browser for end-to-end checks once with `npx playwright install chromium`. API tests mock NVIDIA responses; browser tests use real document rendering with deterministic AI responses. See [the upgrade acceptance audit](docs/UPGRADE.md). A live model response requires your own key or running local NIM; no live provider result is claimed by the mock tests.
-
-PDF workers, character maps, fonts, and image decoders are served locally. `npm install` prepares the generated PDF assets; rerun `npm run postinstall` if you remove `public/pdfjs`.
-
-The repository remains a local app; connecting a GitHub remote does not publish documents or host the app. Application code is [MIT licensed](LICENSE); third-party dependencies and models keep their own licenses. See [Personal AI acceptance and demo notes](docs/PERSONAL_AGENT.md) for verification and submission steps.
+Application code is [MIT licensed](LICENSE). Models and dependencies retain their own licenses.
