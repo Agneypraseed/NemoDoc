@@ -95,7 +95,10 @@ test("personal agent executes real tools, scopes memory, validates citations and
           items: [],
         }),
       );
-    return reply({ content: "I saved your guide and study plan. [1]" });
+    return reply({
+      content: "I saved your guide and study plan. [1]",
+      tool_calls: null,
+    });
   }) as typeof fetch);
   await worker.tick(100);
   const run = data.state.runs[0];

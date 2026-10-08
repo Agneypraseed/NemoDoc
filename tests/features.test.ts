@@ -27,8 +27,9 @@ async function withApp(
   fetcher: typeof fetch,
   run: (url: string) => Promise<void>,
   settingsFile?: string,
+  appConfig = config,
 ) {
-  const server = createApp(config, fetcher, { settingsFile }).listen(
+  const server = createApp(appConfig, fetcher, { settingsFile }).listen(
     0,
     "127.0.0.1",
   );
@@ -46,6 +47,21 @@ const post = (url: string, body: unknown) =>
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+
+test("Nebius environment defaults use Nebius capability models and keep reranking opt-in", () => {
+  const store = new SettingsStore({
+    apiKey: "test-secret",
+    baseUrl: "https://api.tokenfactory.nebius.com/v1",
+    model: "nvidia/Nemotron-3_5-Lightning",
+  });
+  assert.equal(store.value.embeddingModel, "Qwen/Qwen3-Embedding-8B");
+  assert.equal(store.value.visionModel, "openbmb/MiniCPM-V-4_5");
+  assert.equal(store.value.visionBaseUrl, store.value.baseUrl);
+  assert.equal(store.value.rerank, false);
+  assert.equal(store.value.semantic, false);
+  assert.equal(store.public().hasApiKey, true);
+  assert.equal((store.public() as any).apiKey, undefined);
+});
 
 test("settings keep credentials server-side, preserve or clear keys, persist, and test the chosen model", async () => {
   const directory = mkdtempSync(path.join(tmpdir(), "nemodoc-settings-")),
@@ -293,6 +309,54 @@ test("study tools retain valid citations, reject invented sources and invalid qu
     },
   );
 });
+test("Nebius study requests constrain output shape and classify malformed model output as a provider error", async () => {
+  let malformed = false;
+  await withApp(
+    (async (_url, init) => {
+      const body = JSON.parse(String(init?.body));
+      assert.equal(body.response_format.type, "json_schema");
+      const itemSchema =
+        body.response_format.json_schema.schema.properties.items;
+      assert.equal(itemSchema.minItems, 3);
+      assert.ok(itemSchema.items.required.includes("citationIds"));
+      assert.ok(itemSchema.items.required.includes("choices"));
+      assert.ok(itemSchema.items.required.includes("correct"));
+      return reply(
+        JSON.stringify({
+          title: "Quiz",
+          content: "",
+          items: Array.from({ length: 3 }, () => ({
+            question: "What is finite?",
+            answer: "Attention.",
+            choices: ["Attention", "Time"],
+            correct: 0,
+            ...(malformed ? { citationId: 1 } : { citationIds: [1] }),
+          })),
+        }),
+      );
+    }) as typeof fetch,
+    async (url) => {
+      assert.equal(
+        (await post(url + "/api/study", { kind: "quiz", sources })).status,
+        200,
+      );
+      malformed = true;
+      const failure = await post(url + "/api/study", { kind: "quiz", sources });
+      assert.equal(failure.status, 502);
+      assert.match(
+        (await failure.json()).error,
+        /model returned invalid study/,
+      );
+      assert.equal(
+        (await post(url + "/api/study", { kind: "invalid", sources })).status,
+        400,
+      );
+    },
+    undefined,
+    { ...config, baseUrl: "https://api.tokenfactory.nebius.com/v1" },
+  );
+});
+
 test("chat reports semantic fallback and continues with grounded keyword excerpts", async () => {
   await withApp(
     (async (url) =>

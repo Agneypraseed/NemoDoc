@@ -9,7 +9,7 @@ import {
 import path from "node:path";
 import type { Config } from "./app.ts";
 import type { ConnectionSettings } from "../src/types.ts";
-import { credentialAllowed } from "./providers.ts";
+import { credentialAllowed, providerKind } from "./providers.ts";
 
 export const endpoint = z
   .string()
@@ -53,15 +53,22 @@ export class SettingsStore {
     config: Config,
     private filename?: string,
   ) {
+    const nebius = providerKind(config.baseUrl) === "nebius";
     this.value = {
       ...config,
       embeddingBaseUrl: config.baseUrl,
       visionBaseUrl: config.baseUrl,
-      embeddingModel: "nvidia/llama-nemotron-embed-1b-v2",
-      visionModel: "nvidia/nemotron-nano-12b-v2-vl",
+      embeddingModel: nebius
+        ? "Qwen/Qwen3-Embedding-8B"
+        : "nvidia/llama-nemotron-embed-1b-v2",
+      visionModel: nebius
+        ? "openbmb/MiniCPM-V-4_5"
+        : "nvidia/nemotron-nano-12b-v2-vl",
       semantic: false,
       rerank: false,
-      rerankUrl: "https://ai.api.nvidia.com/v1/retrieval/nvidia/reranking",
+      rerankUrl: nebius
+        ? config.baseUrl.replace(/\/$/, "") + "/rerank"
+        : "https://ai.api.nvidia.com/v1/retrieval/nvidia/reranking",
       rerankModel: "nvidia/rerank-qa-mistral-4b",
     };
     if (filename && existsSync(filename)) {

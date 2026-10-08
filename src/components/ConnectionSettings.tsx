@@ -82,8 +82,12 @@ export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
           : "nvidia/nemotron-3-nano-30b-a3b",
       embeddingModel:
         kind === "nebius"
-          ? "Qwen/Qwen3-Embedding-0.6B"
+          ? "Qwen/Qwen3-Embedding-8B"
           : "nvidia/llama-nemotron-embed-1b-v2",
+      visionModel:
+        kind === "nebius"
+          ? "openbmb/MiniCPM-V-4_5"
+          : "nvidia/nemotron-nano-12b-v2-vl",
       rerankUrl:
         kind === "nebius"
           ? base + "/rerank"
