@@ -3,5 +3,6 @@ import App from "./App";
 import "./styles.css";
 import "./upgrade.css";
 import "./components/agent.css";
+import "./chat-dock.css";
 
 createRoot(document.getElementById("root")!).render(<App />);

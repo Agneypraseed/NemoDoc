@@ -1,0 +1,218 @@
+.workspace-chat {
+  position: relative;
+  width: calc(100% - 64px);
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 12px 0 0;
+  z-index: 16;
+}
+.workspace-chat .composer {
+  border-radius: 22px;
+  background: #ffffffed;
+  border-color: #e2dfec;
+  padding: 12px 16px 10px;
+  box-shadow: 0 4px 20px #30264e07;
+}
+.workspace-chat .composer textarea {
+  min-height: 28px;
+  font-size: 13px;
+  color: #4f485e;
+}
+.workspace-chat .composer textarea::placeholder {
+  color: #9690a2;
+}
+.composer-tools,
+.composer-actions,
+.composer-source-count,
+.composer-suggestions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.composer-tools {
+  gap: 15px;
+  min-width: 0;
+}
+.composer-source-count {
+  font-size: 10px;
+  color: #9991a6;
+}
+.composer-suggestions {
+  font-size: 11px;
+  padding: 6px 8px;
+  border-radius: 9px;
+  color: #837391;
+  transition:
+    background 150ms ease-out,
+    color 150ms ease-out;
+}
+.composer-suggestions[aria-expanded="true"] {
+  background: #efeaf8;
+  color: #7660a4;
+}
+.composer-chat-toggle {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  color: #9586aa;
+}
+.composer-chat-toggle[aria-expanded="true"] {
+  color: #7660a4;
+  background: #f2edf9;
+}
+.workspace-chat .send-button {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+}
+.workspace-chat .chat-footnote {
+  margin-top: 7px;
+  font-size: 8px;
+}
+.workspace-chat .quote-context,
+.workspace-chat .visual-context,
+.workspace-chat .chat-error {
+  max-height: 110px;
+  overflow-y: auto;
+  margin-bottom: 8px;
+}
+.workspace-chat .retrieval-info {
+  display: block;
+  margin: 0 12px 6px;
+}
+.chat-suggestions {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid #e5dfed;
+  background: #fffffff5;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 12px 45px #37284f17;
+  max-height: min(420px, 55dvh);
+  overflow-y: auto;
+  animation: suggestions-appear 160ms ease-out;
+}
+.chat-suggestions > header,
+.chat-suggestions > header > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.chat-suggestions > header {
+  justify-content: space-between;
+  color: #8b7a9d;
+}
+.chat-suggestions strong {
+  font-size: 12px;
+  font-weight: 500;
+}
+.chat-suggestions .prompt-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 12px;
+}
+.chat-suggestions .prompt-cards > button {
+  padding: 14px 10px;
+  gap: 9px;
+}
+.chat-suggestions .prompt-cards small {
+  font-size: 9px;
+  line-height: 1.5;
+}
+.chat-suggestions .prompt-cards > button > svg {
+  flex-shrink: 0;
+}
+.panel-tabs > div {
+  gap: 0;
+  flex: 1;
+  min-width: 0;
+}
+.panel-tabs {
+  padding: 0 8px;
+}
+.panel-tabs > div > button {
+  padding: 0 5px;
+  gap: 4px;
+  white-space: nowrap;
+}
+.panel-tabs .panel-close {
+  width: 44px;
+  height: 44px;
+}
+.panel-tabs > .icon-button {
+  flex-shrink: 0;
+}
+@keyframes suggestions-appear {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (hover: hover) and (pointer: fine) {
+  .composer-suggestions:hover,
+  .composer-chat-toggle:hover {
+    background: #f2edf9;
+  }
+  .chat-suggestions .prompt-cards > button:hover {
+    border-color: #b9a9d1;
+    background: #faf8fd;
+  }
+}
+@media (max-width: 700px) {
+  .header-actions .subtle-button > span {
+    display: none;
+  }
+  .workspace-chat {
+    width: calc(100% - 20px);
+    padding-top: 10px;
+  }
+  .workspace-chat .composer {
+    padding: 10px 12px 8px;
+    border-radius: 20px;
+  }
+  .workspace-chat .composer textarea {
+    font-size: 16px;
+  }
+  .composer-tools {
+    gap: 10px;
+  }
+  .composer-suggestions {
+    font-size: 10px;
+  }
+  .composer-source-count {
+    font-size: 9px;
+  }
+  .composer-actions {
+    gap: 4px;
+  }
+  .assistant-panel {
+    bottom: calc(
+      var(--chat-dock-height, 120px) + 42px + env(safe-area-inset-bottom)
+    );
+  }
+  .chat-suggestions {
+    padding: 12px;
+    border-radius: 15px;
+  }
+  .chat-suggestions .prompt-cards {
+    grid-template-columns: 1fr;
+  }
+  .workspace-footer {
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .chat-suggestions {
+    background: white;
+    backdrop-filter: none;
+  }
+}

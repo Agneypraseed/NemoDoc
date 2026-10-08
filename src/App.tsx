@@ -123,6 +123,9 @@ export default function App() {
     [selectedAnnotation, setSelectedAnnotation] = useState<string>();
   const [sidebarOpen, setSidebarOpen] = useState(false),
     [panelOpen, setPanelOpen] = useState(() => window.innerWidth > 700);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const chatDock = useRef<HTMLDivElement>(null),
+    chatLauncher = useRef<HTMLButtonElement>(null);
   const input = useRef<HTMLInputElement>(null),
     composer = useRef<HTMLTextAreaElement>(null),
     chatBottom = useRef<HTMLDivElement>(null);
@@ -226,9 +229,55 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [toast]);
   useEffect(() => {
-    if (tab === "chat")
+    if (tab === "chat" && panelOpen)
       chatBottom.current?.scrollIntoView({ block: "nearest" });
-  }, [notebook?.messages, tab]);
+  }, [notebook?.messages, tab, panelOpen]);
+  useEffect(() => setSuggestionsOpen(false), [activeId]);
+  useEffect(() => {
+    if (!ready || !chatDock.current) return;
+    const dock = chatDock.current;
+    const measure = () =>
+      dock
+        .closest<HTMLElement>(".workspace")
+        ?.style.setProperty(
+          "--chat-dock-height",
+          `${dock.getBoundingClientRect().height}px`,
+        );
+    const observer = new ResizeObserver(measure);
+    observer.observe(dock);
+    measure();
+    return () => observer.disconnect();
+  }, [ready]);
+  useEffect(() => {
+    if (!suggestionsOpen) return;
+    const dismiss = (event: PointerEvent) => {
+      if (!chatDock.current?.contains(event.target as Node))
+        setSuggestionsOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setSuggestionsOpen(false);
+        chatDock.current
+          ?.querySelector<HTMLButtonElement>(".composer-suggestions")
+          ?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", dismiss);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", dismiss);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [suggestionsOpen]);
+  const closeAssistant = () => {
+    setPanelOpen(false);
+    chatLauncher.current?.focus();
+  };
+  const chooseSuggestion = (question: string) => {
+    setDraft(question);
+    setSuggestionsOpen(false);
+    composer.current?.focus();
+  };
   const updateNotebook = (value: Notebook) => {
     setNotebooks((list) => list.map((n) => (n.id === value.id ? value : n)));
     void storage.notebook(value).catch(reportStorageError);
@@ -590,6 +639,9 @@ export default function App() {
         ),
       );
     setDraft("");
+    setSuggestionsOpen(false);
+    setTab("chat");
+    setPanelOpen(true);
     setContext(undefined);
     setVisual(undefined);
     setRetrievalInfo("");
@@ -907,6 +959,15 @@ export default function App() {
           </div>
           <div className="header-actions">
             <button
+              className="icon-button"
+              aria-label="New notebook"
+              title="New notebook"
+              disabled={busy}
+              onClick={() => setModal("new")}
+            >
+              <Plus size={18} />
+            </button>
+            <button
               className="subtle-button backup-action"
               aria-label="Back up notebook"
               onClick={() => void backupNotebook()}
@@ -1140,7 +1201,17 @@ export default function App() {
               )}
             </div>
           </div>
-          <aside className="assistant-panel" aria-label="Notebook assistant">
+          <aside
+            id="notebook-assistant"
+            className="assistant-panel"
+            aria-label="Notebook assistant"
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && !modal && !suggestionsOpen) {
+                event.stopPropagation();
+                closeAssistant();
+              }
+            }}
+          >
             <div className="panel-tabs">
               <div>
                 <button
@@ -1178,13 +1249,12 @@ export default function App() {
                 </button>
               </div>
               <button
-                className="icon-button small"
-                title="New notebook"
-                aria-label="New notebook"
-                disabled={busy}
-                onClick={() => setModal("new")}
+                className="icon-button small panel-close"
+                title="Close assistant"
+                aria-label="Close assistant"
+                onClick={closeAssistant}
               >
-                <Plus size={17} />
+                <X size={17} />
               </button>
             </div>
             {tab === "agent" ? (
@@ -1224,57 +1294,6 @@ export default function App() {
                         <br />
                         and see how the pieces connect.
                       </p>
-                      <div className="prompt-cards">
-                        <button
-                          onClick={() =>
-                            void send("Summarize the key ideas in my sources.")
-                          }
-                          disabled={busy || !notebookSources.length}
-                        >
-                          <span className="prompt-icon violet">
-                            <FileText size={17} />
-                          </span>
-                          <span>
-                            <strong>Find the big picture</strong>
-                            <small>A summary of the key ideas</small>
-                          </span>
-                          <ArrowRight size={15} />
-                        </button>
-                        <button
-                          onClick={() =>
-                            void send(
-                              "What connections can you find between the ideas in my sources?",
-                            )
-                          }
-                          disabled={busy || !notebookSources.length}
-                        >
-                          <span className="prompt-icon green">
-                            <Layers size={17} />
-                          </span>
-                          <span>
-                            <strong>Connect the dots</strong>
-                            <small>Discover themes across sources</small>
-                          </span>
-                          <ArrowRight size={15} />
-                        </button>
-                        <button
-                          onClick={() =>
-                            void send(
-                              "Create five thoughtful study questions with short answers based on these sources.",
-                            )
-                          }
-                          disabled={busy || !notebookSources.length}
-                        >
-                          <span className="prompt-icon peach">
-                            <MessageSquare size={17} />
-                          </span>
-                          <span>
-                            <strong>Go a little deeper</strong>
-                            <small>Questions worth thinking about</small>
-                          </span>
-                          <ArrowRight size={15} />
-                        </button>
-                      </div>
                       <div className="grounded-note">
                         <BookOpen size={14} />
                         <span>Answers grounded in your sources.</span>
@@ -1361,122 +1380,6 @@ export default function App() {
                     </div>
                   )}
                   <div ref={chatBottom} />
-                </div>
-                <div className="chat-composer-area">
-                  {retrievalInfo && (
-                    <small className="retrieval-info" role="status">
-                      {retrievalInfo}
-                    </small>
-                  )}
-                  {visual && (
-                    <div className="visual-context">
-                      <img
-                        src={visual.image}
-                        alt="Selected page for visual question"
-                      />
-                      <span>Page {visual.page} · ask about this image</span>
-                      <button
-                        className="icon-button small"
-                        aria-label="Remove page image"
-                        onClick={() => setVisual(undefined)}
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  )}
-                  {chatError && (
-                    <div className="chat-error" role="alert">
-                      {chatError}
-                      <button
-                        aria-label="Dismiss chat error"
-                        className="icon-button small"
-                        onClick={() => setChatError("")}
-                      >
-                        <X size={13} />
-                      </button>
-                    </div>
-                  )}
-                  {context && (
-                    <div className="quote-context">
-                      <div>
-                        <span>Selected passage · p. {context.page}</span>
-                        <p>{context.quote}</p>
-                      </div>
-                      <button
-                        className="icon-button small"
-                        aria-label="Clear selected passage"
-                        onClick={() => setContext(undefined)}
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  )}
-                  <form
-                    className="composer"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      void send();
-                    }}
-                  >
-                    <textarea
-                      ref={composer}
-                      aria-label="Ask about your sources"
-                      placeholder="Ask about your sources…"
-                      value={draft}
-                      maxLength={8000}
-                      onChange={(e) => setDraft(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          void send();
-                        }
-                      }}
-                      rows={2}
-                    />
-                    <div>
-                      <span>
-                        <Layers size={13} />
-                        {context
-                          ? "Selected passage"
-                          : `${enabledSources.length} ${enabledSources.length === 1 ? "source" : "sources"}`}
-                      </span>
-                      {busy ? (
-                        <button
-                          type="button"
-                          className="send-button stop"
-                          aria-label="Stop answer"
-                          onClick={() => abort.current?.abort()}
-                        >
-                          <Square size={13} fill="currentColor" />
-                        </button>
-                      ) : (
-                        <button
-                          className="send-button"
-                          aria-label="Send question"
-                          disabled={!draft.trim() || !notebookSources.length}
-                        >
-                          <ArrowUp size={18} />
-                        </button>
-                      )}
-                    </div>
-                  </form>
-                  <div className="chat-footnote">
-                    <span
-                      className={`status-dot ${status.configured ? "" : "offline"}`}
-                    />
-                    {status.configured ? (
-                      status.local ? (
-                        "Local NVIDIA inference"
-                      ) : (
-                        "NVIDIA Nemotron · source grounded"
-                      )
-                    ) : (
-                      <button onClick={() => setModal("settings")}>
-                        Connect NVIDIA to start a conversation{" "}
-                        <ArrowRight size={11} />
-                      </button>
-                    )}
-                  </div>
                 </div>
               </>
             ) : (
@@ -1607,6 +1510,233 @@ export default function App() {
               </div>
             )}
           </aside>
+        </div>
+        <div
+          ref={chatDock}
+          className="workspace-chat chat-composer-area"
+          aria-label="Notebook chat"
+        >
+          {suggestionsOpen && (
+            <section
+              id="chat-suggestions"
+              className="chat-suggestions"
+              aria-label="Suggested questions"
+            >
+              <header>
+                <div>
+                  <Sparkles size={16} />
+                  <strong>A little inspiration</strong>
+                </div>
+                <button
+                  type="button"
+                  className="icon-button small"
+                  aria-label="Close suggestions"
+                  onClick={() => setSuggestionsOpen(false)}
+                >
+                  <X size={16} />
+                </button>
+              </header>
+              <div className="prompt-cards">
+                <button
+                  onClick={() =>
+                    chooseSuggestion("Summarize the key ideas in my sources.")
+                  }
+                  disabled={busy || !enabledSources.length}
+                >
+                  <span className="prompt-icon violet">
+                    <FileText size={17} />
+                  </span>
+                  <span>
+                    <strong>Find the big picture</strong>
+                    <small>A summary of the key ideas</small>
+                  </span>
+                  <ArrowRight size={15} />
+                </button>
+                <button
+                  onClick={() =>
+                    chooseSuggestion(
+                      "What connections can you find between the ideas in my sources?",
+                    )
+                  }
+                  disabled={busy || !enabledSources.length}
+                >
+                  <span className="prompt-icon green">
+                    <Layers size={17} />
+                  </span>
+                  <span>
+                    <strong>Connect the dots</strong>
+                    <small>Discover themes across sources</small>
+                  </span>
+                  <ArrowRight size={15} />
+                </button>
+                <button
+                  onClick={() =>
+                    chooseSuggestion(
+                      "Create five thoughtful study questions with short answers based on these sources.",
+                    )
+                  }
+                  disabled={busy || !enabledSources.length}
+                >
+                  <span className="prompt-icon peach">
+                    <MessageSquare size={17} />
+                  </span>
+                  <span>
+                    <strong>Go a little deeper</strong>
+                    <small>Questions worth thinking about</small>
+                  </span>
+                  <ArrowRight size={15} />
+                </button>
+              </div>
+            </section>
+          )}
+          {retrievalInfo && (
+            <small className="retrieval-info" role="status">
+              {retrievalInfo}
+            </small>
+          )}
+          {visual && (
+            <div className="visual-context">
+              <img src={visual.image} alt="Selected page for visual question" />
+              <span>Page {visual.page} · ask about this image</span>
+              <button
+                className="icon-button small"
+                aria-label="Remove page image"
+                onClick={() => setVisual(undefined)}
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
+          {chatError && (
+            <div className="chat-error" role="alert">
+              {chatError}
+              <button
+                aria-label="Dismiss chat error"
+                className="icon-button small"
+                onClick={() => setChatError("")}
+              >
+                <X size={13} />
+              </button>
+            </div>
+          )}
+          {context && (
+            <div className="quote-context">
+              <div>
+                <span>Selected passage · p. {context.page}</span>
+                <p>{context.quote}</p>
+              </div>
+              <button
+                className="icon-button small"
+                aria-label="Clear selected passage"
+                onClick={() => setContext(undefined)}
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
+          <form
+            className="composer"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void send();
+            }}
+          >
+            <textarea
+              ref={composer}
+              aria-label="Ask about your sources"
+              placeholder="Ask about your sources…"
+              value={draft}
+              maxLength={8000}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (
+                  e.key === "Enter" &&
+                  !e.shiftKey &&
+                  !e.nativeEvent.isComposing
+                ) {
+                  e.preventDefault();
+                  void send();
+                }
+              }}
+              rows={2}
+            />
+            <div>
+              <div className="composer-tools">
+                <button
+                  type="button"
+                  className="composer-suggestions"
+                  aria-label="Suggestions"
+                  aria-expanded={suggestionsOpen}
+                  aria-controls="chat-suggestions"
+                  onClick={() => setSuggestionsOpen(!suggestionsOpen)}
+                >
+                  <Grid2X2 size={15} />
+                  <span>Suggestions</span>
+                </button>
+                <span className="composer-source-count">
+                  <Layers size={13} />
+                  {context
+                    ? "Selected passage"
+                    : `${enabledSources.length} ${enabledSources.length === 1 ? "source" : "sources"}`}
+                </span>
+              </div>
+              <div className="composer-actions">
+                <button
+                  type="button"
+                  ref={chatLauncher}
+                  className="composer-chat-toggle"
+                  aria-label={
+                    panelOpen && tab === "chat" ? "Close chat" : "Open chat"
+                  }
+                  aria-expanded={panelOpen && tab === "chat"}
+                  aria-controls="notebook-assistant"
+                  onClick={() => {
+                    if (panelOpen && tab === "chat") closeAssistant();
+                    else {
+                      setTab("chat");
+                      setPanelOpen(true);
+                    }
+                  }}
+                >
+                  <MessageSquare size={17} />
+                </button>
+                {busy ? (
+                  <button
+                    type="button"
+                    className="send-button stop"
+                    aria-label="Stop answer"
+                    onClick={() => abort.current?.abort()}
+                  >
+                    <Square size={13} fill="currentColor" />
+                  </button>
+                ) : (
+                  <button
+                    className="send-button"
+                    aria-label="Send question"
+                    disabled={!draft.trim() || !notebookSources.length}
+                  >
+                    <ArrowUp size={18} />
+                  </button>
+                )}
+              </div>
+            </div>
+          </form>
+          <div className="chat-footnote">
+            <span
+              className={`status-dot ${status.configured ? "" : "offline"}`}
+            />
+            {status.configured ? (
+              status.local ? (
+                "Local NVIDIA inference"
+              ) : (
+                "NVIDIA Nemotron · source grounded"
+              )
+            ) : (
+              <button onClick={() => setModal("settings")}>
+                Connect NVIDIA to start a conversation <ArrowRight size={11} />
+              </button>
+            )}
+          </div>
         </div>
         <footer className="workspace-footer">
           <span>

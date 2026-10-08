@@ -16,6 +16,8 @@ Open http://127.0.0.1:5173. A sample notebook is included. Reading, markup, expo
 
 For a production build: `npm run build`, then `npm start` and open http://127.0.0.1:3001.
 
+The chat input stays at the bottom of the workspace while you read, annotate or use Studio. Close the assistant with its **X** and reopen the conversation using the chat icon beside Send; closing keeps the conversation and current draft. **Suggestions** opens the question cards when needed. Selecting a card fills the input for review before sending. Escape or clicking outside dismisses the cards. The **+** in the top toolbar creates a notebook.
+
 ## Personal agent
 
 Open the **Agent** tab:
