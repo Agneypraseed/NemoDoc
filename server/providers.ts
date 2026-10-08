@@ -20,7 +20,9 @@ export function credentialAllowed(url: string, settings: RuntimeSettings) {
 }
 export function chatOptions(settings: RuntimeSettings) {
   // NVIDIA's extension is not part of the portable OpenAI contract.
-  return providerKind(settings.baseUrl) === "nvidia"
+  return providerKind(settings.baseUrl) === "nvidia" ||
+    (providerKind(settings.baseUrl) === "local" &&
+      /nemotron/i.test(settings.model))
     ? { chat_template_kwargs: { enable_thinking: false } }
     : {};
 }

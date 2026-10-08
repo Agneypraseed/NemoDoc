@@ -111,6 +111,10 @@ export class AgentWorker {
       throw new Error(
         "Source access was revoked. Approve the sources again or cancel this task.",
       );
+    if (!selected.some((s) => s.pages.some((p) => p.trim())))
+      throw new Error(
+        "Approved sources have no readable text. Run OCR and approve the updated text before starting a task.",
+      );
     return selected;
   }
   async tick(now = Date.now()) {

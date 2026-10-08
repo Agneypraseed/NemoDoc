@@ -204,7 +204,9 @@ test("connection settings, semantic search and citations reveal supporting sourc
   );
   await page.goto("/");
   await page.getByRole("button", { name: "Settings", exact: true }).click();
-  await page.getByRole("button", { name: "Local NIM", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Local inference", exact: true })
+    .click();
   await expect(
     page.getByRole("textbox", { name: "Chat API base URL", exact: true }),
   ).toHaveValue("http://127.0.0.1:8000/v1");
@@ -327,6 +329,11 @@ test("OCR persists searchable selectable text and visual questions send a real p
 test("study studio generates, edits, quizzes, maps, persists and backs up all materials", async ({
   page,
 }) => {
+  let remembered: any;
+  await page.route("**/api/agent/memory", (route) => {
+    remembered = route.request().postDataJSON();
+    return route.fulfill({ json: { ok: true } });
+  });
   const citation = {
     id: 1,
     sourceId: "sample-paper",
@@ -411,6 +418,14 @@ test("study studio generates, edits, quizzes, maps, persists and backs up all ma
     .getByRole("button", { name: "Check answers", exact: true })
     .click();
   await expect(page.locator(".quiz-score")).toHaveText("3 / 3 correct");
+  await page
+    .getByRole("button", { name: "Remember quiz result", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Progress remembered", exact: true }),
+  ).toBeDisabled();
+  expect(remembered.kind).toBe("progress");
+  expect(remembered.text).toContain("3/3 correct");
   await page.getByRole("button", { name: "Study guide", exact: true }).click();
   await expect(page.locator(".study-guide")).toContainText("Every interface");
   await page

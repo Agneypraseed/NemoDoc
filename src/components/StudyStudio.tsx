@@ -47,6 +47,8 @@ export function StudyStudio({
     [flipped, setFlipped] = useState(false),
     [answers, setAnswers] = useState<Record<number, number>>({}),
     [checked, setChecked] = useState(false);
+  const [progressSaved, setProgressSaved] = useState(false),
+    [progressBusy, setProgressBusy] = useState(false);
   const abort = useRef<AbortController>(null);
   useEffect(() => () => abort.current?.abort(), []);
   useEffect(() => {
@@ -59,6 +61,7 @@ export function StudyStudio({
     setFlipped(false);
     setAnswers({});
     setChecked(false);
+    setProgressSaved(false);
     setEditing(false);
   }, [activeId]);
   const list = artifacts.filter((a) => a.notebookId === notebookId),
@@ -437,10 +440,44 @@ export function StudyStudio({
                 onClick={() => {
                   if (checked) setAnswers({});
                   setChecked(!checked);
+                  setProgressSaved(false);
                 }}
               >
                 {checked ? "Try again" : "Check answers"}
               </button>
+              {checked && (
+                <button
+                  className="secondary-button"
+                  disabled={progressBusy || progressSaved}
+                  onClick={async () => {
+                    setProgressBusy(true);
+                    setError("");
+                    try {
+                      const weak = active.items
+                        .filter((item, i) => answers[i] !== item.correct)
+                        .map((i) => i.question);
+                      await apiJSON("/api/agent/memory", {
+                        notebookId,
+                        kind: "progress",
+                        deadline: "",
+                        text: `Quiz result for ${active.title}: ${active.items.length - weak.length}/${active.items.length} correct. ${weak.length ? "Topics to revisit: " + weak.join("; ") : "All questions answered correctly."}`.slice(
+                          0,
+                          2000,
+                        ),
+                      });
+                      setProgressSaved(true);
+                    } catch (e) {
+                      setError((e as Error).message);
+                    } finally {
+                      setProgressBusy(false);
+                    }
+                  }}
+                >
+                  {progressSaved
+                    ? "Progress remembered"
+                    : "Remember quiz result"}
+                </button>
+              )}
             </div>
           )}
           {active.kind === "mindmap" && (

@@ -28,6 +28,7 @@ import {
   Download,
   PanelRightClose,
   PanelRightOpen,
+  Bot,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -42,6 +43,7 @@ import { apiJSON } from "./lib/api";
 import { ConnectionSettings } from "./components/ConnectionSettings";
 import { NotebookSearch } from "./components/NotebookSearch";
 import { StudyStudio } from "./components/StudyStudio";
+import { AgentPanel } from "./components/AgentPanel";
 import type {
   AIStatus,
   Annotation,
@@ -94,7 +96,7 @@ export default function App() {
   const lastEdit = useRef({ key: "", time: 0 });
   const backupInput = useRef<HTMLInputElement>(null);
   const [enabled, setEnabled] = useState<Set<string>>(new Set()),
-    [tab, setTab] = useState<"chat" | "notes" | "studio">("chat");
+    [tab, setTab] = useState<"chat" | "notes" | "studio" | "agent">("chat");
   const [status, setStatus] = useState<AIStatus>({
     configured: false,
     model: "nvidia/nemotron-3-nano-30b-a3b",
@@ -451,6 +453,10 @@ export default function App() {
   const removeSource = async (value: Source) => {
     const savedAnnotations = annotations.filter((a) => a.sourceId === value.id);
     try {
+      await apiJSON("/api/agent/sources/revoke", {
+        id: value.id,
+        notebookId: value.notebookId,
+      });
       await storage.removeSource(value.id);
       setSources((list) => list.filter((s) => s.id !== value.id));
       setAnnotations((list) => list.filter((a) => a.sourceId !== value.id));
@@ -460,7 +466,7 @@ export default function App() {
       if (compareId === value.id) setCompareId("");
       if (sourceId === value.id)
         openSource(notebookSources.find((s) => s.id !== value.id)?.id ?? "");
-      notify("Source removed", () => {
+      notify("Source removed; agent access revoked", () => {
         void (async () => {
           await storage.source(value);
           for (const a of savedAnnotations) await storage.annotation(a);
@@ -1163,6 +1169,13 @@ export default function App() {
                   <Layers size={15} />
                   Studio
                 </button>
+                <button
+                  className={tab === "agent" ? "active" : ""}
+                  onClick={() => setTab("agent")}
+                >
+                  <Bot size={15} />
+                  Agent
+                </button>
               </div>
               <button
                 className="icon-button small"
@@ -1174,7 +1187,16 @@ export default function App() {
                 <Plus size={17} />
               </button>
             </div>
-            {tab === "studio" ? (
+            {tab === "agent" ? (
+              <AgentPanel
+                key={activeId}
+                notebookId={activeId}
+                sources={notebookSources}
+                onCitation={showCitation}
+                onSave={saveArtifact}
+                onSettings={() => setModal("settings")}
+              />
+            ) : tab === "studio" ? (
               <StudyStudio
                 notebookId={activeId}
                 sources={enabledSources}

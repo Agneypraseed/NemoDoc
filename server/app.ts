@@ -108,6 +108,14 @@ export function createApp(
     try {
       store.save(parsed.data);
       agent.worker.abort();
+      for (const task of agent.data.state.tasks)
+        if (
+          task.status === "active" &&
+          (task.connection.baseUrl !== store.value.baseUrl ||
+            task.connection.model !== store.value.model)
+        )
+          task.status = "paused";
+      agent.data.flush();
       res.json(store.public());
     } catch {
       res.status(500).json({
