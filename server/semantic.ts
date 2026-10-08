@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { retrieve, type Excerpt, type InputSource } from "./retrieval.ts";
 import { providerJSON, type RuntimeSettings } from "./settings.ts";
+import { providerKind } from "./providers.ts";
 
 export function chunks(sources: InputSource[]): Excerpt[] {
   const result: Excerpt[] = [];
@@ -65,9 +66,10 @@ export class SemanticRetriever {
         {
           model: settings.embeddingModel,
           input: batch.map((p) => p.text),
-          input_type: "passage",
           encoding_format: "float",
-          truncate: "END",
+          ...(providerKind(settings.embeddingBaseUrl) === "nvidia"
+            ? { input_type: "passage", truncate: "END" }
+            : {}),
         },
         settings,
         signal,
@@ -104,9 +106,10 @@ export class SemanticRetriever {
       {
         model: settings.embeddingModel,
         input: [question],
-        input_type: "query",
         encoding_format: "float",
-        truncate: "END",
+        ...(providerKind(settings.embeddingBaseUrl) === "nvidia"
+          ? { input_type: "query", truncate: "END" }
+          : {}),
       },
       settings,
       signal,
@@ -133,9 +136,17 @@ export class SemanticRetriever {
         settings.rerankUrl,
         {
           model: settings.rerankModel,
-          query: { text: question },
-          passages: selected.map((p) => ({ text: p.text })),
-          truncate: "END",
+          ...(providerKind(settings.rerankUrl) === "nvidia"
+            ? {
+                query: { text: question },
+                passages: selected.map((p) => ({ text: p.text })),
+                truncate: "END",
+              }
+            : {
+                query: question,
+                documents: selected.map((p) => p.text),
+                top_n: selected.length,
+              }),
         },
         settings,
         signal,

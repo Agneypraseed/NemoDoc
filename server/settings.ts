@@ -9,6 +9,7 @@ import {
 import path from "node:path";
 import type { Config } from "./app.ts";
 import type { ConnectionSettings } from "../src/types.ts";
+import { credentialAllowed } from "./providers.ts";
 
 export const endpoint = z
   .string()
@@ -89,7 +90,12 @@ export class SettingsStore {
     const { clearApiKey, apiKey, ...rest } = data;
     const next = {
       ...rest,
-      apiKey: clearApiKey ? "" : apiKey?.trim() || this.value.apiKey,
+      apiKey: clearApiKey
+        ? ""
+        : apiKey?.trim() ||
+          (new URL(rest.baseUrl).host === new URL(this.value.baseUrl).host
+            ? this.value.apiKey
+            : ""),
     };
     if (this.filename) {
       mkdirSync(path.dirname(this.filename), { recursive: true });
@@ -101,10 +107,15 @@ export class SettingsStore {
     this.value = next;
   }
 }
-export function headers(settings: RuntimeSettings): Record<string, string> {
+export function headers(
+  settings: RuntimeSettings,
+  url = settings.baseUrl,
+): Record<string, string> {
   return {
     "Content-Type": "application/json",
-    ...(settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {}),
+    ...(settings.apiKey && credentialAllowed(url, settings)
+      ? { Authorization: `Bearer ${settings.apiKey}` }
+      : {}),
   };
 }
 export async function providerJSON(
@@ -114,13 +125,13 @@ export async function providerJSON(
   settings: RuntimeSettings,
   signal = AbortSignal.timeout(120000),
 ) {
-  if (!settings.apiKey && !isLocal(url))
+  if ((!settings.apiKey || !credentialAllowed(url, settings)) && !isLocal(url))
     throw new Error(
-      "Configure your NVIDIA API key in Settings before using this feature.",
+      "Configure a key for this provider in Settings. Embedding and vision endpoints must use the same provider as chat.",
     );
   const response = await fetcher(url, {
     method: "POST",
-    headers: headers(settings),
+    headers: headers(settings, url),
     body: JSON.stringify(body),
     signal,
   });

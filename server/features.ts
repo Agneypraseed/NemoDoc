@@ -2,6 +2,7 @@ import type express from "express";
 import { z } from "zod";
 import { providerJSON, parseJSON, type SettingsStore } from "./settings.ts";
 import type { SemanticRetriever } from "./semantic.ts";
+import { chatOptions } from "./providers.ts";
 
 export const sourcesSchema = z
   .array(
@@ -208,7 +209,7 @@ export function registerFeatures(
         stream: false,
         temperature: 0.3,
         max_tokens: 6000,
-        chat_template_kwargs: { enable_thinking: false },
+        ...chatOptions(settings),
         messages: [
           {
             role: "system",

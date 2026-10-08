@@ -6,13 +6,19 @@ import { createApp } from "./app.ts";
 
 const app = createApp(
   {
-    apiKey: process.env.NVIDIA_API_KEY ?? "",
-    baseUrl:
-      process.env.NVIDIA_BASE_URL ?? "https://integrate.api.nvidia.com/v1",
-    model: process.env.NVIDIA_MODEL ?? "nvidia/nemotron-3-nano-30b-a3b",
+    apiKey: process.env.NEBIUS_API_KEY || process.env.NVIDIA_API_KEY || "",
+    baseUrl: process.env.NEBIUS_API_KEY
+      ? process.env.NEBIUS_BASE_URL || "https://api.tokenfactory.nebius.com/v1"
+      : (process.env.NVIDIA_BASE_URL ?? "https://integrate.api.nvidia.com/v1"),
+    model: process.env.NEBIUS_API_KEY
+      ? process.env.NEBIUS_MODEL || "nvidia/Nemotron-3_5-Lightning"
+      : (process.env.NVIDIA_MODEL ?? "nvidia/nemotron-3-nano-30b-a3b"),
   },
   fetch,
-  { settingsFile: path.resolve("data/settings.json") },
+  {
+    settingsFile: path.resolve("data/settings.json"),
+    agentFile: path.resolve("data/agent.json"),
+  },
 );
 if (existsSync("dist/index.html")) {
   app.use(express.static(path.resolve("dist")));

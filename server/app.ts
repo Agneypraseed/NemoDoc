@@ -6,9 +6,12 @@ import {
   settingsSchema,
   isLocal,
   providerJSON,
+  headers,
 } from "./settings.ts";
+import { chatOptions, providerKind } from "./providers.ts";
 import { SemanticRetriever } from "./semantic.ts";
 import { registerFeatures } from "./features.ts";
+import { registerAgent } from "./agent.ts";
 
 export interface Config {
   apiKey: string;
@@ -40,7 +43,7 @@ const schema = z.object({
 export function createApp(
   initialConfig: Config,
   fetcher: typeof fetch = fetch,
-  options: { settingsFile?: string } = {},
+  options: { settingsFile?: string; agentFile?: string } = {},
 ) {
   const app = express();
   const store = new SettingsStore(initialConfig, options.settingsFile);
@@ -61,7 +64,40 @@ export function createApp(
     next();
   });
   app.use(express.json({ limit: "12mb" }));
+  const agent = registerAgent(app, store, fetcher, options.agentFile);
   app.get("/api/settings", (_req, res) => res.json(store.public()));
+  app.get("/api/models", async (_req, res) => {
+    try {
+      if (!store.value.apiKey && !isLocal(store.value.baseUrl))
+        throw new Error("Save a key before loading available models.");
+      const response = await fetcher(
+        store.value.baseUrl.replace(/\/$/, "") + "/models",
+        {
+          headers: headers(store.value),
+          signal: AbortSignal.timeout(30000),
+        },
+      );
+      if (!response.ok)
+        throw new Error(
+          `Model catalog returned ${response.status}. Check the saved connection.`,
+        );
+      const data = await response.json();
+      const ids = z
+        .array(z.object({ id: z.string().min(1).max(200) }))
+        .max(3000)
+        .parse(data.data)
+        .map((m) => m.id);
+      res.json({
+        models: ids.sort(),
+        provider: providerKind(store.value.baseUrl),
+      });
+    } catch {
+      res.status(502).json({
+        error:
+          "Could not load models. Save the connection and key first; model IDs can also be entered manually.",
+      });
+    }
+  });
   app.post("/api/settings", (req, res) => {
     const parsed = settingsSchema.safeParse(req.body);
     if (!parsed.success)
@@ -71,6 +107,7 @@ export function createApp(
       });
     try {
       store.save(parsed.data);
+      agent.worker.abort();
       res.json(store.public());
     } catch {
       res.status(500).json({
@@ -89,8 +126,8 @@ export function createApp(
         {
           model: config.model,
           stream: false,
-          max_tokens: 64,
-          chat_template_kwargs: { enable_thinking: false },
+          max_tokens: 512,
+          ...chatOptions(config),
           messages: [
             { role: "user", content: "Reply with the single word ready." },
           ],
@@ -108,6 +145,13 @@ export function createApp(
         throw new Error(
           "The endpoint returned no chat response. Check its model ID.",
         );
+      agent.data.receipt({
+        at: Date.now(),
+        endpoint: config.baseUrl,
+        model: config.model,
+        responseId: typeof result.id === "string" ? result.id : "",
+        method: "connection test",
+      });
       res.json({
         ok: true,
         model: config.model,
@@ -205,7 +249,7 @@ export function createApp(
             stream: true,
             temperature: 0.3,
             max_tokens: 4096,
-            chat_template_kwargs: { enable_thinking: false },
+            ...chatOptions(config),
             messages: [
               {
                 role: "system",

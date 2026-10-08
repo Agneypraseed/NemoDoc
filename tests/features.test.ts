@@ -75,10 +75,17 @@ test("settings keep credentials server-side, preserve or clear keys, persist, an
         assert.equal((await post(url + "/api/settings/test", {})).status, 200);
         assert.equal(requests[0].body.model, "local-nemotron");
         assert.equal(requests[0].authorization, "Bearer replacement-key");
-        await post(url + "/api/settings", { ...settings, apiKey: "" });
+        const localSettings = await (await fetch(url + "/api/settings")).json();
+        await post(url + "/api/settings", { ...localSettings, apiKey: "" });
         assert.equal(
           JSON.parse(readFileSync(filename, "utf8")).apiKey,
           "replacement-key",
+        );
+        await post(url + "/api/settings", { ...settings, apiKey: "" });
+        assert.equal(
+          (await (await fetch(url + "/api/settings")).json()).hasApiKey,
+          false,
+          "A changed host must not receive the previous provider key",
         );
         await post(url + "/api/settings", { ...settings, clearApiKey: true });
         assert.equal(
