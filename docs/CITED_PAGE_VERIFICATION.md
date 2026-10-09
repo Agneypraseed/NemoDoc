@@ -23,7 +23,19 @@ The learning deck is original test content, generated with python-pptx. Complex
 PPTX backgrounds/shapes/themes remain subject to the existing reconstructed
 renderer fidelity limits. No live inference was run: no provider key is configured.
 
-Git branch: `codex/cited-page-previews`. No merge into main. Git push works, but
-GitHub CLI PR creation is blocked: its configured token fails authentication and
-`https://api.github.com/graphql` returns Forbidden. No PR artifact attachment tool
-is exposed in this session. The pushed branch and README are ready for review.
+Delivered through [PR #1](https://github.com/Agneypraseed/NemoDoc/pull/1)
+from `codex/cited-page-previews`.
+
+## Pre-merge review on 2026-10-09
+
+Numbered-page questions now call chat with only the requested page's text and
+preserve the original page number; a simple request to return that page stays
+local. PDF lecture pages also accept “slide” requests. Empty visual evidence is
+not replaced with a fabricated quotation, and the PDF export library loads when
+the download is requested.
+
+The reviewed branch passed `npm run check`, all 33 unit/API tests,
+`npm run build`, and the complete browser suite: 19 passed, with the two opt-in
+live inference checks skipped. The new regression flow verifies numbered-page
+Q&A and local PDF slide returns. These checks use deterministic AI responses;
+the earlier real Nebius verification is recorded in `LIVE_VERIFICATION.md`.

@@ -1,6 +1,48 @@
 import { test, expect } from "@playwright/test";
 import { PDFDocument } from "pdf-lib";
 import { readFile } from "node:fs/promises";
+test("numbered-page Q&A calls chat with only that page; PDF slide returns stay local", async ({
+  page,
+}) => {
+  let requests = 0;
+  let sent:
+    { sources: { id: string; name: string; pages: string[] }[] } | undefined;
+  await page.route("**/api/chat", async (route) => {
+    requests++;
+    sent = route.request().postDataJSON();
+    const source = sent!.sources[0];
+    const citation = {
+      id: 1,
+      sourceId: source.id,
+      sourceName: source.name,
+      page: 3,
+      text: source.pages[2].slice(0, 100),
+    };
+    await route.fulfill({
+      contentType: "text/event-stream",
+      body: `event: sources\ndata: ${JSON.stringify([citation])}\n\nevent: delta\ndata: ${JSON.stringify("This page explains the reading space and scrolling layouts. [1]")}\n\nevent: done\ndata: {}\n\n`,
+    });
+  });
+  await page.goto("/");
+  const ask = page.getByRole("textbox", { name: "Ask about your sources" });
+  await ask.fill("Explain page 3");
+  await ask.press("Enter");
+  await expect(page.locator(".message.assistant").last()).toContainText(
+    "This page explains the reading space",
+  );
+  await expect(page.locator(".supporting-page img")).toBeVisible();
+  expect(requests).toBe(1);
+  expect(sent!.sources).toHaveLength(1);
+  expect(sent!.sources[0].pages.filter(Boolean)).toHaveLength(1);
+  expect(sent!.sources[0].pages[2]).toContain("reading space");
+  await ask.fill("Show slide 2");
+  await ask.press("Enter");
+  await expect(page.locator(".message.assistant").last()).toContainText(
+    "Page 2",
+  );
+  await expect(page.locator(".supporting-page img").last()).toBeVisible();
+  expect(requests).toBe(1);
+});
 test("local multi-page PDF previews, exact downloads, reload, ZIP and mobile", async ({
   page,
 }) => {

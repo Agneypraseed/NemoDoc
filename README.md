@@ -108,6 +108,10 @@ to receive that page in the answer. Explicit numbers are resolved locally agains
 selected sources; select one source or include its filename when several are
 selected. Out-of-range and unavailable sources produce a visible error.
 
+“Explain page 2” still answers your question, using that page's text and showing
+its supporting preview. Lectures exported as PDFs also accept requests such as
+“Show slide 2 from Lecture.pdf”.
+
 For topic questions, NemoDoc retrieves excerpts and explains them with citations.
 “Show the page about retrieval practice” reveals supporting previews automatically;
 ordinary answers offer **Show supporting pages**. Only citations used in the answer

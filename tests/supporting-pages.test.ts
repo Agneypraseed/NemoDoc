@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { PDFDocument } from "pdf-lib";
 import {
   explicitPage,
+  pageOnlyRequest,
   supportingPages,
   wantsPages,
 } from "../src/lib/supporting-pages.ts";
@@ -42,6 +43,28 @@ test("explicit requests validate bounds and source ambiguity", () => {
     "s",
   );
   assert.ok(wantsPages("Return just the page about retrieval"));
+});
+test("numbered-page questions keep their answer and PDF lectures accept slide numbers", () => {
+  assert.equal(pageOnlyRequest("Return just page 2 from Research.pdf"), true);
+  assert.equal(pageOnlyRequest("Show page 2 and explain its argument"), false);
+  assert.equal(pageOnlyRequest("Explain page 2 from Research.pdf"), false);
+  assert.equal(pageOnlyRequest("Give me a summary of page 2"), false);
+  assert.equal(
+    explicitPage("Show slide 2 from Research.pdf", [source])?.page,
+    2,
+  );
+  assert.equal(explicitPage("Show slide 2", [source])?.sourceId, "s");
+  const deck = {
+    ...source,
+    id: "deck",
+    name: "Lecture.pptx",
+    kind: "pptx" as const,
+  };
+  assert.equal(explicitPage("Show slide 2", [source, deck])?.sourceId, "deck");
+  assert.equal(
+    explicitPage("Show slide 2 from Research.pdf", [source, deck])?.sourceId,
+    "s",
+  );
 });
 test("supporting excerpts deduplicate, reject mismatches and preserve unavailable references", () => {
   const c = {

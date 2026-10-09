@@ -3,6 +3,12 @@ export const wantsPages = (question: string) =>
   /\b(show|return|give|display|attach|send)\b[^\n]*\b(pages?|slides?)\b/i.test(
     question,
   );
+export const pageOnlyRequest = (question: string) =>
+  (wantsPages(question) ||
+    /^\s*(page|slide)\s*\d+\s*[.!?]?\s*$/i.test(question)) &&
+  !/\b(explain|summari[sz]e|summary|analy[sz]e|compare|describe|translate|why|how|what|question|answer|discuss|teach|interpret)\b/i.test(
+    question,
+  );
 export function explicitPage(
   question: string,
   sources: Source[],
@@ -20,9 +26,14 @@ export function explicitPage(
     throw new Error(
       "The named source is not selected or is unavailable. Select it in the sidebar.",
     );
-  const candidates = (named.length ? named : sources).filter(
-    (s) => match[1].toLowerCase() !== "slide" || s.kind === "pptx",
-  );
+  const pool = named.length ? named : sources;
+  const decks = pool.filter((s) => s.kind === "pptx");
+  // Lectures exported to PDF still have numbered slides. Prefer a selected deck
+  // for unnamed slide requests, but respect an explicitly named PDF lecture.
+  const candidates =
+    match[1].toLowerCase() === "slide" && !named.length && decks.length
+      ? decks
+      : pool;
   if (candidates.length !== 1)
     throw new Error(
       "Choose one source in the sidebar, or include its filename, to identify the requested page or slide.",

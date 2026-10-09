@@ -3,7 +3,6 @@ import type { Citation, Message, Source } from "../types";
 import { supportingPages } from "../lib/supporting-pages";
 import { pdfjs, pdfOptions } from "../lib/documents";
 import { slideImage } from "../lib/page-image";
-import { singlePagePdf } from "../lib/page-export";
 import { download } from "../lib/storage";
 function Preview({ source, page }: { source: Source; page: number }) {
   const [image, setImage] = useState(""),
@@ -120,12 +119,14 @@ export function SupportingPages({
                         const stem = source.name
                           .replace(/\.(pdf|pptx)$/i, "")
                           .replace(/[^\p{L}\p{N} _-]/gu, "_");
-                        if (source.kind === "pdf")
+                        if (source.kind === "pdf") {
+                          const { singlePagePdf } =
+                            await import("../lib/page-export");
                           download(
                             await singlePagePdf(source, c.page),
                             `${stem}-page-${c.page}.pdf`,
                           );
-                        else {
+                        } else {
                           const image = await slideImage(
                             source.slides![c.page - 1],
                             "image/png",
