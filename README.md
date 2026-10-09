@@ -11,6 +11,7 @@ NemoDoc is a local, NotebookLM-style workspace powered by **NVIDIA Nemotron**. B
 - **Read your way.** Open PDFs and PowerPoint slides in vertical, horizontal, or book views.
 - **Make it yours.** Highlight, underline, draw, and collect notes as you read.
 - **Ask with evidence.** Chat with your sources and click citations to check the original page.
+- **Keep useful answers.** Choose **Save to Notes** to keep the question, answer, and cited pages in your notebook.
 - **Save the relevant pages.** Preview supporting pages in chat and download individual pages or slides.
 - **Study smarter.** Create flashcards, quizzes, guides, and mind maps, with an agent that remembers your goals.
 

@@ -53,6 +53,7 @@ test("complete backup round-trip restores originals, reading preferences, annota
             id: "m",
             role: "assistant",
             content: "Answer [1]",
+            savedToNotes: true,
             citations: [
               {
                 id: 1,
@@ -100,6 +101,7 @@ test("complete backup round-trip restores originals, reading preferences, annota
     restored.notebooks[0].messages[0].citations?.[0].sourceId,
     restored.sources[0].id,
   );
+  assert.equal(restored.notebooks[0].messages[0].savedToNotes, true);
   assert.equal(restored.annotations[0].note, annotation.note);
   assert.deepEqual(restored.sources[0].readingState, source.readingState);
   assert.equal(restored.artifacts[0].notebookId, restored.notebooks[0].id);
