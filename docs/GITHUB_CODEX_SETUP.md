@@ -28,13 +28,13 @@ npx playwright install --with-deps chromium
 - Credentials: **none needed for Save answer to Notes or its standard tests**. No Nebius, NVIDIA, or OpenAI API key needs to be added for this task. This built-in integration uses the connected Codex account. A separately configured OpenAI Codex GitHub Action would require its own API credentials.
 - No changes to production deployment, repository visibility, or branch protections are needed.
 
-## Current blocker (2026-10-09)
+## Legacy environment setup (2026-10-09)
 
-The GitHub connector can read/write the repository, the owner has admin permission, and the Codex bot receives PR #2 comments. Both implementation attempts received: "To use Codex here, create an environment for this repo." No implementation task started.
+The initial implementation attempts reported a missing repository environment. The newer NemoDoc cloud environment did not supply a legacy environment for GitHub task mentions.
 
-The signed-in newer cloud settings contain a NemoDoc environment. Both the bot's legacy settings URL and the legacy URL in the official documentation redirected to the ChatGPT home page in the inspected session. The environment-system mismatch is a plausible explanation, but the exact account-side cause has not been confirmed.
+The review bot's settings link opened the working [Legacy Codex Cloud settings](https://chatgpt.com/settings/cloud-environments). That page showed no legacy environments. A separate **NemoDoc GitHub Codex** environment was then created for `Agneypraseed/NemoDoc`, with Node.js 22, the setup script above, container caching, and a maintenance script that runs `npm ci` and `npx playwright install chromium`.
 
-If the legacy environment controls remain inaccessible, contact OpenAI support with the PR link, bot response, both redirects, and the existing environment name. Ask how to associate this repository with an environment usable by the built-in GitHub `@codex` implementation tasks. Reinstalling the GitHub app or adding API keys has not been established as a fix.
+Agent internet access stays off after setup, and no provider secrets are configured. This built-in workflow uses the ChatGPT subscription's Codex allowance; API billing is separate. Use [Legacy Codex Cloud settings](https://chatgpt.com/settings/cloud-environments) to maintain this environment, rather than the newer environment setup screen.
 
 ## Official references
 
