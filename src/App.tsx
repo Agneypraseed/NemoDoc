@@ -45,6 +45,7 @@ import { importDocument } from "./lib/documents";
 import { download, storage } from "./lib/storage";
 import { streamChat } from "./lib/chat";
 import { citationMarkdown, usesCitation } from "./lib/citations";
+import { mergeStreamMessages, saveAnswerToNotes } from "./lib/save-answer";
 import { createBackup, readBackup } from "./lib/backup";
 import { apiJSON } from "./lib/api";
 import { ConnectionSettings } from "./components/ConnectionSettings";
@@ -122,6 +123,7 @@ export default function App() {
   const [draft, setDraft] = useState(""),
     [chatError, setChatError] = useState(""),
     [busy, setBusy] = useState(false);
+  const [streamingMessageId, setStreamingMessageId] = useState("");
   const [context, setContext] = useState<{
       quote: string;
       sourceId: string;
@@ -607,6 +609,25 @@ export default function App() {
     );
     notify("Notes exported");
   };
+  const saveAnswer = (answerId: string) => {
+    if (!notebook || answerId === streamingMessageId) return;
+    const target = notebook.id;
+    setNotebooks((list) =>
+      list.map((current) => {
+        if (current.id !== target) return current;
+        const saved = saveAnswerToNotes(
+          current.notes,
+          current.messages,
+          answerId,
+          sources.filter((source) => source.notebookId === target),
+        );
+        if (!saved) return current;
+        const updated = { ...current, ...saved };
+        void storage.notebook(updated).catch(reportStorageError);
+        return updated;
+      }),
+    );
+  };
   const send = async (question = draft, onlySources?: Source[]) => {
     if (!notebook || !question.trim() || streaming.current) return;
     if (!enabledSources.length && !context && !visual && !onlySources?.length) {
@@ -640,11 +661,13 @@ export default function App() {
     const messages = [...originalMessages, user, answer];
     const refresh = () =>
       setNotebooks((list) =>
-        list.map((n) =>
-          n.id === target
-            ? { ...n, messages: messages.map((m) => ({ ...m })) }
-            : n,
-        ),
+        list.map((n) => {
+          if (n.id !== target) return n;
+          return {
+            ...n,
+            messages: mergeStreamMessages(n.messages, messages),
+          };
+        }),
       );
     setDraft("");
     setSuggestionsOpen(false);
@@ -656,6 +679,7 @@ export default function App() {
     setChatError("");
     setBusy(true);
     streaming.current = true;
+    setStreamingMessageId(answer.id);
     abort.current = new AbortController();
     refresh();
     try {
@@ -742,13 +766,17 @@ export default function App() {
       setNotebooks((list) =>
         list.map((n) => {
           if (n.id !== target) return n;
-          const updated = { ...n, messages: messages.map((m) => ({ ...m })) };
+          const updated = {
+            ...n,
+            messages: mergeStreamMessages(n.messages, messages),
+          };
           void storage.notebook(updated).catch(reportStorageError);
           return updated;
         }),
       );
       setBusy(false);
       streaming.current = false;
+      setStreamingMessageId("");
     }
   };
   if (!ready)
@@ -1412,6 +1440,19 @@ export default function App() {
                               open={showCitation}
                             />
                           )}
+                          {m.role === "assistant" &&
+                            m.content.trim() &&
+                            m.id !== streamingMessageId && (
+                              <button
+                                type="button"
+                                className="save-answer"
+                                disabled={m.savedToNotes}
+                                onClick={() => saveAnswer(m.id)}
+                              >
+                                <Check size={14} />
+                                {m.savedToNotes ? "Saved" : "Save to Notes"}
+                              </button>
+                            )}
                         </div>
                       ))}
                     </div>

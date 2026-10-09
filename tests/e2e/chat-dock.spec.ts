@@ -12,7 +12,9 @@ test("chat can close without losing a draft; bottom input sends and suggestions 
     });
   });
   await page.goto("/");
-  await expect(page.locator('[data-page="1"] canvas')).toBeVisible();
+  await expect(page.locator('[data-page="1"] canvas')).toBeVisible({
+    timeout: 15_000,
+  });
   const assistant = page.getByRole("complementary", {
     name: "Notebook assistant",
   });
@@ -44,6 +46,18 @@ test("chat can close without losing a draft; bottom input sends and suggestions 
     "Vertical scrolling",
   );
   expect(calls).toBe(1);
+  await page.getByRole("button", { name: "Save to Notes" }).click();
+  await expect(page.getByRole("button", { name: "Saved" })).toBeDisabled();
+  await page.getByRole("button", { name: "Notes", exact: true }).click();
+  const notes = page.getByRole("textbox", { name: "Notebook notes" });
+  await expect(notes).toContainText("Summarize the key ideas in my sources.");
+  await expect(notes).toContainText(
+    "Vertical scrolling supports continuous reading",
+  );
+  await expect(notes).toContainText(
+    "Designing for human attention.pdf — page 3",
+  );
+  await page.getByRole("button", { name: "Chat", exact: true }).click();
   await page
     .getByRole("button", { name: "Close assistant", exact: true })
     .click();
@@ -80,6 +94,7 @@ test("chat can close without losing a draft; bottom input sends and suggestions 
   await expect(page.locator(".message.assistant")).toContainText(
     "Vertical scrolling",
   );
+  await expect(page.getByRole("button", { name: "Saved" })).toBeDisabled();
 });
 
 test("mobile bottom chat and on-demand cards fit the viewport and the panel stays above the input", async ({

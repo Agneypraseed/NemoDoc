@@ -39,6 +39,7 @@ const manifest = z.object({
             content: z.string(),
             citations: z.array(citation).optional(),
             showPages: z.boolean().optional(),
+            savedToNotes: z.boolean().optional(),
           }),
         ),
       }),
