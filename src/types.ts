@@ -70,6 +70,7 @@ export interface Message {
   citations?: Citation[];
   showPages?: boolean;
   savedToNotes?: boolean;
+  incomplete?: boolean;
 }
 export interface Notebook {
   id: string;

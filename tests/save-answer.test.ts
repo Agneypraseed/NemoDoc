@@ -117,3 +117,24 @@ test("stream updates preserve the saved state of an earlier answer", () => {
   assert.equal(merged[0].savedToNotes, true);
   assert.equal(merged[1].content, "Partial answer");
 });
+
+test("unfinished answers and invalid source pages cannot become saved evidence", () => {
+  const messages: Message[] = [
+    { id: "q", role: "user", content: "Question" },
+    { id: "a", role: "assistant", content: "Partial [1]", incomplete: true },
+  ];
+  assert.equal(saveAnswerToNotes("", messages, "a", sources), undefined);
+  messages[1].incomplete = false;
+  messages[1].content = "Answer [1] [2] [3] [4]";
+  messages[1].citations = [0, -1, 1.5, 99].map((page, index) => ({
+    id: index + 1,
+    sourceId: "paper",
+    sourceName: "Research.pdf",
+    page,
+    text: "",
+  }));
+  assert.doesNotMatch(
+    saveAnswerToNotes("", messages, "a", sources)!.notes,
+    /### Sources/,
+  );
+});

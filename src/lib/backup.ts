@@ -40,6 +40,7 @@ const manifest = z.object({
             citations: z.array(citation).optional(),
             showPages: z.boolean().optional(),
             savedToNotes: z.boolean().optional(),
+            incomplete: z.boolean().optional(),
           }),
         ),
       }),

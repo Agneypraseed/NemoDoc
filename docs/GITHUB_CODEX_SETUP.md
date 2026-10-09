@@ -7,7 +7,7 @@ This is the setup for the built-in `@codex` agent invoked from a pull request co
 1. Use the ChatGPT account connected to the GitHub account that posts the `@codex` comment.
 2. Grant the Codex GitHub integration access to `Agneypraseed/NemoDoc` and permission to push to the feature branch.
 3. Configure a **Codex Cloud (Legacy)** environment for this exact repository in the same ChatGPT account/workspace. Official documentation says GitHub task mentions use this legacy environment system; newer published cloud environments are a separate system.
-4. Use the existing open draft PR #2, with head branch `codex/save-answer-to-notes` and base `main`. Leave it unmerged.
+4. Start from a feature branch or pull request and give the agent a specific task. Review and test its changes before merging.
 
 ## Environment configuration
 
@@ -36,9 +36,11 @@ The review bot's settings link opened the working [Legacy Codex Cloud settings](
 
 Agent internet access stays off after setup, and no provider secrets are configured. This built-in workflow uses the ChatGPT subscription's Codex allowance; API billing is separate. Use [Legacy Codex Cloud settings](https://chatgpt.com/settings/cloud-environments) to maintain this environment, rather than the newer environment setup screen.
 
+The GitHub task successfully implemented Save to Notes in [the cloud task](https://chatgpt.com/remote/task_e_6ac8e3111658832e90673a2799213866). Its checkout had no Git remote, so publication required applying the agent changes to the existing PR branch and pushing from the local checkout. Independent verification also corrected interrupted-answer handling. No API-billed GitHub Action was used.
+
 ## Official references
 
 - [GitHub task mentions](https://learn.chatgpt.com/docs/third-party/github#give-codex-other-tasks)
 - [Codex Cloud (Legacy)](https://learn.chatgpt.com/docs/environments/cloud-environment)
 - [Newer cloud environments and the legacy distinction](https://learn.chatgpt.com/docs/environments/cloud-environments)
-- [Draft PR #2](https://github.com/Agneypraseed/NemoDoc/pull/2)
+- [Save to Notes PR #2](https://github.com/Agneypraseed/NemoDoc/pull/2)

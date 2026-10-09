@@ -653,6 +653,7 @@ export default function App() {
     const answer: Message = {
       id: crypto.randomUUID(),
       role: "assistant",
+      incomplete: true,
       content: "",
       citations: [],
       showPages: wantsPages(question),
@@ -752,6 +753,7 @@ export default function App() {
             ),
         );
       }
+      answer.incomplete = false;
     } catch (error) {
       if (!(error instanceof Error && error.name === "AbortError"))
         setChatError(
@@ -1442,6 +1444,7 @@ export default function App() {
                           )}
                           {m.role === "assistant" &&
                             m.content.trim() &&
+                            !m.incomplete &&
                             m.id !== streamingMessageId && (
                               <button
                                 type="button"

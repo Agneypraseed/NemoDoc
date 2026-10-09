@@ -24,6 +24,7 @@ export async function streamChat(
   const reader = response.body.getReader(),
     decoder = new TextDecoder();
   let buffer = "";
+  let completed = false;
   const consume = (block: string) => {
     const event = block
       .split("\n")
@@ -41,6 +42,7 @@ export async function streamChat(
     if (event === "sources") onSources(payload);
     if (event === "retrieval") onRetrieval?.(payload);
     if (event === "error") throw new Error(payload);
+    if (event === "done") completed = true;
   };
   try {
     while (true) {
@@ -51,6 +53,8 @@ export async function streamChat(
       blocks.forEach(consume);
       if (done) {
         if (buffer.trim()) consume(buffer);
+        if (!completed)
+          throw new Error("The answer was interrupted. Please try again.");
         break;
       }
     }

@@ -30,6 +30,7 @@ export function saveAnswerToNotes(
     !answer ||
     answer.role !== "assistant" ||
     !answer.content.trim() ||
+    answer.incomplete ||
     answer.savedToNotes
   )
     return;
@@ -46,6 +47,8 @@ export function saveAnswerToNotes(
     );
     return (
       !!source &&
+      Number.isInteger(citation.page) &&
+      citation.page >= 1 &&
       citation.page <= source.pages.length &&
       usesCitation(answer.content, citation, answer.citations ?? [])
     );
