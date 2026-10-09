@@ -8,7 +8,7 @@ A local personal research and study agent powered by NVIDIA Nemotron through Neb
 
 - **Read your sources:** import PDFs and PowerPoint files, switch between vertical, horizontal, and two-page book views, and use zoom, thumbnails, bookmarks, and document search.
 - **Annotate as you read:** select text to highlight or underline it, add notes, draw with the pen, and organize annotations with tags and undo/redo.
-- **Ask with evidence:** chat about selected sources or passages, follow citations back to the page, search by meaning, and ask about page images. OCR makes scanned page text selectable and searchable.
+- **Ask with evidence:** chat about selected sources or passages, follow citations back to the page, and request supporting pages with individual PDF downloads. Text retrieval works locally; semantic search and vision/OCR require compatible Nemotron models on your chosen provider.
 - **Build study materials:** generate and edit flashcards, quizzes, study guides, and interactive mind maps in Studio. Check quiz answers and save missed questions as progress memory.
 - **Use a personal agent:** keep editable goals, deadlines, preferences, and learning progress. Run reusable skills now or on a daily/weekly schedule using sources you approve.
 - **Keep your work:** compare two sources side by side, export Markdown notes and annotated PDFs, and back up or restore complete notebooks as ZIP files.
@@ -27,7 +27,15 @@ A local personal research and study agent powered by NVIDIA Nemotron through Neb
 
 The composer stays at the bottom of the workspace. Suggested questions appear when requested, and answer citations open the supporting source page.
 
-![Chat with a page citation and on-demand suggested questions](docs/screenshots/chat.png)
+**Case 1 — explain a topic.** Import [Mathematics for Machine Learning](https://mml-book.github.io/) and ask about principal component analysis, dimensionality reduction and variance maximization. Nemotron answers from retrieved passages; clicking a citation opens the original book page.
+
+![Real Nebius Nemotron answer about PCA with the cited MML book page open](docs/screenshots/mml-answer.png)
+
+**Case 2 — return the source pages.** Ask “Return just the supporting pages about principal component analysis so I can download them.” The answer includes locally rendered pages with **Open in reader** and **Download single page (PDF)**. Expand **Supporting excerpts** to inspect the exact evidence. Each download contains one original page and needs no additional model call.
+
+![Real Nemotron response with original MML book pages and individual PDF download controls](docs/screenshots/mml-supporting-pages.png)
+
+These two screenshots use actual Nemotron responses through Nebius, with no mocked inference. The [MML verification record](docs/MML_VERIFICATION.md) includes provider receipts, page checks and the command to repeat the workflow. The book is by Marc Peter Deisenroth, A. Aldo Faisal and Cheng Soon Ong, published by Cambridge University Press; it retains its own copyright and is not included in this repository.
 
 ### Study Studio
 
@@ -41,7 +49,7 @@ Reusable skills work with notebook memory and approved sources. Scheduled tasks 
 
 ![Personal agent showing reusable research and study skills](docs/screenshots/personal-agent.png)
 
-Screenshots use the included sample notebook. Chat and Studio content shown here uses deterministic demo responses. Actual Nebius inference was tested separately; see the [live verification record](docs/LIVE_VERIFICATION.md).
+The reader, Studio and agent overview screenshots use the included sample notebook; Studio content uses deterministic demo responses. The two MML chat screenshots above show real inference.
 
 ## Run locally
 
@@ -56,11 +64,13 @@ Open [localhost:5173](http://127.0.0.1:5173). Reading, annotations, exports, and
 
 For AI features, open **Settings**, select **Nebius**, enter a **Nebius Token Factory API key**, and choose **Save & test**. Use an NVIDIA Nemotron model available in your provider's model catalog. The verified configuration uses:
 
-| Capability                                 | Model                           |
-| ------------------------------------------ | ------------------------------- |
-| Chat, study generation, and personal agent | `nvidia/Nemotron-3_5-Lightning` |
-| Semantic search                            | `Qwen/Qwen3-Embedding-8B`       |
-| Page-image questions and OCR               | `openbmb/MiniCPM-V-4_5`         |
+| Capability                                 | Nemotron-only configuration                                             |
+| ------------------------------------------ | ----------------------------------------------------------------------- |
+| Chat, study generation, and personal agent | `nvidia/Nemotron-3_5-Lightning` on Nebius                               |
+| Source retrieval and page exports          | Local keyword retrieval, PDF.js and pdf-lib; no extra model             |
+| Optional embeddings, vision/OCR, reranking | Configure only a compatible Nemotron model offered by the same provider |
+
+The MVP restricts inference and the model picker to Nemotron models. Nebius optional capability IDs start blank because the checked account catalog offers Nemotron text models, with no compatible embedding or vision model listed. Older Qwen, MiniCPM and Mistral capability settings are cleared in memory while preserving your saved provider and key. Search falls back to local keywords when no embedding model is configured.
 
 Get started with the [Nebius Token Factory quickstart](https://docs.tokenfactory.nebius.com/quickstart). The app also supports NVIDIA-hosted and local compatible inference endpoints through Settings. Optional embedding and vision features require compatible models; keyword retrieval works without embeddings.
 
@@ -95,7 +105,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Regular tests use deterministic AI responses. Real Nebius calls have also verified document Q&A and citations, study generation, semantic retrieval, vision/OCR, and agent execution with the browser closed. The [live verification record](docs/LIVE_VERIFICATION.md) includes the opt-in command to repeat those checks with your own key.
+Regular tests use deterministic AI responses. The [earlier live verification record](docs/LIVE_VERIFICATION.md) documents document Q&A, study generation and agent execution, plus optional non-Nemotron capabilities tested before the model restriction. The current live suite keeps inference on Nemotron and uses keyword retrieval.
 
 More detail: [personal agent guide](docs/PERSONAL_AGENT.md) · [workspace acceptance checks](docs/UPGRADE.md).
 

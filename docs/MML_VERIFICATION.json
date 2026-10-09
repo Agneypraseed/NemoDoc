@@ -1,0 +1,57 @@
+{
+  "checkedAt": "2026-10-09T10:41:04.793Z",
+  "provider": "Nebius Token Factory",
+  "model": "nvidia/Nemotron-3_5-Lightning",
+  "catalog": [
+    "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
+    "nvidia/Nemotron-3-Ultra-550b-a55b",
+    "nvidia/Nemotron-3_5-Lightning",
+    "nvidia/nemotron-3-super-120b-a12b"
+  ],
+  "originalPageCount": 417,
+  "question": "Explain principal component analysis (PCA), its dimensionality reduction objective and variance maximization in at most 140 words. Cite the relevant book passages.",
+  "answerText": "NemoDoc\n\nPrincipal Component Analysis (PCA) is a linear dimensionality-reduction algorithm that finds a compact lower-dimensional representation of high-dimensional data by exploiting redundancy and correlation 2. Its objective is to retain as much information as possible, where information is quantified by data variance/spread 4. PCA solves the constrained optimization max bᵀS****b subject to ||b||=1, yielding the eigenvector of the data covariance matrix S associated with the largest eigenvalue λ₁; the projected variance equals λ₁ 5. Minimizing average squared reconstruction error is equivalent to maximizing projected variance, and PCA selects the M eigenvectors with the largest eigenvalues to span the principal subspace 6 7.\n\n2\nmml-book\nPage 323\n4\nmml-book\nPage 326\n5\nmml-book\nPage 328\n6\nmml-book\nPage 338\n7\nmml-book\nPage 340\nShow supporting pages",
+  "citedPage": 323,
+  "downloadQuestion": "Return just the supporting pages about principal component analysis (PCA), variance maximization and dimensionality reduction so I can download them. Reply with one short sentence and the most relevant citation IDs only.",
+  "downloadAnswer": "NemoDoc\n\nSupporting pages for PCA, variance maximization, and dimensionality reduction: 2, 5, 7.\n\n2\nmml-book\nPage 323\n5\nmml-book\nPage 328\n7\nmml-book\nPage 340\nmml-book.pdf · Page 323\nSupporting excerpts (1)\nOpen in readerDownload single page (PDF)\nmml-book.pdf · Page 328\nSupporting excerpts (1)\nOpen in readerDownload single page (PDF)\nShow more supporting pages (1)",
+  "exports": [
+    {
+      "page": 323,
+      "filename": "mml-book-page-323.pdf",
+      "exactTextMatch": true,
+      "pageCount": 1,
+      "independentPypdfTextMatch": true,
+      "popplerPixelMatch": true,
+      "sha256": "58610769D880101D3EEDA3D1A30EA224D20E3E7ED030958C653A9706D7E98B4B"
+    },
+    {
+      "page": 328,
+      "filename": "mml-book-page-328.pdf",
+      "exactTextMatch": true,
+      "pageCount": 1,
+      "independentPypdfTextMatch": true,
+      "popplerPixelMatch": true,
+      "sha256": "BAFD6A541E903707B22266501408CCD25809D122A5F0B24DE57F3BED7919261E"
+    }
+  ],
+  "receipts": [
+    {
+      "endpoint": "https://api.tokenfactory.nebius.com/v1/chat/completions",
+      "requestedModel": "nvidia/Nemotron-3_5-Lightning",
+      "status": 200,
+      "responseId": "chatcmpl-5ac51614",
+      "returnedModel": "nvidia/Nemotron-3_5-Lightning"
+    },
+    {
+      "endpoint": "https://api.tokenfactory.nebius.com/v1/chat/completions",
+      "requestedModel": "nvidia/Nemotron-3_5-Lightning",
+      "status": 200,
+      "responseId": "chatcmpl-f9780429",
+      "returnedModel": "nvidia/Nemotron-3_5-Lightning"
+    }
+  ],
+  "allCallsNemotron": true,
+  "downloadsMadeNoInferenceCalls": true,
+  "sourceUrl": "https://mml-book.github.io/book/mml-book.pdf",
+  "originalSha256": "3F87B70C64A35D30EC4E565B4D5CFD18FE913002D3B3BED44691C7D0838911BC"
+}

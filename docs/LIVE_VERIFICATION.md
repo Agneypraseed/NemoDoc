@@ -1,5 +1,7 @@
 # Live Nebius verification
 
+**Historical record (2026-10-08).** The current MVP permits Nemotron models only. The Qwen/MiniCPM checks below describe the earlier implementation; those defaults and live test calls have been removed. `tests/e2e/live.spec.ts` now exercises Nemotron chat/study/agent with local keyword retrieval. See [the MML book verification](MML_VERIFICATION.md) for the current real book answer and page-download demo.
+
 Verified on 2026-10-08 using the user's configured Token Factory key. These checks made actual inference requests; no provider responses were mocked.
 
 ## Connection and models
