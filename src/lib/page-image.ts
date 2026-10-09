@@ -1,5 +1,5 @@
 import type { Slide } from "../types";
-export async function slideImage(slide: Slide) {
+export async function slideImage(slide: Slide, format = "image/jpeg") {
   const canvas = document.createElement("canvas");
   const scale = Math.min(1800 / slide.width, 1200 / slide.height);
   canvas.width = Math.round(slide.width * scale);
@@ -41,5 +41,5 @@ export async function slideImage(slide: Slide) {
       }
     }
   }
-  return canvas.toDataURL("image/jpeg", 0.85);
+  return canvas.toDataURL(format, 0.85);
 }

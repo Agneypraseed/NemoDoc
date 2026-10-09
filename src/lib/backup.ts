@@ -38,6 +38,7 @@ const manifest = z.object({
             role: z.enum(["user", "assistant"]),
             content: z.string(),
             citations: z.array(citation).optional(),
+            showPages: z.boolean().optional(),
           }),
         ),
       }),

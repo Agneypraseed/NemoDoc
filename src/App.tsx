@@ -1,3 +1,9 @@
+import { SupportingPages } from "./components/SupportingPages";
+import {
+  explicitPage,
+  pageOnlyRequest,
+  wantsPages,
+} from "./lib/supporting-pages";
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
@@ -627,6 +633,7 @@ export default function App() {
       role: "assistant",
       content: "",
       citations: [],
+      showPages: wantsPages(question),
     };
     const originalMessages = notebook.messages;
     const messages = [...originalMessages, user, answer];
@@ -651,7 +658,15 @@ export default function App() {
     abort.current = new AbortController();
     refresh();
     try {
-      if (imageQuestion) {
+      const requestedPage = !imageQuestion
+        ? explicitPage(question, selectedSources)
+        : undefined;
+      if (requestedPage && pageOnlyRequest(question)) {
+        answer.citations = [requestedPage];
+        answer.showPages = true;
+        answer.content = `${requestedPage.sourceName} · ${selectedSources.find((s) => s.id === requestedPage.sourceId)?.kind === "pptx" ? "Slide" : "Page"} ${requestedPage.page} [1]`;
+        refresh();
+      } else if (imageQuestion) {
         const result = await apiJSON<{ content: string }>(
           "/api/vision",
           { image: imageQuestion.image, question },
@@ -667,13 +682,12 @@ export default function App() {
             sourceId: imageQuestion.sourceId,
             sourceName: imageSource?.name ?? "Page image",
             page: imageQuestion.page,
-            text:
-              imageSource?.pages[imageQuestion.page - 1] ||
-              "Visual answer based on this page image.",
+            text: imageSource?.pages[imageQuestion.page - 1] || "",
           },
         ];
         refresh();
       } else {
+        if (requestedPage) answer.showPages = true;
         await streamChat(
           {
             question: fullQuestion,
@@ -684,11 +698,19 @@ export default function App() {
                 role,
                 content: content.slice(0, 16000),
               })),
-            sources: selectedSources.map(({ id, name, pages }) => ({
-              id,
-              name,
-              pages,
-            })),
+            sources: selectedSources
+              .filter((s) => !requestedPage || s.id === requestedPage.sourceId)
+              .map(({ id, name, pages }) => ({
+                id,
+                name,
+                // Empty other slots to preserve the original one-based page
+                // number while limiting numbered-page Q&A to its requested text.
+                pages: requestedPage
+                  ? pages.map((text, index) =>
+                      index === requestedPage.page - 1 ? text : "",
+                    )
+                  : pages,
+              })),
           },
           abort.current.signal,
           (text) => {
@@ -1370,11 +1392,25 @@ export default function App() {
                                       {c.sourceName
                                         .replace(/\.(pdf|pptx)$/i, "")
                                         .slice(0, 23)}
-                                      <small>p. {c.page}</small>
+                                      <small>
+                                        {notebookSources.find(
+                                          (s) => s.id === c.sourceId,
+                                        )?.kind === "pptx"
+                                          ? "Slide"
+                                          : "Page"}{" "}
+                                        {c.page}
+                                      </small>
                                     </button>
                                   ))}
                               </div>
                             )}
+                          {m.role === "assistant" && m.content && (
+                            <SupportingPages
+                              message={m}
+                              sources={notebookSources}
+                              open={showCitation}
+                            />
+                          )}
                         </div>
                       ))}
                     </div>
