@@ -25,6 +25,7 @@ export function retrieve(
   sources: InputSource[],
   question: string,
   limit = 10,
+  allowFallback = true,
 ): Excerpt[] {
   const chunks: (Omit<Excerpt, "id"> & { index: number; score: number })[] = [];
   for (const source of sources) {
@@ -66,7 +67,7 @@ export function retrieve(
     .sort((a, b) => b.score - a.score || a.index - b.index)
     .slice(0, overview ? Math.floor(limit / 2) : limit);
   const candidates = chunks.filter((c) => !selected.includes(c));
-  if (overview || !selected.length) {
+  if (overview || (!selected.length && allowFallback)) {
     const pages = candidates.filter(
       (c, i) =>
         !candidates

@@ -68,6 +68,7 @@ export interface Message {
   role: "user" | "assistant";
   content: string;
   citations?: Citation[];
+  showPages?: boolean;
 }
 export interface Notebook {
   id: string;

@@ -91,6 +91,9 @@ test("real PDF and PowerPoint uploads persist in a new notebook", async ({
   await page
     .getByRole("button", { name: "Create notebook", exact: true })
     .click();
+  await expect(
+    page.getByRole("heading", { name: "My reading list", exact: true }),
+  ).toBeVisible();
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   pdf.addPage().drawText("Actual uploaded PDF with selectable text.", {

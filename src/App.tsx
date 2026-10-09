@@ -1,3 +1,5 @@
+import { SupportingPages } from "./components/SupportingPages";
+import { explicitPage, wantsPages } from "./lib/supporting-pages";
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
@@ -627,6 +629,7 @@ export default function App() {
       role: "assistant",
       content: "",
       citations: [],
+      showPages: wantsPages(question),
     };
     const originalMessages = notebook.messages;
     const messages = [...originalMessages, user, answer];
@@ -651,7 +654,15 @@ export default function App() {
     abort.current = new AbortController();
     refresh();
     try {
-      if (imageQuestion) {
+      const requestedPage = !imageQuestion
+        ? explicitPage(question, selectedSources)
+        : undefined;
+      if (requestedPage) {
+        answer.citations = [requestedPage];
+        answer.showPages = true;
+        answer.content = `${requestedPage.sourceName} · ${selectedSources.find((s) => s.id === requestedPage.sourceId)?.kind === "pptx" ? "Slide" : "Page"} ${requestedPage.page} [1]`;
+        refresh();
+      } else if (imageQuestion) {
         const result = await apiJSON<{ content: string }>(
           "/api/vision",
           { image: imageQuestion.image, question },
@@ -1370,11 +1381,25 @@ export default function App() {
                                       {c.sourceName
                                         .replace(/\.(pdf|pptx)$/i, "")
                                         .slice(0, 23)}
-                                      <small>p. {c.page}</small>
+                                      <small>
+                                        {notebookSources.find(
+                                          (s) => s.id === c.sourceId,
+                                        )?.kind === "pptx"
+                                          ? "Slide"
+                                          : "Page"}{" "}
+                                        {c.page}
+                                      </small>
                                     </button>
                                   ))}
                               </div>
                             )}
+                          {m.role === "assistant" && m.content && (
+                            <SupportingPages
+                              message={m}
+                              sources={notebookSources}
+                              open={showCitation}
+                            />
+                          )}
                         </div>
                       ))}
                     </div>

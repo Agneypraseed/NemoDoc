@@ -100,3 +100,28 @@ Regular tests use deterministic AI responses. Real Nebius calls have also verifi
 More detail: [personal agent guide](docs/PERSONAL_AGENT.md) · [workspace acceptance checks](docs/UPGRADE.md).
 
 Application code is [MIT licensed](LICENSE). Models and dependencies retain their own licenses.
+
+### Supporting pages in chat
+
+Ask “Return just page 2 from Learning.pdf” or “Show slide 4 from Lecture.pptx”
+to receive that page in the answer. Explicit numbers are resolved locally against
+selected sources; select one source or include its filename when several are
+selected. Out-of-range and unavailable sources produce a visible error.
+
+For topic questions, NemoDoc retrieves excerpts and explains them with citations.
+“Show the page about retrieval practice” reveals supporting previews automatically;
+ordinary answers offer **Show supporting pages**. Only citations used in the answer
+are shown, grouped by source and page with all supporting excerpts. Two previews
+are shown initially, with a control to reveal more. Evidence is checked against the
+stored source text; mismatched references are withheld.
+
+PDF previews render the original local PDF with PDF.js. **Download single page
+(PDF)** copies only that original page. PowerPoint previews reuse the reconstructed
+slide renderer and export only the chosen slide as **PNG**; the existing PPTX import
+fidelity limits still apply (export the lecture to PDF for faithful complex layouts).
+**Open in reader** retains citation navigation and highlighting. Scanned pages can
+be returned by number without OCR, but need recognized text for topic evidence.
+
+Conversation backups persist page references, not duplicate rendered images.
+Reload and ZIP restore regenerate previews from the original local sources.
+Rendering and page export never upload original document bytes to the AI provider.
