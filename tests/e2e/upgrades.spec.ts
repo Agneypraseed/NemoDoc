@@ -323,7 +323,7 @@ test("OCR persists searchable selectable text and visual questions send a real p
   );
   expect(visionBody.image).toMatch(/^data:image\/jpeg;base64,/);
   expect(visionBody.image.length).toBeGreaterThan(1000);
-  await expect(page.locator(".citation-list button")).toContainText("p. 1");
+  await expect(page.locator(".citation-list button")).toContainText("Page 1");
 });
 
 test("study studio generates, edits, quizzes, maps, persists and backs up all materials", async ({
