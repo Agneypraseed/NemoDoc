@@ -116,7 +116,7 @@ export function registerFeatures(
     return retriever.search(
       input.sources,
       input.question,
-      { ...store.value, semantic: true },
+      { ...store.value, semantic: !!store.value.embeddingModel },
       signal,
     );
   });

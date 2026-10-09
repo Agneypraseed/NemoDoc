@@ -10,6 +10,7 @@ import path from "node:path";
 import type { Config } from "./app.ts";
 import type { ConnectionSettings } from "../src/types.ts";
 import { credentialAllowed, providerKind } from "./providers.ts";
+import { isNemotron, requireNemotron } from "../src/lib/model-policy.ts";
 
 export const endpoint = z
   .string()
@@ -27,8 +28,8 @@ export const endpoint = z
           ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)))
     );
   }, "Use HTTPS, or HTTP on a loopback address.");
-const model = z.string().trim().min(1).max(200);
-export const settingsSchema = z.object({
+const model = z.string().trim().max(200);
+const storedSettingsSchema = z.object({
   baseUrl: endpoint,
   model,
   embeddingBaseUrl: endpoint,
@@ -42,6 +43,16 @@ export const settingsSchema = z.object({
   apiKey: z.string().max(2048).optional(),
   clearApiKey: z.boolean().optional(),
 });
+export const settingsSchema = storedSettingsSchema.refine(
+  (s) =>
+    isNemotron(s.model) &&
+    [s.embeddingModel, s.visionModel, s.rerankModel].every(
+      (m) => !m || isNemotron(m),
+    ) &&
+    (!s.semantic || !!s.embeddingModel) &&
+    (!s.rerank || !!s.rerankModel),
+  "Use Nemotron model IDs only; optional capabilities need a compatible model.",
+);
 export type RuntimeSettings = Omit<ConnectionSettings, "hasApiKey"> & {
   apiKey: string;
 };
@@ -58,22 +69,18 @@ export class SettingsStore {
       ...config,
       embeddingBaseUrl: config.baseUrl,
       visionBaseUrl: config.baseUrl,
-      embeddingModel: nebius
-        ? "Qwen/Qwen3-Embedding-8B"
-        : "nvidia/llama-nemotron-embed-1b-v2",
-      visionModel: nebius
-        ? "openbmb/MiniCPM-V-4_5"
-        : "nvidia/nemotron-nano-12b-v2-vl",
+      embeddingModel: nebius ? "" : "nvidia/llama-nemotron-embed-1b-v2",
+      visionModel: nebius ? "" : "nvidia/nemotron-nano-12b-v2-vl",
       semantic: false,
       rerank: false,
       rerankUrl: nebius
         ? config.baseUrl.replace(/\/$/, "") + "/rerank"
         : "https://ai.api.nvidia.com/v1/retrieval/nvidia/reranking",
-      rerankModel: "nvidia/rerank-qa-mistral-4b",
+      rerankModel: "",
     };
     if (filename && existsSync(filename)) {
       try {
-        const parsed = settingsSchema.safeParse(
+        const parsed = storedSettingsSchema.safeParse(
           JSON.parse(readFileSync(filename, "utf8")),
         );
         if (parsed.success)
@@ -88,6 +95,15 @@ export class SettingsStore {
         );
       }
     }
+    // Preserve the saved provider/key while retiring non-Nemotron capabilities.
+    for (const field of [
+      "embeddingModel",
+      "visionModel",
+      "rerankModel",
+    ] as const)
+      if (!isNemotron(this.value[field])) this.value[field] = "";
+    if (!this.value.embeddingModel) this.value.semantic = false;
+    if (!this.value.rerankModel) this.value.rerank = false;
   }
   public(): ConnectionSettings {
     const { apiKey, ...settings } = this.value;
@@ -136,6 +152,7 @@ export async function providerJSON(
     throw new Error(
       "Configure a key for this provider in Settings. Embedding and vision endpoints must use the same provider as chat.",
     );
+  requireNemotron((body as { model?: unknown })?.model);
   const response = await fetcher(url, {
     method: "POST",
     headers: headers(settings, url),

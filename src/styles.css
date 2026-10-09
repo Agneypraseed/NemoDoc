@@ -2149,6 +2149,20 @@ h1 {
   overflow: auto;
   white-space: pre-wrap;
 }
+.supporting-excerpts {
+  margin: 10px 0;
+}
+.supporting-excerpts summary {
+  color: #756380;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 8px 0;
+}
+.supporting-excerpts summary:focus-visible {
+  outline: 2px solid #8d72c3;
+  outline-offset: 3px;
+  border-radius: 4px;
+}
 .supporting-pages button {
   margin: 4px;
   padding: 8px 10px;

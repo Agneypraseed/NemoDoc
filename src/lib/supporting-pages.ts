@@ -1,4 +1,5 @@
 import type { Citation, Message, Source } from "../types";
+import { usesCitation } from "./citations";
 export const wantsPages = (question: string) =>
   /\b(show|return|give|display|attach|send)\b[^\n]*\b(pages?|slides?)\b/i.test(
     question,
@@ -61,7 +62,7 @@ export function supportingPages(message: Message, sources: Source[]) {
     if (
       !Number.isInteger(c.id) ||
       c.id < 1 ||
-      !new RegExp(`\\[${c.id}\\]`).test(message.content)
+      !usesCitation(message.content, c, message.citations ?? [])
     )
       continue;
     const key = `${c.sourceId}:${c.page}`;

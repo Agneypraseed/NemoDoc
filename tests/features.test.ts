@@ -11,7 +11,7 @@ import { SemanticRetriever } from "../server/semantic.ts";
 const config = {
   apiKey: "test-secret",
   baseUrl: "https://integrate.api.nvidia.com/v1",
-  model: "nvidia/test",
+  model: "nvidia/test-nemotron",
 };
 const sources = [
   {
@@ -48,14 +48,14 @@ const post = (url: string, body: unknown) =>
     body: JSON.stringify(body),
   });
 
-test("Nebius environment defaults use Nebius capability models and keep reranking opt-in", () => {
+test("Nebius defaults permit only Nemotron and leave unsupported capabilities unconfigured", () => {
   const store = new SettingsStore({
     apiKey: "test-secret",
     baseUrl: "https://api.tokenfactory.nebius.com/v1",
     model: "nvidia/Nemotron-3_5-Lightning",
   });
-  assert.equal(store.value.embeddingModel, "Qwen/Qwen3-Embedding-8B");
-  assert.equal(store.value.visionModel, "openbmb/MiniCPM-V-4_5");
+  assert.equal(store.value.embeddingModel, "");
+  assert.equal(store.value.visionModel, "");
   assert.equal(store.value.visionBaseUrl, store.value.baseUrl);
   assert.equal(store.value.rerank, false);
   assert.equal(store.value.semantic, false);
@@ -172,6 +172,7 @@ test("semantic retrieval finds related language, caches passages, uses query/pas
   const reranked = await retriever.search(sources, "Another question", {
     ...settings,
     rerank: true,
+    rerankModel: "test-nemotron-reranker",
   });
   assert.equal(reranked.citations[0].sourceId, "b");
   assert.equal(reranked.mode, "semantic + rerank");

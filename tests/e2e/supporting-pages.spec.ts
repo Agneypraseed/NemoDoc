@@ -185,7 +185,7 @@ test("topic answer renders only validated cited pages and deduplicates evidence"
           page: 4,
           text: s.pages[3],
         },
-      ])}\n\nevent: delta\ndata: ${JSON.stringify("Supporting explanation [1] [2]")}\n\nevent: done\ndata: {}\n\n`,
+      ])}\n\nevent: delta\ndata: ${JSON.stringify("Supporting explanation [1, p.3] [2, p.3]")}\n\nevent: done\ndata: {}\n\n`,
     });
   });
   const ask = page.getByRole("textbox", { name: "Ask about your sources" });
@@ -194,4 +194,7 @@ test("topic answer renders only validated cited pages and deduplicates evidence"
   await expect(page.locator(".supporting-page")).toHaveCount(1);
   await expect(page.locator(".supporting-page blockquote")).toHaveCount(2);
   await expect(page.locator(".supporting-page img")).toBeVisible();
+  await expect(
+    page.locator(".message.assistant").last().locator(".inline-citation"),
+  ).toHaveCount(2);
 });

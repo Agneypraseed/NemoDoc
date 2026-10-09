@@ -81,19 +81,15 @@ export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
           ? "nvidia/Nemotron-3_5-Lightning"
           : "nvidia/nemotron-3-nano-30b-a3b",
       embeddingModel:
-        kind === "nebius"
-          ? "Qwen/Qwen3-Embedding-8B"
-          : "nvidia/llama-nemotron-embed-1b-v2",
-      visionModel:
-        kind === "nebius"
-          ? "openbmb/MiniCPM-V-4_5"
-          : "nvidia/nemotron-nano-12b-v2-vl",
+        kind === "nebius" ? "" : "nvidia/llama-nemotron-embed-1b-v2",
+      visionModel: kind === "nebius" ? "" : "nvidia/nemotron-nano-12b-v2-vl",
       rerankUrl:
         kind === "nebius"
           ? base + "/rerank"
           : kind === "nvidia"
             ? "https://ai.api.nvidia.com/v1/retrieval/nvidia/reranking"
             : "http://127.0.0.1:8003/v1/ranking",
+      rerankModel: "",
       semantic: false,
       rerank: false,
       hasApiKey:
@@ -150,7 +146,7 @@ export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
       </button>
       {!!models.length && (
         <label className="field-label">
-          Available model IDs
+          Available Nemotron model IDs
           <select
             value={models.includes(settings.model) ? settings.model : ""}
             onChange={(e) =>
@@ -216,6 +212,10 @@ export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
           These models must be offered by the saved provider. Select exact IDs
           from its catalog. Keyword retrieval works without embedding or
           reranking models; vision and OCR need a model that accepts images.
+          This MVP permits only Nemotron models. On Nebius, optional model IDs
+          start blank: configure them only when its catalog offers a compatible
+          Nemotron model. Text Q&A and page downloads work with keyword
+          retrieval.
         </p>
         {field("embeddingBaseUrl", "Embedding API base URL")}
         {field("embeddingModel", "Embedding model ID")}

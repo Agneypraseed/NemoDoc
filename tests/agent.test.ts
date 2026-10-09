@@ -284,7 +284,9 @@ test("credential is never sent to a different provider capability host", async (
 test("agent API requires source consent, validates notebook scope, returns safe model catalog and stores runtime receipt", async () => {
   const app = createApp(config, (async (url) =>
     String(url).endsWith("/models")
-      ? Response.json({ data: [{ id: "nvidia/nemotron-test" }] })
+      ? Response.json({
+          data: [{ id: "nvidia/nemotron-test" }, { id: "Qwen/example" }],
+        })
       : reply({ content: "ready" })) as typeof fetch);
   const server = app.listen(0, "127.0.0.1");
   await new Promise<void>((r) => server.once("listening", r));

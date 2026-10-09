@@ -221,6 +221,8 @@ test("connection presets show free access accurately and load exact model IDs", 
   await expect(page.getByLabel("Chat API base URL")).toHaveValue(
     "https://api.tokenfactory.nebius.com/v1",
   );
+  await expect(page.getByLabel("Embedding model ID")).toHaveValue("");
+  await expect(page.getByLabel("Vision model ID")).toHaveValue("");
   await expect(
     page.getByText(
       "Nebius uses paid inference or limited promotional credits.",
@@ -234,7 +236,7 @@ test("connection presets show free access accurately and load exact model IDs", 
     })
     .click();
   await page
-    .getByLabel("Available model IDs")
+    .getByLabel("Available Nemotron model IDs")
     .selectOption("nvidia/nemotron-test-super");
   await expect(page.getByLabel("Chat model ID")).toHaveValue(
     "nvidia/nemotron-test-super",

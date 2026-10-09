@@ -12,6 +12,7 @@ import { chatOptions, providerKind } from "./providers.ts";
 import { SemanticRetriever } from "./semantic.ts";
 import { registerFeatures } from "./features.ts";
 import { registerAgent } from "./agent.ts";
+import { isNemotron, requireNemotron } from "../src/lib/model-policy.ts";
 
 export interface Config {
   apiKey: string;
@@ -45,6 +46,12 @@ export function createApp(
   fetcher: typeof fetch = fetch,
   options: { settingsFile?: string; agentFile?: string } = {},
 ) {
+  const providerFetch = fetcher;
+  // Covers streaming chat, agent calls, and all optional inference routes.
+  fetcher = (async (url, init) => {
+    if (init?.body) requireNemotron(JSON.parse(String(init.body)).model);
+    return providerFetch(url, init);
+  }) as typeof fetch;
   const app = express();
   const store = new SettingsStore(initialConfig, options.settingsFile);
   const retriever = new SemanticRetriever(fetcher);
@@ -88,7 +95,7 @@ export function createApp(
         .parse(data.data)
         .map((m) => m.id);
       res.json({
-        models: ids.sort(),
+        models: ids.filter(isNemotron).sort(),
         provider: providerKind(store.value.baseUrl),
       });
     } catch {
@@ -103,7 +110,7 @@ export function createApp(
     if (!parsed.success)
       return res.status(400).json({
         error:
-          "Use valid model IDs and HTTPS endpoints, or local HTTP endpoints.",
+          "Use Nemotron model IDs and HTTPS endpoints, or local HTTP endpoints. Enabled optional features need a compatible Nemotron model.",
       });
     try {
       store.save(parsed.data);
@@ -184,6 +191,10 @@ export function createApp(
     const config = store.value,
       local = isLocal(config.baseUrl);
     const parsed = schema.safeParse(req.body);
+    if (!isNemotron(config.model))
+      return res
+        .status(400)
+        .json({ error: "Choose a NVIDIA Nemotron chat model in Settings." });
     if (!parsed.success)
       return res.status(400).json({
         error: "Choose a source and enter a question (up to 8,000 characters).",

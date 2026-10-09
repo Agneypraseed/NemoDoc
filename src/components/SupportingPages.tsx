@@ -102,9 +102,12 @@ export function SupportingPages({
                 <>
                   <Preview source={source} page={c.page} />
                   {excerpts.length ? (
-                    excerpts.map((text) => (
-                      <blockquote key={text}>{text}</blockquote>
-                    ))
+                    <details className="supporting-excerpts">
+                      <summary>Supporting excerpts ({excerpts.length})</summary>
+                      {excerpts.map((text) => (
+                        <blockquote key={text}>{text}</blockquote>
+                      ))}
+                    </details>
                   ) : (
                     <p>
                       No extractable evidence text. Recognize page text (OCR) in

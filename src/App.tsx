@@ -44,6 +44,7 @@ import { createDemo } from "./lib/demo";
 import { importDocument } from "./lib/documents";
 import { download, storage } from "./lib/storage";
 import { streamChat } from "./lib/chat";
+import { citationMarkdown, usesCitation } from "./lib/citations";
 import { createBackup, readBackup } from "./lib/backup";
 import { apiJSON } from "./lib/api";
 import { ConnectionSettings } from "./components/ConnectionSettings";
@@ -1360,11 +1361,7 @@ export default function App() {
                                   ),
                               }}
                             >
-                              {m.content.replace(/\[(\d+)\](?!\()/g, (_, n) =>
-                                m.citations?.some((c) => c.id === Number(n))
-                                  ? `[${n}](#citation-${n})`
-                                  : `[${n}]`,
-                              )}
+                              {citationMarkdown(m.content, m.citations ?? [])}
                             </ReactMarkdown>
                           ) : (
                             <div className="thinking">
@@ -1380,7 +1377,11 @@ export default function App() {
                               <div className="citation-list">
                                 {m.citations
                                   .filter((c) =>
-                                    new RegExp(`\\[${c.id}\\]`).test(m.content),
+                                    usesCitation(
+                                      m.content,
+                                      c,
+                                      m.citations ?? [],
+                                    ),
                                   )
                                   .map((c) => (
                                     <button

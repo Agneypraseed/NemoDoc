@@ -169,7 +169,7 @@ test("connection settings, semantic search and citations reveal supporting sourc
     visionBaseUrl: "https://integrate.api.nvidia.com/v1",
     visionModel: "nvidia/nemotron-nano-12b-v2-vl",
     rerankUrl: "https://ai.api.nvidia.com/v1/retrieval/nvidia/reranking",
-    rerankModel: "nvidia/rerank-qa-mistral-4b",
+    rerankModel: "",
     semantic: false,
     rerank: false,
     hasApiKey: false,
