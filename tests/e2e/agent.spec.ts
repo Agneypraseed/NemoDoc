@@ -204,7 +204,7 @@ test("personal agent remembers preferences, reuses skills, runs while browser is
   }
 });
 
-test("connection presets show free access accurately and load exact model IDs", async ({
+test("connection presets and model catalog select exact model IDs", async ({
   page,
 }) => {
   await page.route("**/api/models", (route) =>
@@ -223,42 +223,25 @@ test("connection presets show free access accurately and load exact model IDs", 
   );
   await expect(page.getByLabel("Embedding model ID")).toHaveValue("");
   await expect(page.getByLabel("Vision model ID")).toHaveValue("");
-  await expect(
-    page.getByText(
-      "Nebius uses paid inference or limited promotional credits.",
-      { exact: false },
-    ),
-  ).toBeVisible();
   await page
     .getByRole("button", {
-      name: "Load saved provider’s model catalog",
+      name: "Browse models",
       exact: true,
     })
     .click();
   await page
-    .getByLabel("Available Nemotron model IDs")
+    .getByRole("combobox", { name: "Model", exact: true })
     .selectOption("nvidia/nemotron-test-super");
-  await expect(page.getByLabel("Chat model ID")).toHaveValue(
-    "nvidia/nemotron-test-super",
-  );
+  await expect(
+    page.getByRole("combobox", { name: "Model", exact: true }),
+  ).toHaveValue("nvidia/nemotron-test-super");
   await page
     .getByRole("button", { name: "NVIDIA hosted", exact: true })
     .click();
-  await expect(
-    page.getByText(
-      "NVIDIA Developer Program endpoints are free for prototyping",
-      { exact: false },
-    ),
-  ).toBeVisible();
   await page
     .getByRole("button", { name: "Local inference", exact: true })
     .click();
   await expect(page.getByLabel("Chat API base URL")).toHaveValue(
     "http://127.0.0.1:8000/v1",
   );
-  await expect(
-    page.getByText("Local open weights have no hosted per-token fee", {
-      exact: false,
-    }),
-  ).toBeVisible();
 });

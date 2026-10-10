@@ -104,6 +104,9 @@ test("local multi-page PDF previews, exact downloads, reload, ZIP and mobile", a
   await expect(page.locator(".supporting-page img")).toBeVisible();
   const backupPending = page.waitForEvent("download");
   await page
+    .getByRole("button", { name: "Notebook actions", exact: true })
+    .click();
+  await page
     .getByRole("button", { name: "Back up notebook", exact: true })
     .click();
   const backup = await readFile((await (await backupPending).path())!);

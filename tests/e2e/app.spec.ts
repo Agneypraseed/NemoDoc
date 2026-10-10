@@ -75,6 +75,9 @@ test("PDF reader layouts, selection, notes, persistence, search, and export", as
   await page.locator(".search-results button").first().click();
   await expect(pageNumber).toHaveValue("5");
   const downloadPromise = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Notebook actions", exact: true })
+    .click();
   await page.getByRole("button", { name: "Export notes", exact: true }).click();
   expect((await downloadPromise).suggestedFilename()).toMatch(/notes.md$/);
   expect(errors).toEqual([]);

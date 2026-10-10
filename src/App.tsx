@@ -10,28 +10,25 @@ import {
   ArrowUp,
   BookOpen,
   Check,
-  ChevronDown,
   ChevronRight,
   CircleHelp,
   FileText,
   FolderOpen,
   Grid2X2,
   Layers,
-  Leaf,
   LoaderCircle,
-  Menu,
   MessageSquare,
   NotebookPen,
   Plus,
   Search,
   Settings2,
-  ShieldCheck,
   Sparkles,
   Square,
   Trash2,
   Upload,
   X,
-  Download,
+  PanelLeftClose,
+  PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
   Bot,
@@ -49,6 +46,9 @@ import { mergeStreamMessages, saveAnswerToNotes } from "./lib/save-answer";
 import { createBackup, readBackup } from "./lib/backup";
 import { apiJSON } from "./lib/api";
 import { ConnectionSettings } from "./components/ConnectionSettings";
+import { AppearanceSettings } from "./components/AppearanceSettings";
+import { NotebookActions } from "./components/NotebookActions";
+import { modelName, useAppearance } from "./lib/appearance";
 import { NotebookSearch } from "./components/NotebookSearch";
 import { StudyStudio } from "./components/StudyStudio";
 import { AgentPanel } from "./components/AgentPanel";
@@ -72,6 +72,20 @@ function Brand({ small = false }: { small?: boolean }) {
   );
 }
 export default function App() {
+  const { theme, setTheme } = useAppearance();
+  const [compactLayout, setCompactLayout] = useState(
+    () => window.matchMedia("(max-width: 960px)").matches,
+  );
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("nemodoc-sidebar-collapsed") === "true";
+    } catch {
+      return false;
+    }
+  });
+  const sidebarLauncher = useRef<HTMLButtonElement>(null);
+  const sidebarCloser = useRef<HTMLButtonElement>(null);
+  const returnSidebarFocus = useRef(false);
   const [notebooks, setNotebooks] = useState<Notebook[]>([]),
     [sources, setSources] = useState<Source[]>([]),
     [annotations, setAnnotations] = useState<Annotation[]>([]);
@@ -153,6 +167,38 @@ export default function App() {
     (a) => a.id === selectedAnnotation,
   );
   const enabledSources = notebookSources.filter((s) => enabled.has(s.id));
+  const sidebarVisible = compactLayout ? sidebarOpen : !sidebarCollapsed;
+  const closeSidebar = () => {
+    returnSidebarFocus.current = true;
+    if (compactLayout) setSidebarOpen(false);
+    else setSidebarCollapsed(true);
+  };
+  useEffect(() => {
+    if (compactLayout && sidebarVisible) sidebarCloser.current?.focus();
+    else if (!sidebarVisible && returnSidebarFocus.current) {
+      returnSidebarFocus.current = false;
+      sidebarLauncher.current?.focus();
+    }
+  }, [compactLayout, sidebarVisible]);
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 960px)");
+    const resize = () => {
+      setCompactLayout(query.matches);
+      setSidebarOpen(false);
+    };
+    query.addEventListener("change", resize);
+    return () => query.removeEventListener("change", resize);
+  }, []);
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "nemodoc-sidebar-collapsed",
+        String(sidebarCollapsed),
+      );
+    } catch {
+      /* Optional preference. */
+    }
+  }, [sidebarCollapsed]);
   const notify = (message: string, undo?: () => void) =>
     setToast({ message, undo });
   const reportStorageError = () => {
@@ -822,40 +868,53 @@ export default function App() {
         }}
         aria-label="Upload sources"
       />
-      {sidebarOpen && (
+      {compactLayout && sidebarOpen && (
         <button
           className="sidebar-backdrop"
-          aria-label="Close sidebar"
-          onClick={() => setSidebarOpen(false)}
+          aria-label="Dismiss sidebar"
+          onClick={closeSidebar}
         />
       )}
-      <aside className="sidebar">
-        <a
-          className="brand"
-          href="#"
-          onClick={(e) => {
-            e.preventDefault();
-            setModal("library");
-          }}
-        >
-          <Brand />
-          <strong>
-            Nemo<span>Doc</span>
-          </strong>
-          <span className="beta-label">BETA</span>
-        </a>
+      <aside
+        className="sidebar"
+        id="notebook-sidebar"
+        aria-label="Notebook sidebar"
+        hidden={!sidebarVisible}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            closeSidebar();
+          }
+        }}
+      >
+        <div className="sidebar-brand">
+          <a
+            className="brand"
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              setModal("library");
+            }}
+          >
+            <Brand />
+            <strong>
+              Nemo<span>Doc</span>
+            </strong>
+          </a>
+          <button
+            className="icon-button"
+            ref={sidebarCloser}
+            aria-label="Close sidebar"
+            title="Close sidebar"
+            onClick={closeSidebar}
+          >
+            <PanelLeftClose size={18} />
+          </button>
+        </div>
         <div className="workspace-label">YOUR WORKSPACE</div>
         <button className="nav-item" onClick={() => setModal("library")}>
           <Grid2X2 size={17} />
           All notebooks<span>{notebooks.length}</span>
-        </button>
-        <button
-          className="nav-item current"
-          onClick={() => setModal("library")}
-        >
-          <BookOpen size={17} />
-          {notebook?.title ?? "Notebook"}
-          <ChevronDown size={14} />
         </button>
         <div className="sidebar-section-heading">
           <span>SOURCES</span>
@@ -961,50 +1020,38 @@ export default function App() {
           )}
         </div>
         <div className="sidebar-spacer" />
-        <div className="local-card">
-          <span className="local-symbol">
-            <ShieldCheck size={18} />
-          </span>
-          <div>
-            <strong>A space of your own</strong>
-            <p>
-              Documents & notes stay
-              <br />
-              in this browser.
-            </p>
-          </div>
-          <span className="status-dot" />
-        </div>
         <div className="sidebar-bottom">
-          <button onClick={() => setModal("settings")}>
-            <Settings2 size={16} />
-            Settings
-          </button>
           <button
             aria-label="Help and shortcuts"
             onClick={() => setModal("help")}
           >
             <CircleHelp size={17} />
+            Help & shortcuts
           </button>
         </div>
-        <div className="profile">
-          <span className="avatar">Y</span>
-          <div>
-            <strong>Your workspace</strong>
-            <small>Local notebook</small>
-          </div>
-          <Leaf size={15} />
-        </div>
       </aside>
-      <main className="workspace">
+      <main className="workspace" inert={compactLayout && sidebarOpen}>
         <header className="workspace-header">
           <div className="breadcrumbs">
             <button
-              className="icon-button mobile-menu"
-              aria-label="Open sidebar"
-              onClick={() => setSidebarOpen(true)}
+              className="icon-button sidebar-toggle"
+              hidden={sidebarVisible && !compactLayout}
+              ref={sidebarLauncher}
+              aria-label={sidebarVisible ? "Hide sidebar" : "Open sidebar"}
+              title={sidebarVisible ? "Hide sidebar" : "Open sidebar"}
+              aria-expanded={sidebarVisible}
+              aria-controls="notebook-sidebar"
+              onClick={() => {
+                if (sidebarVisible) closeSidebar();
+                else if (compactLayout) setSidebarOpen(true);
+                else setSidebarCollapsed(false);
+              }}
             >
-              <Menu size={19} />
+              {sidebarVisible ? (
+                <PanelLeftClose size={19} />
+              ) : (
+                <PanelLeftOpen size={19} />
+              )}
             </button>
             <span>My notebooks</span>
             <ChevronRight size={13} />
@@ -1020,34 +1067,20 @@ export default function App() {
             >
               <Plus size={18} />
             </button>
-            <button
-              className="subtle-button backup-action"
-              aria-label="Back up notebook"
-              onClick={() => void backupNotebook()}
+            <NotebookActions
               disabled={!notebook}
-            >
-              <Download size={14} />
-              <span>Backup</span>
-            </button>
+              onExport={exportNotes}
+              onBackup={() => void backupNotebook()}
+              onRestore={() => backupInput.current?.click()}
+            />
             <button
-              className="subtle-button backup-action"
-              aria-label="Restore backup"
-              onClick={() => backupInput.current?.click()}
+              className="subtle-button settings-launcher"
+              aria-label="Settings"
+              title="Settings"
+              onClick={() => setModal("settings")}
             >
-              <Upload size={14} />
-              <span>Restore</span>
-            </button>
-            <span className="saved-indicator">
-              <Check size={13} />
-              Saved locally
-            </span>
-            <button
-              className="subtle-button"
-              onClick={exportNotes}
-              disabled={!notebook}
-            >
-              <Download size={14} />
-              <span>Export notes</span>
+              <Settings2 size={16} />
+              <span>Settings</span>
             </button>
             <button
               className="icon-button"
@@ -1064,23 +1097,9 @@ export default function App() {
         </header>
         <div className="notebook-header">
           <div>
-            <div className="eyebrow">
-              <span />A SPACE FOR YOUR IDEAS
-            </div>
             <h1>{notebook?.title ?? "Your first notebook"}</h1>
-            <p>
-              {notebook?.description ||
-                "Read a little deeper. Connect a little more."}
-            </p>
+            {notebook?.description && <p>{notebook.description}</p>}
           </div>
-          <button className="model-chip" onClick={() => setModal("settings")}>
-            <span className="nvidia-mark">N</span>
-            <div>
-              <span>POWERED BY</span>
-              <strong>NVIDIA Nemotron</strong>
-            </div>
-            <ChevronDown size={13} />
-          </button>
         </div>
         {saveError && (
           <div className="storage-error" role="alert">
@@ -1802,31 +1821,18 @@ export default function App() {
               </div>
             </div>
           </form>
-          <div className="chat-footnote">
+        </div>
+        <footer className="workspace-footer">
+          <span
+            className="model-attribution"
+            title={status.configured ? status.model : undefined}
+          >
             <span
               className={`status-dot ${status.configured ? "" : "offline"}`}
             />
-            {status.configured ? (
-              status.local ? (
-                "Local NVIDIA inference"
-              ) : (
-                "NVIDIA Nemotron · source grounded"
-              )
-            ) : (
-              <button onClick={() => setModal("settings")}>
-                Connect NVIDIA to start a conversation <ArrowRight size={11} />
-              </button>
-            )}
-          </div>
-        </div>
-        <footer className="workspace-footer">
-          <span>
-            <Leaf size={12} />
-            Less noise. More meaning.
-          </span>
-          <span>
-            NemoDoc <span className="footer-separator">/</span> Your local
-            thinking space
+            {status.configured
+              ? `Powered by ${modelName(status.model)}`
+              : "Choose a model in Settings"}
           </span>
         </footer>
       </main>
@@ -1927,7 +1933,8 @@ export default function App() {
         </Modal>
       )}
       {modal === "settings" && (
-        <Modal title="Your AI connection" onClose={() => setModal(null)}>
+        <Modal title="Settings" onClose={() => setModal(null)}>
+          <AppearanceSettings theme={theme} onChange={setTheme} />
           <ConnectionSettings
             onSaved={() => {
               void apiJSON<AIStatus>("/api/status")

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Check, LoaderCircle, ShieldCheck } from "lucide-react";
+import { Check, LoaderCircle } from "lucide-react";
 import { apiJSON } from "../lib/api";
+import { modelName } from "../lib/appearance";
 import type { ConnectionSettings as Settings } from "../types";
 
 export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
@@ -99,11 +100,7 @@ export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
   };
   return (
     <div className="connection-form">
-      <p className="modal-description">
-        Choose where your NVIDIA model runs. Nebius Token Factory supports the
-        hackathon runtime requirement; NVIDIA offers free prototyping access,
-        and local inference uses your hardware.
-      </p>
+      <h3>AI connection</h3>
       <div className="segmented connection-modes">
         <button
           className={nebius ? "active" : ""}
@@ -127,8 +124,7 @@ export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
           Local inference
         </button>
       </div>
-      {field("baseUrl", "Chat API base URL")}
-      {field("model", "Chat model ID")}
+      {!models.length && field("model", "Model")}
       <button
         className="secondary-button"
         disabled={busy}
@@ -142,32 +138,28 @@ export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
           }
         }}
       >
-        Load saved provider’s model catalog
+        Browse models
       </button>
       {!!models.length && (
         <label className="field-label">
-          Available Nemotron model IDs
+          Model
           <select
-            value={models.includes(settings.model) ? settings.model : ""}
+            value={settings.model}
+            disabled={busy}
             onChange={(e) =>
               setSettings({ ...settings, model: e.target.value })
             }
           >
-            <option value="" disabled>
-              Select a model
-            </option>
-            {models.map((id) => (
+            {[...new Set([settings.model, ...models])].map((id) => (
               <option key={id} value={id}>
-                {id}
+                {modelName(id)}
               </option>
             ))}
           </select>
         </label>
       )}
       <p className="modal-description">
-        Save the provider and key before loading its catalog. Choose an NVIDIA
-        Nemotron model with tool calling for the agent. Availability is
-        account-specific. A different host needs its own key.
+        Save your connection before browsing available models.
       </p>
       <label className="field-label">
         API key
@@ -195,27 +187,23 @@ export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
           Remove saved API key
         </label>
       )}
-      <label className="check-field">
-        <input
-          type="checkbox"
-          checked={settings.semantic}
-          disabled={busy}
-          onChange={(e) =>
-            setSettings({ ...settings, semantic: e.target.checked })
-          }
-        />
-        Use semantic retrieval for chat and study tools
-      </label>
       <details>
-        <summary>Embeddings, vision, and reranking</summary>
+        <summary>Advanced capabilities</summary>
+        {field("baseUrl", "Chat API base URL")}
+        <label className="check-field">
+          <input
+            type="checkbox"
+            checked={settings.semantic}
+            disabled={busy}
+            onChange={(e) =>
+              setSettings({ ...settings, semantic: e.target.checked })
+            }
+          />
+          Use semantic retrieval for chat and study tools
+        </label>
         <p className="modal-description">
-          These models must be offered by the saved provider. Select exact IDs
-          from its catalog. Keyword retrieval works without embedding or
-          reranking models; vision and OCR need a model that accepts images.
-          This MVP permits only Nemotron models. On Nebius, optional model IDs
-          start blank: configure them only when its catalog offers a compatible
-          Nemotron model. Text Q&A and page downloads work with keyword
-          retrieval.
+          Add compatible Nemotron models for semantic search and image
+          questions.
         </p>
         {field("embeddingBaseUrl", "Embedding API base URL")}
         {field("embeddingModel", "Embedding model ID")}
@@ -235,45 +223,9 @@ export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
         {field("rerankUrl", "Reranking endpoint URL")}
         {field("rerankModel", "Reranking model ID")}
       </details>
-      <div className="privacy-note">
-        <ShieldCheck size={19} />
-        <p>
-          Keys stay on this local server in an ignored settings file. Hosted
-          requests send selected text or page images to the chosen provider.
-          Notebook backups contain your notebooks, never credentials.
-        </p>
-      </div>
-      <p className="modal-description">
-        {nebius ? (
-          <>
-            Nebius uses paid inference or limited promotional credits.{" "}
-            <a
-              href="https://nebius.com/builders-terms-and-conditions"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Builder credit terms
-            </a>
-          </>
-        ) : local ? (
-          <>
-            Local open weights have no hosted per-token fee; hardware and
-            model/runtime license terms still apply. Start your compatible
-            inference server separately.
-          </>
-        ) : (
-          <>
-            NVIDIA Developer Program endpoints are free for prototyping, subject
-            to availability and limits.{" "}
-            <a
-              href="https://docs.api.nvidia.com/nim/docs/product"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Access and license terms
-            </a>
-          </>
-        )}
+      <p className="connection-disclosure">
+        Your key stays on this device. Selected source content is sent to your
+        provider when you use AI.
       </p>
       {error && (
         <p className="form-error" role="alert">

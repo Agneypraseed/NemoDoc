@@ -122,6 +122,9 @@ test("reader navigation, bookmarks, markup history, tags, exports and complete r
   ).toHaveText("110%");
   const backupDownload = page.waitForEvent("download");
   await page
+    .getByRole("button", { name: "Notebook actions", exact: true })
+    .click();
+  await page
     .getByRole("button", { name: "Back up notebook", exact: true })
     .click();
   const backup = await backupDownload;
@@ -204,6 +207,7 @@ test("connection settings, semantic search and citations reveal supporting sourc
   );
   await page.goto("/");
   await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByText("Advanced capabilities", { exact: true }).click();
   await page
     .getByRole("button", { name: "Local inference", exact: true })
     .click();
@@ -477,6 +481,9 @@ test("study studio generates, edits, quizzes, maps, persists and backs up all ma
     page.getByRole("button", { name: "Flashcard answer", exact: true }),
   ).toContainText("Finite attention.");
   const download = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Notebook actions", exact: true })
+    .click();
   await page
     .getByRole("button", { name: "Back up notebook", exact: true })
     .click();
