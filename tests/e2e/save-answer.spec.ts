@@ -33,6 +33,9 @@ test("interrupted answer stays unsaveable after reload and backup restore", asyn
   );
   const downloading = page.waitForEvent("download");
   await page
+    .getByRole("button", { name: "Notebook actions", exact: true })
+    .click();
+  await page
     .getByRole("button", { name: "Back up notebook", exact: true })
     .click();
   const file = await (await downloading).path();

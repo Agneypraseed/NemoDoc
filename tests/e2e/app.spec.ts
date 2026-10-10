@@ -1,3 +1,4 @@
+import { openReaderTools } from "./reader-tools";
 import { test, expect } from "@playwright/test";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import JSZip from "jszip";
@@ -13,6 +14,7 @@ test("PDF reader layouts, selection, notes, persistence, search, and export", as
   ).toBeVisible();
   await expect(page.locator('[data-page="1"] canvas')).toBeVisible();
   await page.screenshot({ path: "test-results/desktop.png" });
+  await openReaderTools(page);
   await page
     .getByRole("button", { name: "Horizontal view", exact: true })
     .click();
@@ -21,10 +23,12 @@ test("PDF reader layouts, selection, notes, persistence, search, and export", as
   await expect(
     page.getByRole("textbox", { name: "Page number", exact: true }),
   ).toHaveValue("2");
+  await openReaderTools(page);
   await page.getByRole("button", { name: "Book view", exact: true }).click();
   await expect(page.locator(".document-page")).toHaveCount(2);
   await page.getByRole("button", { name: "Next page", exact: true }).click();
   await expect(page.locator('[data-page="3"]')).toBeVisible();
+  await openReaderTools(page);
   await page
     .getByRole("button", { name: "Vertical view", exact: true })
     .click();
@@ -75,6 +79,9 @@ test("PDF reader layouts, selection, notes, persistence, search, and export", as
   await page.locator(".search-results button").first().click();
   await expect(pageNumber).toHaveValue("5");
   const downloadPromise = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Notebook actions", exact: true })
+    .click();
   await page.getByRole("button", { name: "Export notes", exact: true }).click();
   expect((await downloadPromise).suggestedFilename()).toMatch(/notes.md$/);
   expect(errors).toEqual([]);
@@ -140,6 +147,7 @@ test("real PDF and PowerPoint uploads persist in a new notebook", async ({
       json: { content: "The slide title describes a real PowerPoint source." },
     }),
   );
+  await openReaderTools(page);
   await page
     .getByRole("button", { name: "Ask about page image", exact: true })
     .click();
@@ -209,6 +217,7 @@ test("area annotations work on the cover and mobile reader remains usable", asyn
   await page.goto("/");
   const canvas = page.locator('[data-page="1"] canvas');
   await expect(canvas).toBeVisible();
+  await openReaderTools(page);
   await page
     .getByRole("button", { name: "Area highlight", exact: true })
     .click();
@@ -223,11 +232,12 @@ test("area annotations work on the cover and mobile reader remains usable", asyn
   await page
     .getByRole("textbox", { name: "Annotation note" })
     .fill("An image annotation.");
+  await openReaderTools(page);
   await page.getByRole("button", { name: "Book view", exact: true }).click();
   await expect(page.locator(".highlight")).toHaveCount(1);
   await page.setViewportSize({ width: 390, height: 844 });
   await page
-    .getByRole("button", { name: "Hide assistant", exact: true })
+    .getByRole("button", { name: "Close assistant", exact: true })
     .click();
   await expect(page.locator(".reader")).toBeVisible();
   expect(

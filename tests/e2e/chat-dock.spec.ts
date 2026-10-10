@@ -23,6 +23,8 @@ test("chat can close without losing a draft; bottom input sends and suggestions 
     page.getByRole("region", { name: "Suggested questions" }),
   ).toHaveCount(0);
   await input.fill("Keep this thought");
+  await expect(assistant).toBeHidden();
+  await page.getByRole("button", { name: "Open chat", exact: true }).click();
   await page
     .getByRole("button", { name: "Close assistant", exact: true })
     .click();
@@ -80,7 +82,7 @@ test("chat can close without losing a draft; bottom input sends and suggestions 
     page.getByRole("region", { name: "Suggested questions" }),
   ).toHaveCount(0);
   await page.getByRole("button", { name: "Suggestions", exact: true }).click();
-  await page.getByRole("heading", { name: "The thoughtful interface" }).click();
+  await page.locator(".reader-file").click();
   await expect(
     page.getByRole("region", { name: "Suggested questions" }),
   ).toHaveCount(0);
@@ -91,6 +93,8 @@ test("chat can close without losing a draft; bottom input sends and suggestions 
     .getByRole("button", { name: "Close assistant", exact: true })
     .click();
   await page.reload();
+  await expect(assistant).toBeHidden();
+  await page.getByRole("button", { name: "Open chat", exact: true }).click();
   await expect(page.locator(".message.assistant")).toContainText(
     "Vertical scrolling",
   );

@@ -1,3 +1,4 @@
+import { openReaderTools } from "./reader-tools";
 import { test, expect } from "@playwright/test";
 import { PDFDocument, StandardFonts, PDFName, PDFString } from "pdf-lib";
 import JSZip from "jszip";
@@ -59,20 +60,24 @@ test("reader navigation, bookmarks, markup history, tags, exports and complete r
   await page
     .getByRole("textbox", { name: "Filter annotations", exact: true })
     .fill("");
+  await openReaderTools(page);
   await page
     .getByRole("button", { name: "Sticky note tool", exact: true })
     .click();
   const bounds = (await page.locator('[data-page="2"] canvas').boundingBox())!;
   await page.mouse.click(bounds.x + 80, bounds.y + 140);
   await expect(page.locator(".annotation-card")).toHaveCount(2);
+  await openReaderTools(page);
   await page
     .getByRole("button", { name: "Undo annotation", exact: true })
     .click();
   await expect(page.locator(".annotation-card")).toHaveCount(1);
+  await openReaderTools(page);
   await page
     .getByRole("button", { name: "Redo annotation", exact: true })
     .click();
   await expect(page.locator(".annotation-card")).toHaveCount(2);
+  await openReaderTools(page);
   await page.getByRole("button", { name: "Pen tool", exact: true }).click();
   await page.mouse.move(bounds.x + 80, bounds.y + 220);
   await page.mouse.down();
@@ -88,10 +93,13 @@ test("reader navigation, bookmarks, markup history, tags, exports and complete r
   expect(exported.suggestedFilename()).toMatch(/annotated.pdf$/);
   const pdf = await PDFDocument.load(await readFile((await exported.path())!));
   expect(pdf.getPageCount()).toBe(6);
+  await openReaderTools(page);
   await page
     .getByRole("button", { name: "Horizontal view", exact: true })
     .click();
+  await openReaderTools(page);
   await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+  await openReaderTools(page);
   await expect(
     page.getByRole("button", { name: "Reset zoom", exact: true }),
   ).toHaveText("110%");
@@ -117,10 +125,14 @@ test("reader navigation, bookmarks, markup history, tags, exports and complete r
   await expect(
     page.getByRole("textbox", { name: "Page number", exact: true }),
   ).toHaveValue("2");
+  await openReaderTools(page);
   await expect(
     page.getByRole("button", { name: "Reset zoom", exact: true }),
   ).toHaveText("110%");
   const backupDownload = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Notebook actions", exact: true })
+    .click();
   await page
     .getByRole("button", { name: "Back up notebook", exact: true })
     .click();
@@ -153,6 +165,7 @@ test("reader navigation, bookmarks, markup history, tags, exports and complete r
     .click();
   await page.getByRole("button", { name: /^Notes/ }).click();
   await expect(page.locator(".annotation-card")).toHaveCount(3);
+  await openReaderTools(page);
   await expect(
     page.getByRole("button", { name: "Reset zoom", exact: true }),
   ).toHaveText("110%");
@@ -204,6 +217,7 @@ test("connection settings, semantic search and citations reveal supporting sourc
   );
   await page.goto("/");
   await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByText("Advanced capabilities", { exact: true }).click();
   await page
     .getByRole("button", { name: "Local inference", exact: true })
     .click();
@@ -279,9 +293,11 @@ test("OCR persists searchable selectable text and visual questions send a real p
     buffer: Buffer.from(await pdf.save()),
   });
   await expect(page.locator(".reader-file")).toContainText("Scan");
+  await openReaderTools(page);
   await expect(
     page.getByRole("button", { name: "Recognize page text", exact: true }),
   ).toBeEnabled();
+  await openReaderTools(page);
   await page
     .getByRole("button", { name: "Recognize page text", exact: true })
     .click();
@@ -311,6 +327,7 @@ test("OCR persists searchable selectable text and visual questions send a real p
     .fill("attention budget");
   await expect(page.locator(".search-results button")).toHaveCount(1);
   await page.getByRole("button", { name: "Close search", exact: true }).click();
+  await openReaderTools(page);
   await page
     .getByRole("button", { name: "Ask about page image", exact: true })
     .click();
@@ -478,6 +495,9 @@ test("study studio generates, edits, quizzes, maps, persists and backs up all ma
   ).toContainText("Finite attention.");
   const download = page.waitForEvent("download");
   await page
+    .getByRole("button", { name: "Notebook actions", exact: true })
+    .click();
+  await page
     .getByRole("button", { name: "Back up notebook", exact: true })
     .click();
   const zip = await JSZip.loadAsync(
@@ -597,6 +617,7 @@ test("PDF outlines and exact reading position survive a reload across mixed page
     buffer: Buffer.from(await pdf.save()),
   });
   await expect(page.locator(".reader-file")).toContainText("Navigation");
+  await openReaderTools(page);
   await expect(
     page.getByRole("button", { name: "Recognize page text", exact: true }),
   ).toBeEnabled();

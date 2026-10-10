@@ -8,18 +8,18 @@
 }
 .workspace-chat .composer {
   border-radius: 22px;
-  background: #ffffffed;
-  border-color: #e2dfec;
+  background: color-mix(in srgb, var(--surface) 93%, transparent);
+  border-color: var(--line);
   padding: 12px 16px 10px;
   box-shadow: 0 4px 20px #30264e07;
 }
 .workspace-chat .composer textarea {
   min-height: 28px;
   font-size: 13px;
-  color: #4f485e;
+  color: var(--ink);
 }
 .workspace-chat .composer textarea::placeholder {
-  color: #9690a2;
+  color: var(--muted);
 }
 .composer-tools,
 .composer-actions,
@@ -35,20 +35,20 @@
 }
 .composer-source-count {
   font-size: 10px;
-  color: #9991a6;
+  color: var(--muted);
 }
 .composer-suggestions {
   font-size: 11px;
   padding: 6px 8px;
   border-radius: 9px;
-  color: #837391;
+  color: var(--text);
   transition:
     background 150ms ease-out,
     color 150ms ease-out;
 }
 .composer-suggestions[aria-expanded="true"] {
-  background: #efeaf8;
-  color: #7660a4;
+  background: var(--surface-muted);
+  color: var(--accent);
 }
 .composer-chat-toggle {
   display: grid;
@@ -56,11 +56,11 @@
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  color: #9586aa;
+  color: var(--muted);
 }
 .composer-chat-toggle[aria-expanded="true"] {
-  color: #7660a4;
-  background: #f2edf9;
+  color: var(--accent);
+  background: var(--surface-quiet);
 }
 .workspace-chat .send-button {
   width: 34px;
@@ -89,8 +89,8 @@
   right: 0;
   padding: 16px;
   border-radius: 18px;
-  border: 1px solid #e5dfed;
-  background: #fffffff5;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
   backdrop-filter: blur(16px);
   box-shadow: 0 12px 45px #37284f17;
   max-height: min(420px, 55dvh);
@@ -105,7 +105,7 @@
 }
 .chat-suggestions > header {
   justify-content: space-between;
-  color: #8b7a9d;
+  color: var(--text);
 }
 .chat-suggestions strong {
   font-size: 12px;
@@ -160,11 +160,11 @@
 @media (hover: hover) and (pointer: fine) {
   .composer-suggestions:hover,
   .composer-chat-toggle:hover {
-    background: #f2edf9;
+    background: var(--surface-quiet);
   }
   .chat-suggestions .prompt-cards > button:hover {
-    border-color: #b9a9d1;
-    background: #faf8fd;
+    border-color: var(--line);
+    background: var(--surface);
   }
 }
 @media (max-width: 700px) {
@@ -212,7 +212,7 @@
 }
 @media (prefers-reduced-transparency: reduce) {
   .chat-suggestions {
-    background: white;
+    background: var(--surface);
     backdrop-filter: none;
   }
 }
