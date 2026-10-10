@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowDown,
   ArrowRight,
@@ -21,7 +22,12 @@ import {
   Redo2,
   ScanText,
   Image,
+  SlidersHorizontal,
+  Lightbulb,
+  BookText,
+  ArrowUp,
 } from "lucide-react";
+import { AnswerModeControl, type AnswerMode } from "./AnswerMode";
 import { pdfjs, pdfOptions } from "../lib/documents";
 import { download } from "../lib/storage";
 import { ReaderNavigation } from "./ReaderNavigation";
@@ -43,6 +49,8 @@ interface Selection {
   rects: Rect[];
   x: number;
   y: number;
+  placement: "above" | "below";
+  anchorY: number;
 }
 interface Props {
   source?: Source;
@@ -51,7 +59,17 @@ interface Props {
   navigationKey: number;
   setPage: (page: number) => void;
   onAnnotate: (annotation: Annotation) => void;
-  onAsk: (quote: string, page: number) => void;
+  onAsk: (
+    quote: string,
+    page: number,
+    question?: string,
+    anchorY?: number,
+  ) => void;
+  answerMode?: AnswerMode;
+  onAnswerMode?: (value: AnswerMode) => void;
+  askingBusy?: boolean;
+  passageAnchor?: { sourceId: string; page: number; text: string };
+  onPassagePosition?: (y: number) => void;
   onSelectAnnotation: (annotation: Annotation) => void;
   onUpload: () => void;
   onUpdateSource?: (source: Source) => void;
@@ -163,6 +181,11 @@ export function Reader({
   setPage,
   onAnnotate,
   onAsk,
+  answerMode = "quick",
+  onAnswerMode,
+  askingBusy = false,
+  passageAnchor,
+  onPassagePosition,
   onSelectAnnotation,
   onUpload,
   onUpdateSource,
@@ -181,6 +204,41 @@ export function Reader({
     [error, setError] = useState("");
   const [selection, setSelection] = useState<Selection>(),
     [color, setColor] = useState<HighlightColor>("yellow");
+  const [selectionQuestion, setSelectionQuestion] = useState("");
+  const [askingSelection, setAskingSelection] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const tools = useRef<HTMLDivElement>(null);
+  const toolsTrigger = useRef<HTMLButtonElement>(null);
+  const selectionTools = useRef<HTMLDivElement>(null);
+  const passageInput = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (askingSelection && selection)
+      passageInput.current?.focus({ preventScroll: true });
+  }, [askingSelection, !!selection]);
+  useEffect(() => {
+    if (!toolsOpen && !selection) return;
+    const dismiss = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (
+        !tools.current?.contains(target) &&
+        !toolsTrigger.current?.contains(target)
+      )
+        setToolsOpen(false);
+      if (!selectionTools.current?.contains(target)) setSelection(undefined);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (toolsOpen) toolsTrigger.current?.focus();
+      setToolsOpen(false);
+      setSelection(undefined);
+    };
+    document.addEventListener("pointerdown", dismiss);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", dismiss);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [toolsOpen, !!selection]);
   const [areaTool, setAreaTool] = useState(false),
     [area, setArea] = useState<{
       page: number;
@@ -226,6 +284,50 @@ export function Reader({
     }, 300);
   };
   const pagesRef = useRef(new Map<number, HTMLDivElement>());
+  const passagePosition = useRef(onPassagePosition);
+  passagePosition.current = onPassagePosition;
+  useEffect(() => {
+    if (!passageAnchor || passageAnchor.sourceId !== source?.id) return;
+    const element = pagesRef.current.get(passageAnchor.page);
+    const root = scroller.current;
+    if (!element || !root) return;
+    let frame = 0;
+    const measure = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const rects = evidenceRects(element, passageAnchor.text);
+        if (rects.length)
+          passagePosition.current?.(
+            element.getBoundingClientRect().top +
+              rects[0].y * element.clientHeight,
+          );
+      });
+    };
+    // Text can repaint after a margin card changes the available page width.
+    const resize = new ResizeObserver(measure);
+    const mutation = new MutationObserver(measure);
+    resize.observe(element);
+    mutation.observe(element, { childList: true, subtree: true });
+    root.addEventListener("scroll", measure, { passive: true });
+    measure();
+    return () => {
+      cancelAnimationFrame(frame);
+      resize.disconnect();
+      mutation.disconnect();
+      root.removeEventListener("scroll", measure);
+    };
+  }, [
+    passageAnchor?.sourceId,
+    passageAnchor?.page,
+    passageAnchor?.text,
+    source?.id,
+    doc,
+    available,
+    zoom,
+    showNavigation,
+    mode,
+    page,
+  ]);
   const count = source?.pages.length ?? 0;
   const pageWidth = Math.max(
     180,
@@ -233,7 +335,7 @@ export function Reader({
       mode === "book"
         ? (available - 76 - (showNavigation ? 120 : 0)) / 2
         : available - 76 - (showNavigation ? 120 : 0),
-      source?.kind === "pptx" ? 860 : 650,
+      source?.kind === "pptx" ? 860 : 820,
     ) *
       zoom) /
       100,
@@ -474,15 +576,23 @@ export function Reader({
       }));
     if (!rects.length) return;
     const bounds = range.getBoundingClientRect();
+    const toolbarWidth = Math.min(450, innerWidth - 24);
+    setAskingSelection(false);
+    setSelectionQuestion("");
     setSelection({
       page: Number(parent.dataset.page),
       quote: selected.toString().trim(),
       rects,
       x: Math.max(
-        170,
-        Math.min(innerWidth - 180, bounds.left + bounds.width / 2),
+        toolbarWidth / 2 + 12,
+        Math.min(
+          innerWidth - toolbarWidth / 2 - 12,
+          bounds.left + bounds.width / 2,
+        ),
       ),
-      y: Math.max(90, bounds.top - 12),
+      y: bounds.top > 180 ? bounds.top - 10 : bounds.bottom + 10,
+      placement: bounds.top > 180 ? "above" : "below",
+      anchorY: bounds.top,
     });
   };
   const save = (note: boolean, kind: Annotation["kind"] = "highlight") => {
@@ -500,6 +610,12 @@ export function Reader({
     };
     onAnnotate(annotation);
     if (note) onSelectAnnotation(annotation);
+    setSelection(undefined);
+    window.getSelection()?.removeAllRanges();
+  };
+  const askPassage = (question: string) => {
+    if (!selection || !question.trim() || askingBusy) return;
+    onAsk(selection.quote, selection.page, question.trim(), selection.anchorY);
     setSelection(undefined);
     window.getSelection()?.removeAllRanges();
   };
@@ -561,6 +677,16 @@ export function Reader({
           </div>
         </div>
         <div className="toolbar-actions">
+          <button
+            ref={toolsTrigger}
+            className={`icon-button ${toolsOpen ? "selected" : ""}`}
+            aria-label="Reader tools"
+            title="Layout, zoom & annotations"
+            aria-expanded={toolsOpen}
+            onClick={() => setToolsOpen(!toolsOpen)}
+          >
+            <SlidersHorizontal size={17} />
+          </button>
           <button
             className={`icon-button ${showNavigation ? "selected" : ""}`}
             aria-label="Toggle page navigation"
@@ -633,183 +759,185 @@ export function Reader({
           </button>
         </div>
       </div>
-      <div
-        className="annotation-tools"
-        role="toolbar"
-        aria-label="Annotation tools"
-      >
-        <button
-          className={`tool-button ${tool === "pen" ? "active" : ""}`}
-          aria-label="Pen tool"
-          aria-pressed={tool === "pen"}
-          onClick={() => {
-            setTool(tool === "pen" ? "select" : "pen");
-            setAreaTool(false);
-          }}
+      <div className="reader-tools-popover" ref={tools} hidden={!toolsOpen}>
+        <div
+          className="annotation-tools"
+          role="toolbar"
+          aria-label="Annotation tools"
         >
-          <Pencil size={14} />
-          Pen
-        </button>
-        <button
-          className={`tool-button ${tool === "sticky" ? "active" : ""}`}
-          aria-label="Sticky note tool"
-          aria-pressed={tool === "sticky"}
-          onClick={() => {
-            setTool(tool === "sticky" ? "select" : "sticky");
-            setAreaTool(false);
-          }}
-        >
-          <StickyNote size={14} />
-          Note
-        </button>
-        <div className="highlight-colors">
-          {(["yellow", "mint", "lavender"] as const).map((c) => (
-            <button
-              key={c}
-              className={`color-dot ${c} ${color === c ? "chosen" : ""}`}
-              aria-label={`Tool color ${c}`}
-              onClick={() => setColor(c)}
-            />
-          ))}
+          <button
+            className={`tool-button ${tool === "pen" ? "active" : ""}`}
+            aria-label="Pen tool"
+            aria-pressed={tool === "pen"}
+            onClick={() => {
+              setTool(tool === "pen" ? "select" : "pen");
+              setAreaTool(false);
+            }}
+          >
+            <Pencil size={14} />
+            Pen
+          </button>
+          <button
+            className={`tool-button ${tool === "sticky" ? "active" : ""}`}
+            aria-label="Sticky note tool"
+            aria-pressed={tool === "sticky"}
+            onClick={() => {
+              setTool(tool === "sticky" ? "select" : "sticky");
+              setAreaTool(false);
+            }}
+          >
+            <StickyNote size={14} />
+            Note
+          </button>
+          <div className="highlight-colors">
+            {(["yellow", "mint", "lavender"] as const).map((c) => (
+              <button
+                key={c}
+                className={`color-dot ${c} ${color === c ? "chosen" : ""}`}
+                aria-label={`Tool color ${c}`}
+                onClick={() => setColor(c)}
+              />
+            ))}
+          </div>
+          <span className="tools-spacer" />
+          <button
+            className="icon-button small"
+            aria-label="Undo annotation"
+            disabled={!canUndo}
+            onClick={onUndo}
+          >
+            <Undo2 size={14} />
+          </button>
+          <button
+            className="icon-button small"
+            aria-label="Redo annotation"
+            disabled={!canRedo}
+            onClick={onRedo}
+          >
+            <Redo2 size={14} />
+          </button>
+          <button
+            className="tool-button"
+            aria-label="Recognize page text"
+            disabled={!source || (source.kind === "pdf" && !doc)}
+            onClick={async () => {
+              try {
+                const number = currentPage.current;
+                onOCR?.(number, await pageImage(number));
+              } catch (e) {
+                setError((e as Error).message);
+              }
+            }}
+          >
+            <ScanText size={14} />
+            OCR
+          </button>
+          <button
+            className="tool-button"
+            aria-label="Ask about page image"
+            disabled={!source || (source.kind === "pdf" && !doc)}
+            onClick={async () => {
+              try {
+                const number = currentPage.current;
+                onVisual?.(number, await pageImage(number));
+              } catch (e) {
+                setError((e as Error).message);
+              }
+            }}
+          >
+            <Image size={14} />
+            Ask image
+          </button>
         </div>
-        <span className="tools-spacer" />
-        <button
-          className="icon-button small"
-          aria-label="Undo annotation"
-          disabled={!canUndo}
-          onClick={onUndo}
-        >
-          <Undo2 size={14} />
-        </button>
-        <button
-          className="icon-button small"
-          aria-label="Redo annotation"
-          disabled={!canRedo}
-          onClick={onRedo}
-        >
-          <Redo2 size={14} />
-        </button>
-        <button
-          className="tool-button"
-          aria-label="Recognize page text"
-          disabled={!source || (source.kind === "pdf" && !doc)}
-          onClick={async () => {
-            try {
-              const number = currentPage.current;
-              onOCR?.(number, await pageImage(number));
-            } catch (e) {
-              setError((e as Error).message);
-            }
-          }}
-        >
-          <ScanText size={14} />
-          OCR
-        </button>
-        <button
-          className="tool-button"
-          aria-label="Ask about page image"
-          disabled={!source || (source.kind === "pdf" && !doc)}
-          onClick={async () => {
-            try {
-              const number = currentPage.current;
-              onVisual?.(number, await pageImage(number));
-            } catch (e) {
-              setError((e as Error).message);
-            }
-          }}
-        >
-          <Image size={14} />
-          Ask image
-        </button>
-      </div>
-      <div className="reader-controls">
-        <div className="segmented view-switch" aria-label="Reading layout">
-          {(
-            [
-              ["vertical", ArrowDown, "Vertical"],
-              ["horizontal", ArrowRight, "Horizontal"],
-              ["book", BookOpen, "Book"],
-            ] as const
-          ).map(([value, Icon, label]) => (
+        <div className="reader-controls">
+          <div className="segmented view-switch" aria-label="Reading layout">
+            {(
+              [
+                ["vertical", ArrowDown, "Vertical"],
+                ["horizontal", ArrowRight, "Horizontal"],
+                ["book", BookOpen, "Book"],
+              ] as const
+            ).map(([value, Icon, label]) => (
+              <button
+                key={value}
+                className={mode === value ? "active" : ""}
+                aria-label={`${label} view`}
+                aria-pressed={mode === value}
+                onClick={() => {
+                  const active = currentPage.current;
+                  setPage(active);
+                  setMode(value);
+                  setSelection(undefined);
+                }}
+              >
+                <Icon size={15} />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+          <div className="zoom-controls">
             <button
-              key={value}
-              className={mode === value ? "active" : ""}
-              aria-label={`${label} view`}
-              aria-pressed={mode === value}
+              className="icon-button small"
+              aria-label="Zoom out"
+              disabled={zoom <= 50}
               onClick={() => {
-                const active = currentPage.current;
-                setPage(active);
-                setMode(value);
+                setPage(currentPage.current);
+                setZoom(Math.max(50, zoom - 10));
+              }}
+            >
+              <Minus size={14} />
+            </button>
+            <button
+              className="zoom-value"
+              aria-label="Reset zoom"
+              onClick={() => {
+                setPage(currentPage.current);
+                setZoom(100);
+              }}
+            >
+              {zoom}%
+            </button>
+            <button
+              className="icon-button small"
+              aria-label="Zoom in"
+              disabled={zoom >= 200}
+              onClick={() => {
+                setPage(currentPage.current);
+                setZoom(Math.min(200, zoom + 10));
+              }}
+            >
+              <Plus size={14} />
+            </button>
+            <i />
+            <button
+              className={`icon-button small ${areaTool ? "selected" : ""}`}
+              aria-label="Area highlight"
+              title="Drag to highlight an area"
+              aria-pressed={areaTool}
+              disabled={!source}
+              onClick={() => {
+                setAreaTool(!areaTool);
+                setTool("select");
                 setSelection(undefined);
               }}
             >
-              <Icon size={15} />
-              <span>{label}</span>
+              <Highlighter size={16} />
             </button>
-          ))}
-        </div>
-        <div className="zoom-controls">
-          <button
-            className="icon-button small"
-            aria-label="Zoom out"
-            disabled={zoom <= 50}
-            onClick={() => {
-              setPage(currentPage.current);
-              setZoom(Math.max(50, zoom - 10));
-            }}
-          >
-            <Minus size={14} />
-          </button>
-          <button
-            className="zoom-value"
-            aria-label="Reset zoom"
-            onClick={() => {
-              setPage(currentPage.current);
-              setZoom(100);
-            }}
-          >
-            {zoom}%
-          </button>
-          <button
-            className="icon-button small"
-            aria-label="Zoom in"
-            disabled={zoom >= 200}
-            onClick={() => {
-              setPage(currentPage.current);
-              setZoom(Math.min(200, zoom + 10));
-            }}
-          >
-            <Plus size={14} />
-          </button>
-          <i />
-          <button
-            className={`icon-button small ${areaTool ? "selected" : ""}`}
-            aria-label="Area highlight"
-            title="Drag to highlight an area"
-            aria-pressed={areaTool}
-            disabled={!source}
-            onClick={() => {
-              setAreaTool(!areaTool);
-              setTool("select");
-              setSelection(undefined);
-            }}
-          >
-            <Highlighter size={16} />
-          </button>
-          <button
-            className="icon-button small"
-            aria-label="Focus reader"
-            title="Focus reader"
-            onClick={() =>
-              sizeRef.current
-                ?.requestFullscreen?.()
-                .catch(() =>
-                  setError("Fullscreen is unavailable in this browser."),
-                )
-            }
-          >
-            <Maximize2 size={15} />
-          </button>
+            <button
+              className="icon-button small"
+              aria-label="Focus reader"
+              title="Focus reader"
+              onClick={() =>
+                sizeRef.current
+                  ?.requestFullscreen?.()
+                  .catch(() =>
+                    setError("Fullscreen is unavailable in this browser."),
+                  )
+              }
+            >
+              <Maximize2 size={15} />
+            </button>
+          </div>
         </div>
       </div>
       {searchOpen && (
@@ -1172,7 +1300,10 @@ export function Reader({
               inputMode="numeric"
               value={pageInput}
               onChange={(e) => setPageInput(e.target.value)}
-              onBlur={() => navigate(Number(pageInput) || 1)}
+              onBlur={() => {
+                if (Number(pageInput) !== currentPage.current)
+                  navigate(Number(pageInput) || 1);
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter") navigate(Number(pageInput) || 1);
               }}
@@ -1191,46 +1322,143 @@ export function Reader({
           </button>
         </div>
       </div>
-      {selection && (
-        <div
-          className="selection-toolbar"
-          role="toolbar"
-          aria-label="Selected text actions"
-          style={{ left: selection.x, top: selection.y }}
-          onMouseDown={(e) => e.preventDefault()}
-        >
-          <div className="highlight-colors">
-            {(["yellow", "mint", "lavender"] as const).map((c) => (
-              <button
-                key={c}
-                className={`color-dot ${c} ${color === c ? "chosen" : ""}`}
-                aria-label={`${c} highlight color`}
-                onClick={() => setColor(c)}
-              />
-            ))}
-          </div>
-          <i />
-          <button onClick={() => save(false)}>
-            <Highlighter size={14} />
-            Highlight
-          </button>
-          <button onClick={() => save(false, "underline")}>Underline</button>
-          <button onClick={() => save(true)}>
-            <MessageSquarePlus size={14} />
-            Note
-          </button>
-          <button
-            className="ask-selection"
-            onClick={() => {
-              onAsk(selection.quote, selection.page);
-              setSelection(undefined);
-              window.getSelection()?.removeAllRanges();
+      {selection &&
+        createPortal(
+          <div
+            className={`selection-toolbar ${selection.placement} ${askingSelection ? "asking" : ""}`}
+            ref={selectionTools}
+            role="toolbar"
+            aria-label="Selected text actions"
+            style={{ left: selection.x, top: selection.y }}
+            onMouseDown={(e) => {
+              if ((e.target as HTMLElement).closest("button"))
+                e.preventDefault();
             }}
           >
-            Ask AI
-          </button>
-        </div>
-      )}
+            <div className="selection-actions">
+              <button
+                className="ask-selection"
+                aria-label="Ask AI"
+                aria-expanded={askingSelection}
+                onClick={() => setAskingSelection(!askingSelection)}
+              >
+                Ask
+              </button>
+              <button
+                disabled={askingBusy}
+                onClick={() => askPassage("Explain this passage.")}
+              >
+                <Lightbulb size={14} />
+                Explain
+              </button>
+              <button
+                disabled={askingBusy}
+                onClick={() =>
+                  askPassage(
+                    "Define the selected term in the context of this passage.",
+                  )
+                }
+              >
+                <BookText size={14} />
+                Define
+              </button>
+              <i />
+              <div className="highlight-colors">
+                {(["yellow", "mint", "lavender"] as const).map((c) => (
+                  <button
+                    key={c}
+                    className={`color-dot ${c} ${color === c ? "chosen" : ""}`}
+                    aria-label={`${c} highlight color`}
+                    onClick={() => setColor(c)}
+                  />
+                ))}
+              </div>
+              <button
+                aria-label="Highlight"
+                title="Highlight"
+                onClick={() => save(false)}
+              >
+                <Highlighter size={14} />
+              </button>
+              <button
+                aria-label="Underline"
+                title="Underline"
+                onClick={() => save(false, "underline")}
+              >
+                <span className="underline-icon">U</span>
+              </button>
+              <button
+                aria-label="Note"
+                title="Add a note"
+                onClick={() => save(true)}
+              >
+                <MessageSquarePlus size={14} />
+              </button>
+            </div>
+            {askingSelection && (
+              <form
+                className="passage-composer"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  askPassage(selectionQuestion);
+                }}
+              >
+                <div className="passage-question-row">
+                  <input
+                    ref={passageInput}
+                    aria-label="Ask about selected passage"
+                    placeholder="Ask about this passage…"
+                    value={selectionQuestion}
+                    maxLength={6000}
+                    onChange={(event) =>
+                      setSelectionQuestion(event.target.value)
+                    }
+                  />
+                  {onAnswerMode && (
+                    <AnswerModeControl
+                      value={answerMode}
+                      onChange={onAnswerMode}
+                    />
+                  )}
+                  <button
+                    className="passage-send"
+                    aria-label="Send passage question"
+                    disabled={!selectionQuestion.trim() || askingBusy}
+                  >
+                    <ArrowUp size={15} />
+                  </button>
+                </div>
+                <div className="passage-prompts">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      askPassage("Why is this important in this document?")
+                    }
+                  >
+                    Why is this here?
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      askPassage("Explain this passage with a simple example.")
+                    }
+                  >
+                    Give an example
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      askPassage("Summarize this passage in one sentence.")
+                    }
+                  >
+                    Summarize
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>,
+          document.fullscreenElement ?? document.body,
+        )}
     </section>
   );
 }

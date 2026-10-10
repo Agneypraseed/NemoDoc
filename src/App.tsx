@@ -4,7 +4,13 @@ import {
   pageOnlyRequest,
   wantsPages,
 } from "./lib/supporting-pages";
-import { useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import {
   ArrowRight,
   ArrowUp,
@@ -29,9 +35,6 @@ import {
   X,
   PanelLeftClose,
   PanelLeftOpen,
-  PanelRightClose,
-  PanelRightOpen,
-  Bot,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -48,6 +51,8 @@ import { apiJSON } from "./lib/api";
 import { ConnectionSettings } from "./components/ConnectionSettings";
 import { AppearanceSettings } from "./components/AppearanceSettings";
 import { NotebookActions } from "./components/NotebookActions";
+import { AnswerModeControl, type AnswerMode } from "./components/AnswerMode";
+import { WorkspaceTabs } from "./components/WorkspaceTabs";
 import { modelName, useAppearance } from "./lib/appearance";
 import { NotebookSearch } from "./components/NotebookSearch";
 import { StudyStudio } from "./components/StudyStudio";
@@ -142,10 +147,30 @@ export default function App() {
       quote: string;
       sourceId: string;
       page: number;
+      anchorY?: number;
     }>(),
     [selectedAnnotation, setSelectedAnnotation] = useState<string>();
   const [sidebarOpen, setSidebarOpen] = useState(false),
-    [panelOpen, setPanelOpen] = useState(() => window.innerWidth > 700);
+    [panelOpen, setPanelOpen] = useState(() => {
+      try {
+        return localStorage.getItem("nemodoc-assistant-open") === "true";
+      } catch {
+        return false;
+      }
+    });
+  const [marginOffset, setMarginOffset] = useState(46);
+  const readingArea = useRef<HTMLDivElement>(null);
+  const [marginAnchor, setMarginAnchor] = useState<{
+    sourceId: string;
+    page: number;
+    text: string;
+  }>();
+  const trackPassage = useCallback((y: number) => {
+    const area = readingArea.current?.getBoundingClientRect();
+    if (area)
+      setMarginOffset(Math.max(46, Math.min(area.height - 180, y - area.top)));
+  }, []);
+  const [answerMode, setAnswerMode] = useState<AnswerMode>("quick");
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const chatDock = useRef<HTMLDivElement>(null),
     chatLauncher = useRef<HTMLButtonElement>(null);
@@ -328,6 +353,13 @@ export default function App() {
     setPanelOpen(false);
     chatLauncher.current?.focus();
   };
+  useEffect(() => {
+    try {
+      localStorage.setItem("nemodoc-assistant-open", String(panelOpen));
+    } catch {
+      /* Optional preference. */
+    }
+  }, [panelOpen]);
   const chooseSuggestion = (question: string) => {
     setDraft(question);
     setSuggestionsOpen(false);
@@ -354,6 +386,8 @@ export default function App() {
     setModal(null);
   };
   const openSource = (id: string, pageNumber?: number) => {
+    setMarginAnchor(undefined);
+    setMarginOffset(46);
     setSourceId(id);
     setPage(
       pageNumber ?? sources.find((s) => s.id === id)?.readingState?.page ?? 1,
@@ -369,6 +403,7 @@ export default function App() {
       return;
     }
     openSource(c.sourceId, c.page);
+    setMarginAnchor({ sourceId: c.sourceId, page: c.page, text: c.text });
     setEvidence({ page: c.page, text: c.text, key: Date.now() });
   };
   const saveArtifact = (a: StudyArtifact) => {
@@ -489,12 +524,26 @@ export default function App() {
     setTab("notes");
     setPanelOpen(true);
   };
-  const askSelection = (quote: string, selectedPage: number) => {
+  const askSelection = (
+    quote: string,
+    selectedPage: number,
+    question?: string,
+    anchorY?: number,
+  ) => {
     if (!source) return;
-    setContext({ quote, page: selectedPage, sourceId: source.id });
+    const selected = {
+      quote,
+      page: selectedPage,
+      sourceId: source.id,
+      anchorY,
+    };
+    if (question) {
+      void send(question, undefined, selected);
+      return;
+    }
+    setContext(selected);
     setTab("chat");
-    setPanelOpen(true);
-    setDraft("Explain this passage");
+    setDraft("");
     setTimeout(() => composer.current?.focus(), 0);
   };
   const addFiles = async (files: FileList | File[]) => {
@@ -674,21 +723,41 @@ export default function App() {
       }),
     );
   };
-  const send = async (question = draft, onlySources?: Source[]) => {
+  const send = async (
+    question = draft,
+    onlySources?: Source[],
+    selected = context,
+  ) => {
     if (!notebook || !question.trim() || streaming.current) return;
-    if (!enabledSources.length && !context && !visual && !onlySources?.length) {
+    if (
+      !enabledSources.length &&
+      !selected &&
+      !visual &&
+      !onlySources?.length
+    ) {
       setChatError("Select at least one source in the sidebar first.");
       return;
     }
     const target = notebook.id;
+    setMarginAnchor(
+      selected
+        ? {
+            sourceId: selected.sourceId,
+            page: selected.page,
+            text: selected.quote,
+          }
+        : undefined,
+    );
+    if (selected?.anchorY !== undefined) trackPassage(selected.anchorY);
+    else setMarginOffset(46);
     const fullQuestion =
-      context && !onlySources
-        ? `${question}\n\nSelected passage from ${sources.find((s) => s.id === context.sourceId)?.name}, page ${context.page}:\n${context.quote}`
+      selected && !onlySources
+        ? `${question}\n\nSelected passage from ${sources.find((s) => s.id === selected.sourceId)?.name}, page ${selected.page}:\n${selected.quote}`
         : question;
     const selectedSources =
       onlySources ??
-      (context
-        ? notebookSources.filter((s) => s.id === context.sourceId)
+      (selected
+        ? notebookSources.filter((s) => s.id === selected.sourceId)
         : enabledSources);
     const imageQuestion = onlySources ? undefined : visual;
     const user: Message = {
@@ -741,7 +810,10 @@ export default function App() {
       } else if (imageQuestion) {
         const result = await apiJSON<{ content: string }>(
           "/api/vision",
-          { image: imageQuestion.image, question },
+          {
+            image: imageQuestion.image,
+            question: `${question}\n\n${answerMode === "quick" ? "Give a concise answer." : "Give a detailed, structured explanation."}`,
+          },
           abort.current.signal,
         );
         const imageSource = notebookSources.find(
@@ -763,6 +835,7 @@ export default function App() {
         await streamChat(
           {
             question: fullQuestion,
+            answerMode,
             history: originalMessages
               .filter((m) => m.content)
               .slice(-12)
@@ -1055,9 +1128,51 @@ export default function App() {
             </button>
             <span>My notebooks</span>
             <ChevronRight size={13} />
-            <strong>{notebook?.title ?? "Welcome"}</strong>
+            <button
+              className="notebook-title"
+              title="All notebooks"
+              onClick={() => setModal("library")}
+            >
+              <h1>{notebook?.title ?? "Welcome"}</h1>
+            </button>
           </div>
+          <WorkspaceTabs
+            active={tab}
+            open={panelOpen}
+            onSelect={(value) => {
+              setTab(value);
+              setPanelOpen(true);
+            }}
+          />
           <div className="header-actions">
+            <button
+              className="icon-button"
+              aria-label="Search ideas"
+              title="Search ideas"
+              disabled={!enabledSources.length}
+              onClick={() => setSearchNotebook(true)}
+            >
+              <Search size={16} />
+            </button>
+            <button
+              className="icon-button"
+              aria-label={compareId ? "Close comparison" : "Compare sources"}
+              title={compareId ? "Close comparison" : "Compare sources"}
+              disabled={notebookSources.length < 2}
+              onClick={() => {
+                if (compareId) setCompareId("");
+                else {
+                  const second = notebookSources.find((s) => s.id !== sourceId);
+                  if (second) {
+                    setCompareId(second.id);
+                    setComparePage(second.readingState?.page ?? 1);
+                    setPanelOpen(false);
+                  }
+                }
+              }}
+            >
+              <Layers size={16} />
+            </button>
             <button
               className="icon-button"
               aria-label="New notebook"
@@ -1082,62 +1197,18 @@ export default function App() {
               <Settings2 size={16} />
               <span>Settings</span>
             </button>
-            <button
-              className="icon-button"
-              aria-label={panelOpen ? "Hide assistant" : "Show assistant"}
-              onClick={() => setPanelOpen(!panelOpen)}
-            >
-              {panelOpen ? (
-                <PanelRightClose size={18} />
-              ) : (
-                <PanelRightOpen size={18} />
-              )}
-            </button>
           </div>
         </header>
-        <div className="notebook-header">
-          <div>
-            <h1>{notebook?.title ?? "Your first notebook"}</h1>
-            {notebook?.description && <p>{notebook.description}</p>}
-          </div>
-        </div>
         {saveError && (
           <div className="storage-error" role="alert">
             {saveError}
           </div>
         )}
-        <div className={`work-area ${compareId ? "comparing" : ""}`}>
+        <div
+          ref={readingArea}
+          className={`work-area ${compareId ? "comparing" : ""}`}
+        >
           <div className="reading-workspace">
-            <div className="reading-actions">
-              <button
-                className="subtle-button"
-                disabled={!enabledSources.length}
-                onClick={() => setSearchNotebook(true)}
-              >
-                <Search size={14} />
-                Search ideas
-              </button>
-              <button
-                className="subtle-button"
-                disabled={notebookSources.length < 2}
-                onClick={() => {
-                  if (compareId) setCompareId("");
-                  else {
-                    const second = notebookSources.find(
-                      (s) => s.id !== sourceId,
-                    );
-                    if (second) {
-                      setCompareId(second.id);
-                      setComparePage(second.readingState?.page ?? 1);
-                      setPanelOpen(false);
-                    }
-                  }
-                }}
-              >
-                <Layers size={14} />
-                {compareId ? "Close comparison" : "Compare sources"}
-              </button>
-            </div>
             {compareId && (
               <div className="comparison-controls">
                 <label>
@@ -1225,6 +1296,11 @@ export default function App() {
                 setPage={setPage}
                 onAnnotate={addAnnotation}
                 onAsk={askSelection}
+                answerMode={answerMode}
+                onAnswerMode={setAnswerMode}
+                askingBusy={busy}
+                passageAnchor={marginAnchor}
+                onPassagePosition={trackPassage}
                 onSelectAnnotation={selectAnnotation}
                 onUpload={() => input.current?.click()}
                 onUpdateSource={updateSource}
@@ -1248,11 +1324,26 @@ export default function App() {
                   navigationKey={0}
                   setPage={setComparePage}
                   onAnnotate={addAnnotation}
-                  onAsk={(quote, number) => {
-                    setContext({ quote, page: number, sourceId: compareId });
+                  onAsk={(quote, number, question, anchorY) => {
+                    const selected = {
+                      quote,
+                      page: number,
+                      sourceId: compareId,
+                      anchorY,
+                    };
+                    if (question) {
+                      void send(question, undefined, selected);
+                      return;
+                    }
+                    setContext(selected);
                     setTab("chat");
-                    setPanelOpen(true);
+                    composer.current?.focus();
                   }}
+                  answerMode={answerMode}
+                  onAnswerMode={setAnswerMode}
+                  askingBusy={busy}
+                  passageAnchor={marginAnchor}
+                  onPassagePosition={trackPassage}
                   onSelectAnnotation={selectAnnotation}
                   onUpload={() => input.current?.click()}
                   onUpdateSource={updateSource}
@@ -1276,6 +1367,12 @@ export default function App() {
           <aside
             id="notebook-assistant"
             className="assistant-panel"
+            data-view={tab}
+            style={
+              {
+                "--margin-offset": `${tab === "chat" ? marginOffset : 46}px`,
+              } as CSSProperties
+            }
             aria-label="Notebook assistant"
             onKeyDown={(event) => {
               if (event.key === "Escape" && !modal && !suggestionsOpen) {
@@ -1284,42 +1381,18 @@ export default function App() {
               }
             }}
           >
-            <div className="panel-tabs">
-              <div>
-                <button
-                  className={tab === "chat" ? "active" : ""}
-                  onClick={() => setTab("chat")}
-                >
-                  <Sparkles size={16} />
-                  Chat
-                </button>
-                <button
-                  className={tab === "notes" ? "active" : ""}
-                  onClick={() => setTab("notes")}
-                >
-                  <NotebookPen size={16} />
-                  Notes
-                  {notebookAnnotations.length > 0 && (
-                    <span className="count-badge">
-                      {notebookAnnotations.length}
-                    </span>
-                  )}
-                </button>
-                <button
-                  className={tab === "studio" ? "active" : ""}
-                  onClick={() => setTab("studio")}
-                >
-                  <Layers size={15} />
-                  Studio
-                </button>
-                <button
-                  className={tab === "agent" ? "active" : ""}
-                  onClick={() => setTab("agent")}
-                >
-                  <Bot size={15} />
-                  Agent
-                </button>
-              </div>
+            <div className="margin-header">
+              <strong>
+                {tab === "chat"
+                  ? marginAnchor
+                    ? `Ask · ${notebookSources.find((s) => s.id === marginAnchor.sourceId)?.kind === "pptx" ? "Slide" : "Page"} ${marginAnchor.page}`
+                    : "Conversation"
+                  : tab === "notes"
+                    ? "Notes"
+                    : tab === "studio"
+                      ? "Studio"
+                      : "Agent"}
+              </strong>
               <button
                 className="icon-button small panel-close"
                 title="Close assistant"
@@ -1352,24 +1425,11 @@ export default function App() {
                 <div className="chat-scroll">
                   {!notebook?.messages.length ? (
                     <div className="chat-welcome">
-                      <div className="assistant-orbit">
-                        <Brand />
-                        <span className="orbit-dot" />
-                      </div>
-                      <div className="eyebrow">THINK TOGETHER</div>
-                      <h2>
-                        A fresh perspective,
-                        <br />a question away.
-                      </h2>
+                      <h2>A question in the margins.</h2>
                       <p>
-                        Explore your sources, untangle an idea,
-                        <br />
-                        and see how the pieces connect.
+                        Select a passage or ask below. Answers link back to the
+                        source.
                       </p>
-                      <div className="grounded-note">
-                        <BookOpen size={14} />
-                        <span>Answers grounded in your sources.</span>
-                      </div>
                     </div>
                   ) : (
                     <div className="messages" aria-live="polite">
@@ -1410,7 +1470,14 @@ export default function App() {
                                   ),
                               }}
                             >
-                              {citationMarkdown(m.content, m.citations ?? [])}
+                              {citationMarkdown(
+                                m.role === "user"
+                                  ? m.content.split(
+                                      "\n\nSelected passage from ",
+                                    )[0]
+                                  : m.content,
+                                m.citations ?? [],
+                              )}
                             </ReactMarkdown>
                           ) : (
                             <div className="thinking">
@@ -1758,7 +1825,7 @@ export default function App() {
                   void send();
                 }
               }}
-              rows={2}
+              rows={1}
             />
             <div>
               <div className="composer-tools">
@@ -1773,7 +1840,7 @@ export default function App() {
                   <Grid2X2 size={15} />
                   <span>Suggestions</span>
                 </button>
-                <span className="composer-source-count">
+                <span className="composer-source-count sr-only">
                   <Layers size={13} />
                   {context
                     ? "Selected passage"
@@ -1781,6 +1848,10 @@ export default function App() {
                 </span>
               </div>
               <div className="composer-actions">
+                <AnswerModeControl
+                  value={answerMode}
+                  onChange={setAnswerMode}
+                />
                 <button
                   type="button"
                   ref={chatLauncher}

@@ -5,5 +5,6 @@ import "./upgrade.css";
 import "./components/agent.css";
 import "./chat-dock.css";
 import "./appearance.css";
+import "./reading-space.css";
 
 createRoot(document.getElementById("root")!).render(<App />);

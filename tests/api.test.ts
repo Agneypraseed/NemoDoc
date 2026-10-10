@@ -111,6 +111,52 @@ test("NVIDIA request keeps key server-side, streams content, and omits reasoning
       );
       assert.equal(requested.data.chat_template_kwargs.enable_thinking, false);
       assert.match(requested.data.messages[0].content, /untrusted data/);
+      assert.equal(requested.data.max_tokens, 4096); // Existing API clients retain detailed answers.
+    },
+    fetcher,
+  );
+});
+test("answer detail changes response budget without changing the chosen model or citation contract", async () => {
+  const requests: any[] = [];
+  const fetcher = (async (_url, init) => {
+    requests.push(JSON.parse(String(init?.body)));
+    return new Response(
+      'data: {"choices":[{"delta":{"content":"Attention is finite. [1]"}}]}\n\ndata: [DONE]\n\n',
+      { headers: { "Content-Type": "text/event-stream" } },
+    );
+  }) as typeof fetch;
+  await withApp(
+    { ...config, apiKey: "test-mode-key" },
+    async (url) => {
+      for (const answerMode of ["quick", "deep"]) {
+        const response = await fetch(url + "/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...body, answerMode }),
+        });
+        assert.equal(response.status, 200);
+        assert.match(await response.text(), /Attention is finite\. \[1\]/);
+      }
+      assert.equal(requests[0].model, config.model);
+      assert.equal(requests[1].model, config.model);
+      assert.equal(requests[0].max_tokens, 1024);
+      assert.equal(requests[1].max_tokens, 4096);
+      assert.match(requests[0].messages[0].content, /three short paragraphs/);
+      assert.match(
+        requests[1].messages[0].content,
+        /detailed, structured explanation/,
+      );
+      for (const request of requests) {
+        assert.equal(request.chat_template_kwargs.enable_thinking, false);
+        assert.match(request.messages[0].content, /Cite only IDs that exist/);
+      }
+      const invalid = await fetch(url + "/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...body, answerMode: "unbounded" }),
+      });
+      assert.equal(invalid.status, 400);
+      assert.equal(requests.length, 2);
     },
     fetcher,
   );

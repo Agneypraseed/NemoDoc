@@ -22,7 +22,7 @@ export function useAppearance() {
       document.documentElement.dataset.theme = resolved;
       document
         .querySelector('meta[name="theme-color"]')
-        ?.setAttribute("content", resolved === "dark" ? "#14161b" : "#f6f7fb");
+        ?.setAttribute("content", resolved === "dark" ? "#14161b" : "#f2eee8");
     };
     apply();
     system.addEventListener("change", apply);
