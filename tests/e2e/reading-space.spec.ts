@@ -189,6 +189,53 @@ test("paper workspace gives space to the document and passage questions return c
   await page.evaluate(() => document.exitFullscreen());
 });
 
+test("an unverified passage gets a compact recovery action in its margin card", async ({
+  page,
+}) => {
+  await page.route("**/api/status", (route) =>
+    route.fulfill({
+      json: {
+        configured: true,
+        local: false,
+        model: "nvidia/Nemotron-3_5-Lightning",
+      },
+    }),
+  );
+  await page.route("**/api/chat", (route) =>
+    route.fulfill({
+      status: 422,
+      json: {
+        error:
+          "That selection could not be matched to this page's text. Select it again, or use Recognize page text for a scanned page.",
+      },
+    }),
+  );
+  await page.goto("/");
+  const selection = await selectPassage(page);
+  await selection.getByRole("button", { name: "Ask AI", exact: true }).click();
+  const question = selection.getByRole("textbox", {
+    name: "Ask about selected passage",
+  });
+  await question.fill("What does this passage mean?");
+  await question.press("Enter");
+
+  const assistant = page.getByRole("complementary", {
+    name: "Notebook assistant",
+  });
+  await expect(assistant).toBeVisible();
+  const recovery = assistant.locator(".passage-selection-error");
+  await expect(recovery).toContainText("Selection not found on this page");
+  await expect(page.locator(".chat-error")).toHaveCount(0);
+  await expect(
+    recovery.getByRole("button", { name: "Close note and select again" }),
+  ).toBeVisible();
+  await page.screenshot({ path: "test-results/passage-selection-error.png" });
+  await recovery
+    .getByRole("button", { name: "Close note and select again" })
+    .click();
+  await expect(assistant).toBeHidden();
+});
+
 test("paper and dark reading views stay compact on desktop and mobile", async ({
   page,
 }) => {

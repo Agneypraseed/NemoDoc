@@ -1,5 +1,38 @@
 import type { Rect } from "../types";
 
+/**
+ * PDF text layers can return one client rect per glyph. Passage anchors should
+ * read as a single underline per visual line instead of a trail of dots.
+ */
+export function mergeRectsByLine(rects: Rect[]): Rect[] {
+  const lines: { center: number; rects: Rect[] }[] = [];
+  for (const rect of [...rects].sort((a, b) => a.y - b.y || a.x - b.x)) {
+    const center = rect.y + rect.height / 2;
+    const tolerance = Math.max(0.0075, rect.height * 0.65);
+    let line = lines.find(
+      (candidate) => Math.abs(candidate.center - center) <= tolerance,
+    );
+    if (!line) {
+      line = { center, rects: [] };
+      lines.push(line);
+    }
+    line.rects.push(rect);
+    line.center =
+      line.rects.reduce((sum, item) => sum + item.y + item.height / 2, 0) /
+      line.rects.length;
+  }
+
+  return lines
+    .map(({ rects: line }) => {
+      const left = Math.min(...line.map((rect) => rect.x));
+      const top = Math.min(...line.map((rect) => rect.y));
+      const right = Math.max(...line.map((rect) => rect.x + rect.width));
+      const bottom = Math.max(...line.map((rect) => rect.y + rect.height));
+      return { x: left, y: top, width: right - left, height: bottom - top };
+    })
+    .sort((a, b) => a.y - b.y || a.x - b.x);
+}
+
 export function evidenceRects(page: HTMLElement, excerpt: string): Rect[] {
   const spans = Array.from(
     page.querySelectorAll<HTMLElement>(

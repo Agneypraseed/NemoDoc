@@ -91,6 +91,7 @@ function PassageNoteContent({
   onDelete,
   onFollowUp,
   onConversation,
+  onRetrySelection,
 }: {
   note: PassageNote;
   sources: Source[];
@@ -104,6 +105,7 @@ function PassageNoteContent({
   onDelete: () => void;
   onFollowUp: (question: string) => void;
   onConversation: () => void;
+  onRetrySelection: () => void;
 }) {
   const [followUp, setFollowUp] = useState("");
   const answer = note.messages
@@ -165,6 +167,23 @@ function PassageNoteContent({
                     turnAnswer.citations ?? [],
                   )}
                 </ReactMarkdown>
+              ) : turnAnswer?.error
+                  ?.toLowerCase()
+                  .includes("selection could not be matched") ? (
+                <div className="passage-selection-error" role="alert">
+                  <div className="passage-selection-error-title">
+                    <CircleHelp size={17} aria-hidden="true" />
+                    <strong>Selection not found on this page</strong>
+                  </div>
+                  <p>
+                    The selected text isn’t in the page’s searchable layer. Try
+                    selecting it again, or run OCR from Reader tools if this is
+                    a scanned page.
+                  </p>
+                  <button type="button" onClick={onRetrySelection}>
+                    Close note and select again
+                  </button>
+                </div>
               ) : turnAnswer?.error || turnAnswer?.cancelled ? (
                 <div className="form-error" role="alert">
                   {turnAnswer.error ||
@@ -1140,11 +1159,13 @@ export default function App() {
       if (error instanceof Error && error.name === "AbortError") {
         answer.cancelled = true;
       } else {
-        answer.error =
+        const message =
           error instanceof Error
             ? error.message
             : "Unable to answer this passage question.";
-        setChatError(answer.error);
+        answer.error = message;
+        if (!message.toLowerCase().includes("selection could not be matched"))
+          setChatError(message);
       }
     } finally {
       refresh();
@@ -2073,6 +2094,15 @@ export default function App() {
                     collapsed: true,
                   }));
                   setMarginAnchor(undefined);
+                }}
+                onRetrySelection={() => {
+                  setPassageNote(activeId, activePassageNote.id, (note) => ({
+                    ...note,
+                    active: false,
+                    collapsed: true,
+                  }));
+                  setMarginAnchor(undefined);
+                  closeAssistant();
                 }}
               />
             ) : tab === "agent" ? (

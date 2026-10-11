@@ -1,6 +1,38 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { retrieve } from "../server/retrieval.ts";
+import { retrieve, selectedPageEvidence } from "../server/retrieval.ts";
+
+test("selected math text matches equivalent PDF superscript and TeX spacing", () => {
+  const source = {
+    id: "linear-algebra",
+    name: "Linear algebra.pdf",
+    pages: ["The solution is A^T x=b, when A is invertible."],
+  };
+  const evidence = selectedPageEvidence([source], {
+    sourceId: source.id,
+    page: 1,
+    quote: "Aᵀ x = b",
+  });
+  assert.equal(evidence.length, 1);
+  assert.equal(evidence[0].page, 1);
+  assert.equal(evidence[0].text, source.pages[0]);
+});
+
+test("selected passage matching still rejects text absent from the requested page", () => {
+  assert.deepEqual(
+    selectedPageEvidence(
+      [
+        {
+          id: "book",
+          name: "Book.pdf",
+          pages: ["A^T x=b", "A different page."],
+        },
+      ],
+      { sourceId: "book", page: 2, quote: "Aᵀ x = b" },
+    ),
+    [],
+  );
+});
 
 test("retrieval ranks relevant passages and preserves source / page identity", () => {
   const sources = [

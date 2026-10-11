@@ -33,7 +33,7 @@ import { download } from "../lib/storage";
 import { ReaderNavigation } from "./ReaderNavigation";
 import { AnnotationOverlay } from "./AnnotationOverlay";
 import { exportAnnotatedPdf } from "../lib/pdf-export";
-import { evidenceRects } from "../lib/evidence";
+import { evidenceRects, mergeRectsByLine } from "../lib/evidence";
 import { slideImage } from "../lib/page-image";
 import type {
   Annotation,
@@ -1250,10 +1250,11 @@ export function Reader({
                           : note.topic && pageElement
                             ? evidenceRects(pageElement, note.quote)
                             : [];
-                        return rects.map((rect, index) => (
+                        const markerRects = mergeRectsByLine(rects);
+                        return markerRects.map((rect, index) => (
                           <button
                             key={`${note.id}-${index}`}
-                            className={`passage-note-marker ${note.active ? "active" : ""}`}
+                            className={`passage-note-marker ${note.active && index === markerRects.length - 1 ? "active" : ""}`}
                             style={{
                               left: `${rect.x * 100}%`,
                               top: `${(rect.y + rect.height) * 100}%`,

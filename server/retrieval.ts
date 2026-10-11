@@ -32,10 +32,42 @@ export function selectedPageEvidence(
       .trim();
   const page = normalize(source?.pages[selection.page - 1] ?? "");
   const quote = normalize(selection.quote);
-  const index = page.indexOf(quote);
-  if (!source || !quote || index < 0) return [];
+  if (!source || !quote) return [];
+
+  let index = page.indexOf(quote);
+  let matchEnd = index + quote.length;
+  // PDF.js and the PDF text extractor can represent the same equation with
+  // different superscript and TeX spacing. Only relax those formatting marks;
+  // the selected characters must still occur, in order, on the selected page.
+  if (index < 0) {
+    const compact = (text: string) => {
+      let value = "";
+      const starts: number[] = [];
+      const ends: number[] = [];
+      for (let offset = 0; offset < text.length;) {
+        const character = String.fromCodePoint(text.codePointAt(offset)!);
+        const normalizedCharacter = character.normalize("NFKC");
+        for (const part of normalizedCharacter) {
+          if (/[\s$^{}_\\]/u.test(part)) continue;
+          value += part;
+          starts.push(offset);
+          ends.push(offset + character.length);
+        }
+        offset += character.length;
+      }
+      return { value, starts, ends };
+    };
+    const compactPage = compact(page);
+    const compactQuote = compact(quote).value;
+    const compactIndex = compactPage.value.indexOf(compactQuote);
+    // A one-character fallback is too broad to verify reliably; only exact
+    // one-character selections are accepted by the stricter match above.
+    if (compactQuote.length < 2 || compactIndex < 0) return [];
+    index = compactPage.starts[compactIndex];
+    matchEnd = compactPage.ends[compactIndex + compactQuote.length - 1];
+  }
   const start = Math.max(0, index - 2000);
-  const end = Math.min(page.length, index + quote.length + 4000);
+  const end = Math.min(page.length, matchEnd + 4000);
   return [
     {
       id: 1,
