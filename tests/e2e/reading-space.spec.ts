@@ -99,6 +99,13 @@ test("paper workspace gives space to the document and passage questions stay in 
   expect(requests[0].selection.quote).toContain("Every interface");
   expect(requests[0].selection.sourceId).toBe("sample-paper");
   expect(requests[0].sources.map((s: any) => s.id)).toEqual(["sample-paper"]);
+  const passageMarker = page
+    .locator('[data-page="2"] .passage-note-marker')
+    .first();
+  await expect(passageMarker).toHaveCSS("width", "7px");
+  await expect(passageMarker).toHaveCSS("height", "7px");
+  await expect(passageMarker).toHaveCSS("border-radius", "50%");
+  await expect(passageMarker).toHaveCSS("border-bottom-width", "0px");
   await expect(page.locator(".message.user p")).toHaveText(
     "Why does this matter?",
   );
@@ -109,6 +116,11 @@ test("paper workspace gives space to the document and passage questions stay in 
   const carriedWidth = resizedCard!.width;
   expect(resizedCard!.x + resizedCard!.width).toBeLessThanOrEqual(1416);
   await page.locator(".inline-citation").click();
+  const citedPassage = page.locator(
+    '[data-page="2"] .evidence-highlight',
+  ).first();
+  await expect(citedPassage).toBeVisible();
+  await expect(citedPassage).toHaveCSS("border-bottom-width", "0px");
   await expect(
     page.getByRole("textbox", { name: "Page number", exact: true }),
   ).toHaveValue("2");

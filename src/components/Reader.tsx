@@ -688,7 +688,7 @@ export function Reader({
             : [];
         const markerRects = mergeRectsByLine(rects);
         // Repeated questions on the same exact selection stay in Chat history,
-        // while the page keeps one clean, clickable underline for that text.
+        // while the page keeps one compact, clickable marker at the passage end.
         const markerSignature = note.quote
           .trim()
           .replace(/\s+/g, " ")
@@ -696,14 +696,13 @@ export function Reader({
         if (!markerRects.length || seenSelections.has(markerSignature))
           return [];
         seenSelections.add(markerSignature);
-        return markerRects.map((rect, index) => (
+        return markerRects.slice(-1).map((rect) => (
           <button
-            key={`${note.id}-${index}`}
-            className={`passage-note-marker ${note.active && index === markerRects.length - 1 ? "active" : ""}`}
+            key={note.id}
+            className={`passage-note-marker ${note.active ? "active" : ""}`}
             style={{
-              left: `${rect.x * 100}%`,
-              top: `${(rect.y + rect.height) * 100}%`,
-              width: `${rect.width * 100}%`,
+              left: `${(rect.x + rect.width) * 100}%`,
+              top: `${(rect.y + rect.height / 2) * 100}%`,
             }}
             aria-label={`Open passage note: ${note.question}`}
             title={note.question}

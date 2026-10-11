@@ -786,8 +786,9 @@
 .evidence-highlight {
   position: absolute;
   pointer-events: none;
-  background: #aaace93a;
-  border-bottom: 2px solid #8c83c9;
+  background: #bd68451f;
+  border: 0;
+  border-radius: 2px;
   z-index: 6;
 }
 .ocr-text {
