@@ -213,9 +213,13 @@ test("topic answer renders only validated cited pages and deduplicates evidence"
   await expect(
     page.locator(".message.assistant").last().locator(".inline-citation"),
   ).toHaveCount(2);
-  await expect(
-    page.locator(".passage-note-content > blockquote"),
-  ).toContainText("reading");
+  await expect(page.locator(".message.user").last()).toContainText(
+    "Explain the reading interface and show supporting pages",
+  );
+  await expect(page.locator(".message.assistant").last()).toContainText(
+    "Supporting explanation",
+  );
+  await expect(page.locator(".passage-note-content")).toHaveCount(0);
   await expect(
     page.locator('[data-page="3"] .passage-note-marker').first(),
   ).toBeVisible();

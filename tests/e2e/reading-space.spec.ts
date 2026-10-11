@@ -24,7 +24,7 @@ async function selectPassage(page: Page) {
   return page.getByRole("toolbar", { name: "Selected text actions" });
 }
 
-test("paper workspace gives space to the document and passage questions return cited margin answers", async ({
+test("paper workspace gives space to the document and passage questions stay in chat", async ({
   page,
 }) => {
   const requests: any[] = [];
@@ -112,13 +112,11 @@ test("paper workspace gives space to the document and passage questions return c
   await expect(
     page.getByRole("textbox", { name: "Page number", exact: true }),
   ).toHaveValue("2");
-  await page
-    .getByRole("button", { name: "Save to Notes", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Add to Notes", exact: true }).click();
   await page.getByRole("button", { name: "Notes", exact: true }).click();
-  await expect(
-    page.getByRole("textbox", { name: "Notebook notes", exact: true }),
-  ).toContainText("Why does this matter?");
+  await expect(page.locator(".saved-answer-question")).toContainText(
+    "Why does this matter?",
+  );
   await page.getByRole("button", { name: "Chat", exact: true }).click();
   await page.screenshot({
     path: "test-results/reading-margin.png",
@@ -133,17 +131,16 @@ test("paper workspace gives space to the document and passage questions return c
   expect(requests[1].answerMode).toBe("quick");
   expect(requests[1].question).toContain("Define the selected term");
   await expect(
-    page.getByRole("button", { name: "Save to Notes", exact: true }),
+    page.getByRole("button", { name: "Add to Notes", exact: true }),
   ).toHaveCount(1);
-  const collapsedNote = page.locator(".passage-note-inline-preview");
-  await expect(collapsedNote).toHaveCount(1);
-  const collapsedBox = await collapsedNote.boundingBox();
-  const originBox = await page
-    .locator('[data-page="2"] .passage-note-marker')
-    .first()
-    .boundingBox();
-  expect(Math.abs(collapsedBox!.y - originBox!.y)).toBeLessThan(120);
-  await page.screenshot({ path: "test-results/passage-notes-collapsed.png" });
+  await expect(page.locator(".message.user p")).toHaveText([
+    "Why does this matter?",
+    "Define the selected term in the context of this passage.",
+  ]);
+  await expect(page.locator(".message.assistant")).toHaveCount(2);
+  await expect(page.locator(".passage-message-actions")).toHaveCount(2);
+  await expect(page.locator(".passage-note-inline-preview")).toHaveCount(0);
+  await page.screenshot({ path: "test-results/passage-chat-history.png" });
   const resize = page.getByRole("button", { name: "Resize answer card" });
   await resize.focus();
   await resize.press("Shift+ArrowLeft");
@@ -155,13 +152,17 @@ test("paper workspace gives space to the document and passage questions return c
   await page.reload();
   await expect(assistant).toBeHidden();
   await page.getByRole("button", { name: "Open chat", exact: true }).click();
-  await expect(page.locator(".chat-welcome")).toBeVisible();
-  await page.locator(".passage-note-inline-preview").first().click();
-  await expect(page.locator(".message.assistant")).toHaveCount(1);
-  await expect(page.locator(".passage-note-inline-preview")).toHaveCount(1);
+  await expect(page.locator(".chat-welcome")).toBeHidden();
+  await expect(page.locator(".message.assistant")).toHaveCount(2);
   await expect(
-    page.getByRole("button", { name: "Save to Notes", exact: true }),
-  ).toBeDisabled();
+    page.locator('[data-page="2"] .passage-note-marker'),
+  ).toHaveCount(1);
+  await page.locator('[data-page="2"] .passage-note-marker').first().click();
+  await expect(page.locator(".message.assistant")).toHaveCount(2);
+  await expect(page.locator(".message-passage-context")).toHaveCount(2);
+  await expect(
+    page.getByRole("button", { name: "Add to Notes", exact: true }),
+  ).toBeVisible();
   await page
     .getByRole("button", { name: "Close assistant", exact: true })
     .click();
@@ -189,7 +190,7 @@ test("paper workspace gives space to the document and passage questions return c
   await page.evaluate(() => document.exitFullscreen());
 });
 
-test("an unverified passage gets a compact recovery action in its margin card", async ({
+test("an unverified passage error appears in the chat turn", async ({
   page,
 }) => {
   await page.route("**/api/status", (route) =>
@@ -223,17 +224,15 @@ test("an unverified passage gets a compact recovery action in its margin card", 
     name: "Notebook assistant",
   });
   await expect(assistant).toBeVisible();
-  const recovery = assistant.locator(".passage-selection-error");
-  await expect(recovery).toContainText("Selection not found on this page");
+  const error = assistant.locator(".message.assistant .form-error");
+  await expect(error).toContainText("could not be matched to this page's text");
   await expect(page.locator(".chat-error")).toHaveCount(0);
-  await expect(
-    recovery.getByRole("button", { name: "Close note and select again" }),
-  ).toBeVisible();
-  await page.screenshot({ path: "test-results/passage-selection-error.png" });
-  await recovery
-    .getByRole("button", { name: "Close note and select again" })
-    .click();
-  await expect(assistant).toBeHidden();
+  await expect(page.locator(".message-passage-context")).toContainText(
+    "Page 2",
+  );
+  await page.screenshot({
+    path: "test-results/passage-selection-error-chat.png",
+  });
 });
 
 test("paper and dark reading views stay compact on desktop and mobile", async ({
@@ -323,7 +322,7 @@ test("paper and dark reading views stay compact on desktop and mobile", async ({
   });
   await passageQuestion.press("Enter");
   await expect(assistant).toBeVisible();
-  await expect(page.locator(".passage-note-answer")).toContainText(
+  await expect(page.locator(".message.assistant").last()).toContainText(
     "A clear reading space gives each idea room to breathe",
   );
   const noteBox = await assistant.boundingBox();

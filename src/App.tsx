@@ -188,238 +188,6 @@ function SavedAnswerCard({
   );
 }
 
-function PassageNoteContent({
-  note,
-  sources,
-  streamingId,
-  busy,
-  model,
-  onCitation,
-  onCopy,
-  onRegenerate,
-  onSave,
-  onDelete,
-  onFollowUp,
-  onConversation,
-  onRetrySelection,
-}: {
-  note: PassageNote;
-  sources: Source[];
-  streamingId: string;
-  busy: boolean;
-  model: string;
-  onCitation: (citation: Citation) => void;
-  onCopy: (answer: string) => void;
-  onRegenerate: () => void;
-  onSave: (id: string) => void;
-  onDelete: () => void;
-  onFollowUp: (question: string) => void;
-  onConversation: () => void;
-  onRetrySelection: () => void;
-}) {
-  const [followUp, setFollowUp] = useState("");
-  const answer = note.messages
-    .filter((message) => message.role === "assistant")
-    .at(-1);
-  useEffect(() => setFollowUp(""), [note.id]);
-  const turns = note.messages.reduce<{ question: Message; answer?: Message }[]>(
-    (result, message) => {
-      if (message.role === "user") result.push({ question: message });
-      else if (result.length) result[result.length - 1].answer = message;
-      return result;
-    },
-    [],
-  );
-  return (
-    <div className="passage-note-content">
-      {note.quote && <blockquote>{note.quote}</blockquote>}
-      <button className="back-to-conversation" onClick={onConversation}>
-        Whole-notebook conversation
-      </button>
-      <div className="passage-note-turns" aria-live="polite">
-        {turns.map(({ question, answer: turnAnswer }) => (
-          <div className="passage-note-turn" key={question.id}>
-            <div className="passage-note-question message user">
-              <p>{question.content}</p>
-            </div>
-            <div className="passage-note-answer message assistant">
-              {turnAnswer?.content ? (
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm, remarkMath]}
-                  rehypePlugins={[
-                    [
-                      rehypeKatex,
-                      { trust: false, maxExpand: 1000, maxSize: 20 },
-                    ],
-                  ]}
-                  components={{
-                    a: ({ href, children }) => {
-                      const citation = href?.startsWith("#citation-")
-                        ? turnAnswer.citations?.find(
-                            (item) => item.id === Number(href.slice(10)),
-                          )
-                        : undefined;
-                      return citation ? (
-                        <button
-                          className="inline-citation"
-                          onClick={() => onCitation(citation)}
-                        >
-                          {children}
-                        </button>
-                      ) : (
-                        <a href={href}>{children}</a>
-                      );
-                    },
-                  }}
-                >
-                  {citationMarkdown(
-                    turnAnswer.content,
-                    turnAnswer.citations ?? [],
-                  )}
-                </ReactMarkdown>
-              ) : turnAnswer?.error
-                  ?.toLowerCase()
-                  .includes("selection could not be matched") ? (
-                <div className="passage-selection-error" role="alert">
-                  <div className="passage-selection-error-title">
-                    <CircleHelp size={17} aria-hidden="true" />
-                    <strong>Selection not found on this page</strong>
-                  </div>
-                  <p>
-                    The selected text isn’t in the page’s searchable layer. Try
-                    selecting it again, or run OCR from Reader tools if this is
-                    a scanned page.
-                  </p>
-                  <button type="button" onClick={onRetrySelection}>
-                    Close note and select again
-                  </button>
-                </div>
-              ) : turnAnswer?.error || turnAnswer?.cancelled ? (
-                <div className="form-error" role="alert">
-                  {turnAnswer.error ||
-                    "Answer cancelled. You can regenerate it."}
-                </div>
-              ) : (
-                <div className="thinking">
-                  <span />
-                  <span />
-                  <span />
-                  <small>Reading this passage</small>
-                </div>
-              )}
-              {turnAnswer?.content && (
-                <SupportingPages
-                  message={turnAnswer}
-                  sources={sources}
-                  open={onCitation}
-                />
-              )}
-              {!!turnAnswer?.citations?.length && (
-                <div className="citation-list">
-                  {turnAnswer.citations
-                    .filter((citation) =>
-                      usesCitation(
-                        turnAnswer.content,
-                        citation,
-                        turnAnswer.citations ?? [],
-                      ),
-                    )
-                    .map((citation) => (
-                      <button
-                        key={citation.id}
-                        onClick={() => onCitation(citation)}
-                      >
-                        <span>{citation.id}</span>
-                        {citation.sourceName
-                          .replace(/\.(pdf|pptx)$/i, "")
-                          .slice(0, 20)}
-                        <small>
-                          {sources.find(
-                            (source) => source.id === citation.sourceId,
-                          )?.kind === "pptx"
-                            ? "Slide"
-                            : "Page"}{" "}
-                          {citation.page}
-                        </small>
-                      </button>
-                    ))}
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="passage-note-meta">
-        {modelName(model)} · {note.answerMode === "quick" ? "Quick" : "Deep"}
-      </div>
-      <div className="passage-note-actions">
-        <button
-          aria-label="Copy passage note answer"
-          title="Copy"
-          disabled={!answer?.content}
-          onClick={() => answer && onCopy(answer.content)}
-        >
-          <Copy size={15} />
-          <span>Copy</span>
-        </button>
-        <button
-          aria-label="Regenerate passage note answer"
-          title="Regenerate"
-          disabled={busy}
-          onClick={onRegenerate}
-        >
-          <RefreshCw size={15} />
-          <span>Regenerate</span>
-        </button>
-        <button
-          className="save-answer"
-          aria-label="Save to Notes"
-          title="Add to Notes"
-          disabled={
-            !answer?.content ||
-            answer.incomplete ||
-            answer.id === streamingId ||
-            answer.savedToNotes
-          }
-          onClick={() => answer && onSave(answer.id)}
-        >
-          <Check size={15} />
-          <span>{answer?.savedToNotes ? "Saved" : "Add to Notes"}</span>
-        </button>
-        <button
-          aria-label="Delete passage note"
-          title="Delete"
-          onClick={onDelete}
-        >
-          <Trash2 size={15} />
-          <span>Delete</span>
-        </button>
-      </div>
-      <form
-        className="passage-follow-up"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (!followUp.trim() || busy) return;
-          onFollowUp(followUp.trim());
-          setFollowUp("");
-        }}
-      >
-        <input
-          aria-label="Ask a follow-up in this passage note"
-          placeholder="Ask a follow-up…"
-          value={followUp}
-          onChange={(event) => setFollowUp(event.target.value)}
-        />
-        <button
-          aria-label="Send passage follow-up"
-          disabled={!followUp.trim() || busy}
-        >
-          <ArrowUp size={15} />
-        </button>
-      </form>
-    </div>
-  );
-}
 export default function App() {
   const { theme, setTheme } = useAppearance();
   const [compactLayout, setCompactLayout] = useState(
@@ -513,6 +281,7 @@ export default function App() {
     page: number;
     text: string;
   }>();
+  const [passageScrollTarget, setPassageScrollTarget] = useState<string>();
   const trackPassage = useCallback((y: number) => {
     const area = readingArea.current?.getBoundingClientRect();
     if (area)
@@ -691,6 +460,13 @@ export default function App() {
     if (tab === "chat" && panelOpen)
       chatBottom.current?.scrollIntoView({ block: "nearest" });
   }, [notebook?.messages, tab, panelOpen]);
+  useEffect(() => {
+    if (!passageScrollTarget || tab !== "chat" || !panelOpen) return;
+    document
+      .getElementById(`chat-message-${passageScrollTarget}`)
+      ?.scrollIntoView({ block: "center", behavior: "smooth" });
+    setPassageScrollTarget(undefined);
+  }, [passageScrollTarget, notebook?.messages, tab, panelOpen]);
   useEffect(() => setSuggestionsOpen(false), [activeId]);
   useEffect(() => {
     if (!ready || !chatDock.current) return;
@@ -1138,7 +914,18 @@ export default function App() {
           sources.filter((source) => source.notebookId === target),
         );
         if (!saved) return current;
-        const updated = { ...current, ...saved };
+        const updated = {
+          ...current,
+          ...saved,
+          passageNotes: (current.passageNotes ?? []).map((note) => ({
+            ...note,
+            messages: note.messages.map((message) =>
+              message.id === answerId
+                ? { ...message, savedToNotes: true }
+                : message,
+            ),
+          })),
+        };
         void storage.notebook(updated).catch(reportStorageError);
         return updated;
       }),
@@ -1167,12 +954,19 @@ export default function App() {
     if (!notebook) return;
     const selected = notebook.passageNotes?.find((note) => note.id === id);
     if (!selected) return;
+    const knownMessages = new Set(
+      notebook.messages.map((message) => message.id),
+    );
+    const legacyMessages = selected.messages.filter(
+      (message) => !knownMessages.has(message.id),
+    );
     const updated = {
       ...notebook,
+      messages: [...notebook.messages, ...legacyMessages],
       passageNotes: (notebook.passageNotes ?? []).map((note) => ({
         ...note,
         active: note.id === id,
-        collapsed: note.id !== id,
+        collapsed: true,
       })),
     };
     updateNotebook(updated);
@@ -1184,17 +978,23 @@ export default function App() {
     });
     setTab("chat");
     setPanelOpen(true);
+    const answer = [...selected.messages]
+      .reverse()
+      .find((message) => message.role === "assistant");
+    setPassageScrollTarget(answer?.id);
   };
   const sendPassage = async (
     question: string,
     selected: NonNullable<typeof context>,
     existing?: PassageNote,
+    replaceMessageIds: string[] = [],
   ) => {
     if (!notebook || streaming.current) return;
     setChatError("");
     setRetrievalInfo("");
     const target = notebook.id;
     const noteId = existing?.id ?? crypto.randomUUID();
+    const replaced = new Set(replaceMessageIds);
     const user: Message = {
       id: crypto.randomUUID(),
       role: "user",
@@ -1221,10 +1021,15 @@ export default function App() {
       createdAt: existing?.createdAt ?? Date.now(),
       card: existing?.card,
       active: true,
-      collapsed: false,
+      collapsed: true,
     };
+    const originalMessages = notebook.messages.filter(
+      (message) => !replaced.has(message.id),
+    );
+    const messages = [...originalMessages, user, answer];
     const initial = {
       ...notebook,
+      messages: mergeStreamMessages(originalMessages, messages),
       passageNotes: [
         ...(notebook.passageNotes ?? [])
           .filter((note) => note.id !== noteId)
@@ -1248,12 +1053,32 @@ export default function App() {
     setStreamingMessageId(answer.id);
     abort.current = new AbortController();
     const refresh = () =>
-      setPassageNote(target, noteId, (current) => ({
-        ...current,
-        messages: current.messages.map((message) =>
-          message.id === answer.id ? { ...answer } : message,
-        ),
-      }));
+      setNotebooks((list) =>
+        list.map((current) => {
+          if (current.id !== target) return current;
+          const next = {
+            ...current,
+            messages: mergeStreamMessages(
+              current.messages.filter((message) => !replaced.has(message.id)),
+              messages,
+            ),
+            passageNotes: (current.passageNotes ?? []).map((note) =>
+              note.id === noteId
+                ? {
+                    ...note,
+                    messages: mergeStreamMessages(note.messages, [
+                      ...baseMessages,
+                      user,
+                      answer,
+                    ]),
+                  }
+                : note,
+            ),
+          };
+          void storage.notebook(next).catch(reportStorageError);
+          return next;
+        }),
+      );
     try {
       const selectedSource = sources.find(
         (item) => item.id === selected.sourceId,
@@ -1315,6 +1140,98 @@ export default function App() {
       streaming.current = false;
       setStreamingMessageId("");
     }
+  };
+  const deletePassageNote = (noteId: string) => {
+    if (!notebook) return;
+    const removed = notebook.passageNotes?.find((note) => note.id === noteId);
+    if (!removed) return;
+    const messageIds = new Set(removed.messages.map((message) => message.id));
+    const removedMessages = notebook.messages.filter((message) =>
+      messageIds.has(message.id),
+    );
+    const originalOrder = new Map(
+      notebook.messages.map((message, index) => [message.id, index]),
+    );
+    const noteIndex = (notebook.passageNotes ?? []).findIndex(
+      (note) => note.id === noteId,
+    );
+    const updated = {
+      ...notebook,
+      messages: notebook.messages.filter(
+        (message) => !messageIds.has(message.id),
+      ),
+      passageNotes: (notebook.passageNotes ?? []).filter(
+        (note) => note.id !== noteId,
+      ),
+    };
+    updateNotebook(updated);
+    if (activePassageNote?.id === noteId) setMarginAnchor(undefined);
+    notify("Passage and answer deleted", () =>
+      setNotebooks((list) =>
+        list.map((current) => {
+          if (current.id !== notebook.id) return current;
+          if ((current.passageNotes ?? []).some((note) => note.id === noteId))
+            return current;
+          const currentOrder = new Map(
+            current.messages.map((message, index) => [message.id, index]),
+          );
+          const messages = [...current.messages, ...removedMessages].sort(
+            (left, right) => {
+              const leftOrder =
+                originalOrder.get(left.id) ??
+                notebook.messages.length + (currentOrder.get(left.id) ?? 0);
+              const rightOrder =
+                originalOrder.get(right.id) ??
+                notebook.messages.length + (currentOrder.get(right.id) ?? 0);
+              return leftOrder - rightOrder;
+            },
+          );
+          const passageNotes = [...(current.passageNotes ?? [])];
+          passageNotes.splice(
+            Math.min(noteIndex, passageNotes.length),
+            0,
+            removed,
+          );
+          const next = { ...current, messages, passageNotes };
+          void storage.notebook(next).catch(reportStorageError);
+          return next;
+        }),
+      ),
+    );
+  };
+  const regeneratePassage = (noteId: string, answerId: string) => {
+    if (!notebook || streaming.current) return;
+    const note = notebook.passageNotes?.find((item) => item.id === noteId);
+    if (!note) return;
+    const answerIndex = note.messages.findIndex(
+      (message) => message.id === answerId,
+    );
+    if (answerIndex < 0) return;
+    const question = note.messages
+      .slice(0, answerIndex)
+      .reverse()
+      .find((message) => message.role === "user");
+    if (!question) return;
+    const replaceMessageIds = [question.id, answerId];
+    const reset = {
+      ...note,
+      messages: note.messages.filter(
+        (message) => !replaceMessageIds.includes(message.id),
+      ),
+      active: true,
+      collapsed: true,
+    };
+    void sendPassage(
+      question.content,
+      {
+        sourceId: note.sourceId,
+        page: note.page,
+        quote: note.quote,
+        rects: note.rects,
+      },
+      reset,
+      replaceMessageIds,
+    );
   };
   const send = async (
     question = draft,
@@ -2037,51 +1954,10 @@ export default function App() {
               )}
             </div>
           </div>
-          {!!notebook?.passageNotes?.some(
-            (note) =>
-              !note.active &&
-              (!note.rects.length ||
-                note.sourceId !== sourceId ||
-                note.page !== page),
-          ) && (
-            <div
-              className="passage-note-previews"
-              aria-label="Collapsed passage notes"
-            >
-              {notebook.passageNotes
-                .filter(
-                  (note) =>
-                    !note.active &&
-                    (!note.rects.length ||
-                      note.sourceId !== sourceId ||
-                      note.page !== page),
-                )
-                .map((note) => (
-                  <button
-                    key={note.id}
-                    onClick={() => openPassageNote(note.id)}
-                  >
-                    <strong>{note.question}</strong>
-                    <span>
-                      {note.messages
-                        .filter((message) => message.role === "assistant")
-                        .at(-1)
-                        ?.content.slice(0, 90) || "Waiting for an answer…"}
-                    </span>
-                    <small>
-                      {source?.kind === "pptx" ? "Slide" : "Page"} {note.page}
-                    </small>
-                  </button>
-                ))}
-            </div>
-          )}
           <AssistantPanel
             key={activeId}
             id="notebook-assistant"
             data-view={tab}
-            data-variant={
-              tab === "chat" && activePassageNote ? "passage-note" : undefined
-            }
             offset={tab === "chat" ? marginOffset : 46}
             geometry={activePassageNote?.card}
             geometryKey={activePassageNote?.id ?? `${activeId}:${tab}`}
@@ -2124,130 +2000,7 @@ export default function App() {
               }
             }}
           >
-            {tab === "chat" && activePassageNote ? (
-              <PassageNoteContent
-                note={activePassageNote}
-                sources={notebookSources}
-                streamingId={streamingMessageId}
-                busy={busy}
-                model={activePassageNote.model}
-                onCitation={showCitation}
-                onCopy={(answer) => {
-                  void navigator.clipboard.writeText(answer);
-                  notify("Answer copied");
-                }}
-                onRegenerate={() => {
-                  const messages = activePassageNote.messages;
-                  const lastUser = [...messages]
-                    .reverse()
-                    .find((message) => message.role === "user");
-                  const trimmed = messages.slice(
-                    0,
-                    Math.max(0, messages.length - 2),
-                  );
-                  const reset = { ...activePassageNote, messages: trimmed };
-                  setPassageNote(activeId, activePassageNote.id, () => reset);
-                  void sendPassage(
-                    lastUser?.content ?? activePassageNote.question,
-                    {
-                      sourceId: activePassageNote.sourceId,
-                      page: activePassageNote.page,
-                      quote: activePassageNote.quote,
-                      rects: activePassageNote.rects,
-                    },
-                    reset,
-                  );
-                }}
-                onSave={(answerId) => {
-                  if (streamingMessageId === answerId || !notebook) return;
-                  const saved = saveAnswerToNotes(
-                    notebook.notes,
-                    activePassageNote.messages,
-                    answerId,
-                    notebookSources,
-                  );
-                  if (!saved) return;
-                  updateNotebook({
-                    ...notebook,
-                    notes: saved.notes,
-                    passageNotes: (notebook.passageNotes ?? []).map((note) =>
-                      note.id === activePassageNote.id
-                        ? { ...note, messages: saved.messages }
-                        : note,
-                    ),
-                  });
-                }}
-                onDelete={() => {
-                  if (!notebook) return;
-                  const removed = activePassageNote;
-                  const updated = {
-                    ...notebook,
-                    passageNotes: (notebook.passageNotes ?? []).filter(
-                      (note) => note.id !== removed.id,
-                    ),
-                  };
-                  updateNotebook(updated);
-                  setMarginAnchor(undefined);
-                  notify("Passage note deleted", () =>
-                    setNotebooks((list) =>
-                      list.map((latest) => {
-                        if (latest.id !== removed.id && latest.id !== activeId)
-                          return latest;
-                        if (
-                          (latest.passageNotes ?? []).some(
-                            (note) => note.id === removed.id,
-                          )
-                        )
-                          return latest;
-                        const restored = {
-                          ...removed,
-                          active: false,
-                          collapsed: true,
-                        };
-                        const next = {
-                          ...latest,
-                          passageNotes: [
-                            ...(latest.passageNotes ?? []),
-                            restored,
-                          ],
-                        };
-                        void storage.notebook(next).catch(reportStorageError);
-                        return next;
-                      }),
-                    ),
-                  );
-                }}
-                onFollowUp={(question) =>
-                  void sendPassage(
-                    question,
-                    {
-                      sourceId: activePassageNote.sourceId,
-                      page: activePassageNote.page,
-                      quote: activePassageNote.quote,
-                      rects: activePassageNote.rects,
-                    },
-                    activePassageNote,
-                  )
-                }
-                onConversation={() => {
-                  setPassageNote(activeId, activePassageNote.id, (note) => ({
-                    ...note,
-                    active: false,
-                    collapsed: true,
-                  }));
-                  setMarginAnchor(undefined);
-                }}
-                onRetrySelection={() => {
-                  setPassageNote(activeId, activePassageNote.id, (note) => ({
-                    ...note,
-                    active: false,
-                    collapsed: true,
-                  }));
-                  setMarginAnchor(undefined);
-                  closeAssistant();
-                }}
-              />
-            ) : tab === "agent" ? (
+            {tab === "agent" ? (
               <AgentPanel
                 key={activeId}
                 notebookId={activeId}
@@ -2341,127 +2094,232 @@ export default function App() {
                     </div>
                   ) : (
                     <div className="messages" aria-live="polite">
-                      {notebook.messages.map((m) => (
-                        <div key={m.id} className={`message ${m.role}`}>
-                          {m.role === "assistant" && (
-                            <div className="message-author">
-                              <Brand small />
-                              <strong>NemoDoc</strong>
-                            </div>
-                          )}
-                          {m.content ? (
-                            <ReactMarkdown
-                              remarkPlugins={[remarkGfm, remarkMath]}
-                              rehypePlugins={[
-                                [
-                                  rehypeKatex,
-                                  {
-                                    trust: false,
-                                    maxExpand: 1000,
-                                    maxSize: 20,
-                                  },
-                                ],
-                              ]}
-                              components={{
-                                a: ({ href, children }) =>
-                                  href?.startsWith("#citation-") ? (
-                                    <button
-                                      className="inline-citation"
-                                      onClick={() => {
-                                        const c = m.citations?.find(
-                                          (c) =>
-                                            c.id === Number(href.slice(10)),
-                                        );
-                                        if (c) showCitation(c);
-                                      }}
-                                    >
-                                      {children}
-                                    </button>
-                                  ) : (
-                                    <a
-                                      href={href}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                    >
-                                      {children}
-                                    </a>
-                                  ),
-                              }}
-                            >
-                              {citationMarkdown(
-                                m.role === "user"
-                                  ? m.content.split(
-                                      "\n\nSelected passage from ",
-                                    )[0]
-                                  : m.content,
-                                m.citations ?? [],
-                              )}
-                            </ReactMarkdown>
-                          ) : (
-                            <div className="thinking">
-                              <span />
-                              <span />
-                              <span />
-                              <small>Reading your sources</small>
-                            </div>
-                          )}
-                          {m.role === "assistant" &&
-                            m.content &&
-                            !!m.citations?.length && (
-                              <div className="citation-list">
-                                {m.citations
-                                  .filter((c) =>
-                                    usesCitation(
-                                      m.content,
-                                      c,
-                                      m.citations ?? [],
-                                    ),
-                                  )
-                                  .map((c) => (
-                                    <button
-                                      key={c.id}
-                                      title={c.text}
-                                      onClick={() => showCitation(c)}
-                                    >
-                                      <span>{c.id}</span>
-                                      {c.sourceName
-                                        .replace(/\.(pdf|pptx)$/i, "")
-                                        .slice(0, 23)}
-                                      <small>
-                                        {notebookSources.find(
-                                          (s) => s.id === c.sourceId,
-                                        )?.kind === "pptx"
-                                          ? "Slide"
-                                          : "Page"}{" "}
-                                        {c.page}
-                                      </small>
-                                    </button>
-                                  ))}
+                      {notebook.messages.map((m) => {
+                        const passageNote = notebook.passageNotes?.find(
+                          (note) =>
+                            note.messages.some(
+                              (message) => message.id === m.id,
+                            ),
+                        );
+                        const passageSource = passageNote
+                          ? notebookSources.find(
+                              (item) => item.id === passageNote.sourceId,
+                            )
+                          : undefined;
+                        return (
+                          <div
+                            key={m.id}
+                            id={`chat-message-${m.id}`}
+                            className={`message ${m.role}`}
+                          >
+                            {m.role === "assistant" && (
+                              <div className="message-author">
+                                <Brand small />
+                                <strong>NemoDoc</strong>
                               </div>
                             )}
-                          {m.role === "assistant" && m.content && (
-                            <SupportingPages
-                              message={m}
-                              sources={notebookSources}
-                              open={showCitation}
-                            />
-                          )}
-                          {m.role === "assistant" &&
-                            m.content.trim() &&
-                            !m.incomplete &&
-                            m.id !== streamingMessageId && (
+                            {m.content ? (
+                              <ReactMarkdown
+                                remarkPlugins={[remarkGfm, remarkMath]}
+                                rehypePlugins={[
+                                  [
+                                    rehypeKatex,
+                                    {
+                                      trust: false,
+                                      maxExpand: 1000,
+                                      maxSize: 20,
+                                    },
+                                  ],
+                                ]}
+                                components={{
+                                  a: ({ href, children }) =>
+                                    href?.startsWith("#citation-") ? (
+                                      <button
+                                        className="inline-citation"
+                                        onClick={() => {
+                                          const c = m.citations?.find(
+                                            (c) =>
+                                              c.id === Number(href.slice(10)),
+                                          );
+                                          if (c) showCitation(c);
+                                        }}
+                                      >
+                                        {children}
+                                      </button>
+                                    ) : (
+                                      <a
+                                        href={href}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                      >
+                                        {children}
+                                      </a>
+                                    ),
+                                }}
+                              >
+                                {citationMarkdown(
+                                  m.role === "user"
+                                    ? m.content.split(
+                                        "\n\nSelected passage from ",
+                                      )[0]
+                                    : m.content,
+                                  m.citations ?? [],
+                                )}
+                              </ReactMarkdown>
+                            ) : m.error ? (
+                              <div className="form-error" role="alert">
+                                {m.error}
+                              </div>
+                            ) : m.cancelled ? (
+                              <div className="form-error" role="status">
+                                Answer cancelled. You can regenerate it.
+                              </div>
+                            ) : (
+                              <div className="thinking">
+                                <span />
+                                <span />
+                                <span />
+                                <small>Reading your sources</small>
+                              </div>
+                            )}
+                            {m.role === "user" && passageNote && (
                               <button
                                 type="button"
-                                className="save-answer"
-                                disabled={m.savedToNotes}
-                                onClick={() => saveAnswer(m.id)}
+                                className="message-passage-context"
+                                title="Show this passage in the document"
+                                onClick={() => openPassageNote(passageNote.id)}
                               >
-                                <Check size={14} />
-                                {m.savedToNotes ? "Saved" : "Save to Notes"}
+                                <span className="message-passage-source">
+                                  <FileText size={13} />
+                                  {passageSource?.name.replace(
+                                    /\.(pdf|pptx)$/i,
+                                    "",
+                                  ) ?? "Source"}
+                                  <span aria-hidden="true">·</span>
+                                  {passageSource?.kind === "pptx"
+                                    ? "Slide"
+                                    : "Page"}{" "}
+                                  {passageNote.page}
+                                </span>
+                                <span className="message-passage-quote">
+                                  {passageNote.quote}
+                                </span>
                               </button>
                             )}
-                        </div>
-                      ))}
+                            {m.role === "assistant" &&
+                              m.content &&
+                              !!m.citations?.length && (
+                                <div className="citation-list">
+                                  {m.citations
+                                    .filter((c) =>
+                                      usesCitation(
+                                        m.content,
+                                        c,
+                                        m.citations ?? [],
+                                      ),
+                                    )
+                                    .map((c) => (
+                                      <button
+                                        key={c.id}
+                                        title={c.text}
+                                        onClick={() => showCitation(c)}
+                                      >
+                                        <span>{c.id}</span>
+                                        {c.sourceName
+                                          .replace(/\.(pdf|pptx)$/i, "")
+                                          .slice(0, 23)}
+                                        <small>
+                                          {notebookSources.find(
+                                            (s) => s.id === c.sourceId,
+                                          )?.kind === "pptx"
+                                            ? "Slide"
+                                            : "Page"}{" "}
+                                          {c.page}
+                                        </small>
+                                      </button>
+                                    ))}
+                                </div>
+                              )}
+                            {m.role === "assistant" && m.content && (
+                              <SupportingPages
+                                message={m}
+                                sources={notebookSources}
+                                open={showCitation}
+                              />
+                            )}
+                            {m.role === "assistant" &&
+                              passageNote &&
+                              m.content.trim() &&
+                              !m.incomplete &&
+                              m.id !== streamingMessageId && (
+                                <div
+                                  className="passage-message-actions"
+                                  aria-label="Passage answer actions"
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      void navigator.clipboard.writeText(
+                                        m.content,
+                                      );
+                                      notify("Answer copied");
+                                    }}
+                                  >
+                                    <Copy size={14} />
+                                    <span>Copy</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={busy}
+                                    onClick={() =>
+                                      regeneratePassage(passageNote.id, m.id)
+                                    }
+                                  >
+                                    <RefreshCw size={14} />
+                                    <span>Regenerate</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="save-answer"
+                                    disabled={m.savedToNotes}
+                                    onClick={() => saveAnswer(m.id)}
+                                  >
+                                    <Check size={14} />
+                                    <span>
+                                      {m.savedToNotes
+                                        ? "Saved"
+                                        : "Add to Notes"}
+                                    </span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      deletePassageNote(passageNote.id)
+                                    }
+                                  >
+                                    <Trash2 size={14} />
+                                    <span>Delete</span>
+                                  </button>
+                                </div>
+                              )}
+                            {m.role === "assistant" &&
+                              !passageNote &&
+                              m.content.trim() &&
+                              !m.incomplete &&
+                              m.id !== streamingMessageId && (
+                                <button
+                                  type="button"
+                                  className="save-answer"
+                                  disabled={m.savedToNotes}
+                                  onClick={() => saveAnswer(m.id)}
+                                >
+                                  <Check size={14} />
+                                  {m.savedToNotes ? "Saved" : "Save to Notes"}
+                                </button>
+                              )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                   <div ref={chatBottom} />
@@ -2811,53 +2669,6 @@ export default function App() {
               void send();
             }}
           >
-            <div className="composer-session">
-              <div className="composer-session-copy">
-                <span className="composer-session-mark">
-                  <MessageSquare size={15} aria-hidden="true" />
-                </span>
-                <span>
-                  <strong>Ask your sources</strong>
-                  <small>
-                    {context
-                      ? `Selected passage · page ${context.page}`
-                      : `${enabledSources.length} ${enabledSources.length === 1 ? "source" : "sources"} selected`}
-                  </small>
-                </span>
-              </div>
-              <button
-                type="button"
-                ref={chatLauncher}
-                className="composer-chat-toggle"
-                aria-label={
-                  panelOpen && tab === "chat" ? "Close chat" : "Open chat"
-                }
-                title={
-                  panelOpen && tab === "chat"
-                    ? "Hide conversation"
-                    : "Open conversation"
-                }
-                aria-expanded={panelOpen && tab === "chat"}
-                aria-controls="notebook-assistant"
-                onClick={() => {
-                  if (panelOpen && tab === "chat") closeAssistant();
-                  else openConversation();
-                }}
-              >
-                <span>
-                  <span className="sr-only">
-                    {panelOpen && tab === "chat"
-                      ? "Hide conversation"
-                      : "Open conversation"}
-                  </span>
-                </span>
-                {panelOpen && tab === "chat" ? (
-                  <ChevronDown size={14} aria-hidden="true" />
-                ) : (
-                  <ChevronRight size={14} aria-hidden="true" />
-                )}
-              </button>
-            </div>
             <textarea
               ref={composer}
               aria-label="Ask about your sources"
@@ -2879,6 +2690,31 @@ export default function App() {
             />
             <div className="composer-layout">
               <div className="composer-tools">
+                <button
+                  type="button"
+                  ref={chatLauncher}
+                  className="composer-chat-toggle"
+                  aria-label={
+                    panelOpen && tab === "chat" ? "Close chat" : "Open chat"
+                  }
+                  title={
+                    panelOpen && tab === "chat"
+                      ? "Hide conversation"
+                      : "Open conversation"
+                  }
+                  aria-expanded={panelOpen && tab === "chat"}
+                  aria-controls="notebook-assistant"
+                  onClick={() => {
+                    if (panelOpen && tab === "chat") closeAssistant();
+                    else openConversation();
+                  }}
+                >
+                  {panelOpen && tab === "chat" ? (
+                    <ChevronDown size={14} aria-hidden="true" />
+                  ) : (
+                    <ChevronRight size={14} aria-hidden="true" />
+                  )}
+                </button>
                 <button
                   type="button"
                   className={`composer-suggestions ${topicNoteNext ? "active" : ""}`}

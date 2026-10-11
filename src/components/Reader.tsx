@@ -669,6 +669,58 @@ export function Reader({
           .filter((p) => p.text.toLowerCase().includes(query.toLowerCase()))
           .slice(0, 30)
       : [];
+  const renderPassageMarkers = (number: number) => {
+    const pageElement = pagesRef.current.get(number);
+    const seenSelections = new Set<string>();
+    return passageNotes
+      .filter((note) => note.sourceId === source?.id && note.page === number)
+      .slice()
+      .reverse()
+      .flatMap((note) => {
+        // Selected passages persist their exact normalized rectangles. A topic
+        // note instead derives a marker from its validated cited excerpt in
+        // the rendered local page, and stays unmarked when that text cannot be
+        // found verbatim in the PDF/PPTX layer.
+        const rects = note.rects.length
+          ? note.rects
+          : note.topic && pageElement
+            ? evidenceRects(pageElement, note.quote)
+            : [];
+        const markerRects = mergeRectsByLine(rects);
+        // Repeated questions on the same exact selection stay in Chat history,
+        // while the page keeps one clean, clickable underline for that text.
+        const markerSignature = `${note.quote
+          .trim()
+          .replace(/\s+/g, " ")
+          .toLocaleLowerCase()}|${markerRects
+          .map((rect) =>
+            [rect.x, rect.y, rect.width, rect.height]
+              .map((value) => Math.round(value * 1000))
+              .join(":"),
+          )
+          .join("|")}`;
+        if (!markerRects.length || seenSelections.has(markerSignature))
+          return [];
+        seenSelections.add(markerSignature);
+        return markerRects.map((rect, index) => (
+          <button
+            key={`${note.id}-${index}`}
+            className={`passage-note-marker ${note.active && index === markerRects.length - 1 ? "active" : ""}`}
+            style={{
+              left: `${rect.x * 100}%`,
+              top: `${(rect.y + rect.height) * 100}%`,
+              width: `${rect.width * 100}%`,
+            }}
+            aria-label={`Open passage note: ${note.question}`}
+            title={note.question}
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenPassageNote?.(note.id);
+            }}
+          />
+        ));
+      });
+  };
   return (
     <section className="reader" ref={sizeRef} aria-label="Document reader">
       <div className="reader-toolbar">
@@ -1100,7 +1152,10 @@ export function Reader({
                       const point = position(event);
                       setPen((previous) =>
                         previous
-                          ? { ...previous, points: [...previous.points, point] }
+                          ? {
+                              ...previous,
+                              points: [...previous.points, point],
+                            }
                           : previous,
                       );
                       return;
@@ -1233,76 +1288,7 @@ export function Reader({
                     className="passage-note-markers"
                     aria-label="Passage notes"
                   >
-                    {passageNotes
-                      .filter(
-                        (note) =>
-                          note.sourceId === source.id && note.page === number,
-                      )
-                      .flatMap((note) => {
-                        const pageElement = pagesRef.current.get(number);
-                        // Selected passages persist their exact normalized
-                        // rectangles. A topic note instead derives a marker
-                        // from its validated cited excerpt in the rendered
-                        // local page, and stays unmarked if that text cannot
-                        // be found verbatim in the PDF/PPTX layer.
-                        const rects = note.rects.length
-                          ? note.rects
-                          : note.topic && pageElement
-                            ? evidenceRects(pageElement, note.quote)
-                            : [];
-                        const markerRects = mergeRectsByLine(rects);
-                        return markerRects.map((rect, index) => (
-                          <button
-                            key={`${note.id}-${index}`}
-                            className={`passage-note-marker ${note.active && index === markerRects.length - 1 ? "active" : ""}`}
-                            style={{
-                              left: `${rect.x * 100}%`,
-                              top: `${(rect.y + rect.height) * 100}%`,
-                              width: `${rect.width * 100}%`,
-                            }}
-                            aria-label={`Open passage note: ${note.question}`}
-                            title={note.question}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onOpenPassageNote?.(note.id);
-                            }}
-                          />
-                        ));
-                      })}
-                    {passageNotes
-                      .filter(
-                        (note) =>
-                          note.sourceId === source.id &&
-                          note.page === number &&
-                          !note.active &&
-                          note.rects.length,
-                      )
-                      .map((note, noteIndex) => {
-                        const rect = note.rects[0];
-                        const answer = note.messages
-                          .filter((message) => message.role === "assistant")
-                          .at(-1);
-                        return (
-                          <button
-                            key={`preview-${note.id}`}
-                            className="passage-note-inline-preview"
-                            style={{
-                              top: `${Math.min(88, (rect.y + rect.height) * 100 + noteIndex * 8)}%`,
-                            }}
-                            aria-label={`Open passage note: ${note.question}`}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onOpenPassageNote?.(note.id);
-                            }}
-                          >
-                            <strong>{note.question}</strong>
-                            <span>
-                              {answer?.content.slice(0, 90) ||
-                                "Waiting for an answer…"}
-                            </span>
-                          </button>
-                        );
-                      })}
+                    {renderPassageMarkers(number)}
                   </div>
                   {pen?.page === number && (
                     <svg
