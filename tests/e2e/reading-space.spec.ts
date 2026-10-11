@@ -79,9 +79,8 @@ test("paper workspace gives space to the document and passage questions return c
   await expect(passageInput).toBeFocused();
   await selection.getByRole("button", { name: "Deep", exact: true }).click();
   await passageInput.fill("Why does this matter?");
-  await page.screenshot({
+  await selection.screenshot({
     path: "test-results/passage-popover.png",
-    fullPage: true,
   });
   await passageInput.press("Enter");
   await expect(assistant).toBeVisible();
@@ -102,8 +101,9 @@ test("paper workspace gives space to the document and passage questions return c
   expect(requests).toHaveLength(1);
   expect(requests[0].answerMode).toBe("deep");
   expect(requests[0].question).toContain("Why does this matter?");
-  expect(requests[0].question).toContain("page 2:");
-  expect(requests[0].question).toContain("Every interface");
+  expect(requests[0].selection.page).toBe(2);
+  expect(requests[0].selection.quote).toContain("Every interface");
+  expect(requests[0].selection.sourceId).toBe("sample-paper");
   expect(requests[0].sources.map((s: any) => s.id)).toEqual(["sample-paper"]);
   await expect(page.locator(".message.user p")).toHaveText(
     "Why does this matter?",

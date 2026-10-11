@@ -111,7 +111,7 @@ test("personal agent executes real tools, scopes memory, validates citations and
   assert.doesNotMatch(sent[0].messages[0].content, /Other notebook/);
   assert.deepEqual(sent[1].messages.at(-1).role, "tool");
   assert.equal(sent[1].messages.at(-1).tool_call_id, "call-search_sources");
-  assert.equal(sent[0].chat_template_kwargs, undefined);
+  assert.equal(sent[0].chat_template_kwargs.enable_thinking, false);
   assert.match(sent[0].model, /nvidia/);
   assert.doesNotMatch(JSON.stringify(data.public()), /private-key/);
   assert.equal("pages" in data.public().sources[0], false);

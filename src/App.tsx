@@ -4,13 +4,7 @@ import {
   pageOnlyRequest,
   wantsPages,
 } from "./lib/supporting-pages";
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   ArrowUp,
@@ -37,6 +31,9 @@ import {
   PanelLeftOpen,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 import remarkGfm from "remark-gfm";
 import { Reader } from "./components/Reader";
 import { Modal } from "./components/Modal";
@@ -53,6 +50,7 @@ import { AppearanceSettings } from "./components/AppearanceSettings";
 import { NotebookActions } from "./components/NotebookActions";
 import { AnswerModeControl, type AnswerMode } from "./components/AnswerMode";
 import { WorkspaceTabs } from "./components/WorkspaceTabs";
+import { AssistantPanel } from "./components/AssistantPanel";
 import { modelName, useAppearance } from "./lib/appearance";
 import { NotebookSearch } from "./components/NotebookSearch";
 import { StudyStudio } from "./components/StudyStudio";
@@ -834,10 +832,18 @@ export default function App() {
         if (requestedPage) answer.showPages = true;
         await streamChat(
           {
-            question: fullQuestion,
+            question,
             answerMode,
+            selection:
+              selected && !requestedPage
+                ? {
+                    sourceId: selected.sourceId,
+                    page: selected.page,
+                    quote: selected.quote.slice(0, 16000),
+                  }
+                : undefined,
             history: originalMessages
-              .filter((m) => m.content)
+              .filter((m) => m.content && !m.incomplete)
               .slice(-12)
               .map(({ role, content }) => ({
                 role,
@@ -1364,14 +1370,22 @@ export default function App() {
               )}
             </div>
           </div>
-          <aside
+          <AssistantPanel
+            key={activeId}
             id="notebook-assistant"
-            className="assistant-panel"
             data-view={tab}
-            style={
-              {
-                "--margin-offset": `${tab === "chat" ? marginOffset : 46}px`,
-              } as CSSProperties
+            offset={tab === "chat" ? marginOffset : 46}
+            onClose={closeAssistant}
+            title={
+              tab === "chat"
+                ? marginAnchor
+                  ? `Ask · ${notebookSources.find((s) => s.id === marginAnchor.sourceId)?.kind === "pptx" ? "Slide" : "Page"} ${marginAnchor.page}`
+                  : "Conversation"
+                : tab === "notes"
+                  ? "Notes"
+                  : tab === "studio"
+                    ? "Studio"
+                    : "Agent"
             }
             aria-label="Notebook assistant"
             onKeyDown={(event) => {
@@ -1381,27 +1395,6 @@ export default function App() {
               }
             }}
           >
-            <div className="margin-header">
-              <strong>
-                {tab === "chat"
-                  ? marginAnchor
-                    ? `Ask · ${notebookSources.find((s) => s.id === marginAnchor.sourceId)?.kind === "pptx" ? "Slide" : "Page"} ${marginAnchor.page}`
-                    : "Conversation"
-                  : tab === "notes"
-                    ? "Notes"
-                    : tab === "studio"
-                      ? "Studio"
-                      : "Agent"}
-              </strong>
-              <button
-                className="icon-button small panel-close"
-                title="Close assistant"
-                aria-label="Close assistant"
-                onClick={closeAssistant}
-              >
-                <X size={17} />
-              </button>
-            </div>
             {tab === "agent" ? (
               <AgentPanel
                 key={activeId}
@@ -1443,7 +1436,17 @@ export default function App() {
                           )}
                           {m.content ? (
                             <ReactMarkdown
-                              remarkPlugins={[remarkGfm]}
+                              remarkPlugins={[remarkGfm, remarkMath]}
+                              rehypePlugins={[
+                                [
+                                  rehypeKatex,
+                                  {
+                                    trust: false,
+                                    maxExpand: 1000,
+                                    maxSize: 20,
+                                  },
+                                ],
+                              ]}
                               components={{
                                 a: ({ href, children }) =>
                                   href?.startsWith("#citation-") ? (
@@ -1676,7 +1679,7 @@ export default function App() {
                 )}
               </div>
             )}
-          </aside>
+          </AssistantPanel>
         </div>
         <div
           ref={chatDock}

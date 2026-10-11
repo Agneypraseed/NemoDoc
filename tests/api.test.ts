@@ -161,6 +161,113 @@ test("answer detail changes response budget without changing the chosen model or
     fetcher,
   );
 });
+test("Nebius passage questions pin the selected page and omit stale history in both answer modes", async () => {
+  const requests: any[] = [];
+  const fetcher = (async (_url, init) => {
+    requests.push(JSON.parse(String(init?.body)));
+    return new Response(
+      'data: {"id":"real-format-id","choices":[{"delta":{"content":"Rank counts independent columns. [1]"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
+    );
+  }) as typeof fetch;
+  await withApp(
+    {
+      ...config,
+      apiKey: "isolated-test-key",
+      baseUrl: "https://api.tokenfactory.nebius.com/v1",
+      model: "nvidia/Nemotron-3_5-Lightning",
+    },
+    async (url) => {
+      const request = {
+        question: "Define the selected term in the context of this passage.",
+        selection: { sourceId: "book", page: 53, quote: "Rank" },
+        sources: [
+          {
+            id: "book",
+            name: "Book.pdf",
+            pages: Array.from({ length: 60 }, (_, index) =>
+              index === 52
+                ? "Rank\n The rank of A is the dimension of its column space: the number of linearly independent columns."
+                : "Ranking unrelated web search results.",
+            ),
+          },
+        ],
+        history: [
+          {
+            role: "assistant",
+            content: "Here's a thinking process: stale answer.",
+          },
+          { role: "user", content: "Explain search engine ranking" },
+        ],
+      };
+      for (const answerMode of ["quick", "deep"]) {
+        const response = await fetch(url + "/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...request, answerMode }),
+        });
+        assert.equal(response.status, 200);
+        const output = await response.text();
+        assert.match(output, /"page":53/);
+        assert.match(output, /independent columns/);
+        assert.doesNotMatch(output, /web search results/);
+      }
+      for (const sent of requests) {
+        assert.equal(sent.chat_template_kwargs.enable_thinking, false);
+        assert.equal(sent.messages.length, 2);
+        assert.doesNotMatch(
+          JSON.stringify(sent.messages),
+          /stale answer|web search results|search engine ranking/,
+        );
+        assert.match(sent.messages[0].content, /dimension of its column space/);
+        assert.match(sent.messages[1].content, /"quote":"Rank"/);
+        assert.match(sent.messages[1].content, /inline reference \[1\]/);
+        assert.match(sent.messages[0].content, /Every paragraph or bullet/);
+        assert.equal(sent.model, "nvidia/Nemotron-3_5-Lightning");
+      }
+      for (const selection of [
+        { ...request.selection, quote: "Invented" },
+        { ...request.selection, page: 99 },
+        { ...request.selection, sourceId: "not-shared" },
+      ]) {
+        const response = await fetch(url + "/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...request, selection }),
+        });
+        assert.equal(response.status, 422);
+      }
+      assert.equal(requests.length, 2);
+    },
+    fetcher,
+  );
+});
+test("reasoning inside content is hidden and truncated outputs cannot complete", async () => {
+  for (const finishReason of ["stop", "length"]) {
+    const fetcher = (async () =>
+      new Response(
+        'data: {"choices":[{"delta":{"content":"<thi"}}]}\n\ndata: {"choices":[{"delta":{"content":"nk>private analysis</think>Attention is finite. [1]"}}]}\n\n' +
+          `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: finishReason }] })}\n\ndata: [DONE]\n\n`,
+      )) as typeof fetch;
+    await withApp(
+      { ...config, apiKey: "isolated-test-key" },
+      async (url) => {
+        const response = await fetch(url + "/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const output = await response.text();
+        assert.doesNotMatch(output, /private analysis|think>/);
+        assert.match(output, /Attention is finite/);
+        if (finishReason === "length") {
+          assert.match(output, /event: error/);
+          assert.doesNotMatch(output, /event: done/);
+        } else assert.match(output, /event: done/);
+      },
+      fetcher,
+    );
+  }
+});
 test("local NIM can run without a key and empty scans do not trigger inference", async () => {
   await withApp(
     { ...config, baseUrl: "http://127.0.0.1:8000/v1" },

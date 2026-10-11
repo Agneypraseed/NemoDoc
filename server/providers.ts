@@ -19,8 +19,11 @@ export function credentialAllowed(url: string, settings: RuntimeSettings) {
   );
 }
 export function chatOptions(settings: RuntimeSettings) {
-  // NVIDIA's extension is not part of the portable OpenAI contract.
+  // Nemotron's template defaults to thinking on. Token Factory accepts the
+  // same template control; answer detail is independent of private reasoning.
+  // https://docs.nvidia.com/nim/large-language-models/2.0.10/get-started/advanced/get-started-nemotron-3.5-lightning.html
   return providerKind(settings.baseUrl) === "nvidia" ||
+    providerKind(settings.baseUrl) === "nebius" ||
     (providerKind(settings.baseUrl) === "local" &&
       /nemotron/i.test(settings.model))
     ? { chat_template_kwargs: { enable_thinking: false } }

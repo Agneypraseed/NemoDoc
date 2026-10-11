@@ -58,7 +58,7 @@ These overview screenshots use the sample notebook; Studio shows demo content.
 
 ## Try it locally
 
-Install **Node.js 22 or newer**, then run:
+Install **Node.js 22.13 or newer**, then run:
 
 ```sh
 npm install

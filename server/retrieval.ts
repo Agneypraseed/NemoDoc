@@ -10,6 +10,42 @@ export interface Excerpt {
   page: number;
   text: string;
 }
+export interface SelectedPassage {
+  sourceId: string;
+  page: number;
+  quote: string;
+}
+
+// A word selection needs the surrounding page, not a search for generic
+// instructions such as "define the selected term" across the whole book.
+export function selectedPageEvidence(
+  sources: InputSource[],
+  selection: SelectedPassage,
+): Excerpt[] {
+  const matches = sources.filter((source) => source.id === selection.sourceId);
+  const source = matches.length === 1 ? matches[0] : undefined;
+  const normalize = (text: string) =>
+    text
+      .normalize("NFKC")
+      .replace(/\u00ad/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  const page = normalize(source?.pages[selection.page - 1] ?? "");
+  const quote = normalize(selection.quote);
+  const index = page.indexOf(quote);
+  if (!source || !quote || index < 0) return [];
+  const start = Math.max(0, index - 2000);
+  const end = Math.min(page.length, index + quote.length + 4000);
+  return [
+    {
+      id: 1,
+      sourceId: source.id,
+      sourceName: source.name,
+      page: selection.page,
+      text: page.length <= 18000 ? page : page.slice(start, end),
+    },
+  ];
+}
 const stopwords = new Set(
   "the a an of to and or in on is are was were it this that with for from be as at by what how why can could would should me my please summarize summary explain give key ideas main document sources".split(
     " ",

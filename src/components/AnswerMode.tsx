@@ -12,7 +12,7 @@ export function AnswerModeControl({
       <button
         type="button"
         aria-pressed={value === "quick"}
-        title="Concise answer"
+        title="Short, source-cited answer. Uses your selected model."
         onClick={() => onChange("quick")}
       >
         Quick
@@ -20,7 +20,7 @@ export function AnswerModeControl({
       <button
         type="button"
         aria-pressed={value === "deep"}
-        title="Detailed answer"
+        title="Detailed explanation with source citations. Uses the same model."
         onClick={() => onChange("deep")}
       >
         Deep

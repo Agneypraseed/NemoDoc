@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.13.0"
   },
   "scripts": {
     "postinstall": "node scripts/prepare-pdf-assets.mjs",
@@ -21,14 +21,23 @@
     "express": "^5.1.0",
     "idb": "^8.0.3",
     "jszip": "^3.10.1",
+    "katex": "^0.19.0",
     "lucide-react": "^0.468.0",
     "pdf-lib": "^1.17.1",
-    "pdfjs-dist": "^5.4.296",
+    "pdfjs-dist": "^6.4.299",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-markdown": "^10.1.0",
+    "rehype-katex": "^7.0.1",
     "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
     "zod": "^4.1.12"
+  },
+  "overrides": {
+    "katex": "$katex",
+    "concurrently": {
+      "shell-quote": "^1.11.0"
+    }
   },
   "devDependencies": {
     "@playwright/test": "^1.56.0",
