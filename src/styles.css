@@ -1132,19 +1132,19 @@ h1 {
 .prompt-cards {
   display: flex;
   flex-direction: column;
-  gap: 9px;
-  margin-top: 29px;
+  gap: 8px;
+  margin-top: 18px;
   width: 100%;
 }
 .prompt-cards > button {
   display: flex;
   align-items: center;
-  gap: 11px;
+  gap: 10px;
   text-align: left;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 9px;
-  padding: 13px 12px;
+  padding: 11px 10px;
   width: 100%;
 }
 .prompt-cards > button > svg {
@@ -1152,8 +1152,8 @@ h1 {
   margin-left: auto;
 }
 .prompt-icon {
-  width: 31px;
-  height: 31px;
+  width: 29px;
+  height: 29px;
   flex-shrink: 0;
   display: grid;
   place-items: center;
@@ -1173,13 +1173,13 @@ h1 {
 }
 .prompt-cards strong {
   display: block;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--text);
 }
 .prompt-cards small {
   display: block;
-  font-size: 8px;
+  font-size: 10px;
   margin-top: 5px;
   color: var(--muted);
 }
@@ -1187,9 +1187,9 @@ h1 {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 27px;
+  margin-top: 18px;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 10px;
 }
 .chat-composer-area {
   padding: 15px;
@@ -1450,21 +1450,179 @@ h1 {
 }
 .notes-scroll {
   overflow-y: auto;
-  padding: 24px 18px;
+  padding: 20px 16px;
   scrollbar-width: thin;
 }
 .notes-intro h2 {
   font-family: Georgia, serif;
   font-weight: 400;
-  font-size: 22px;
+  font-size: 21px;
   color: var(--text);
-  margin: 12px 0 8px;
+  margin: 0 0 14px;
   letter-spacing: -0.5px;
 }
-.notes-intro p {
-  font-size: 10px;
+.notes-view-switch {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-quiet);
+}
+.notes-view-switch button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 38px;
+  padding: 6px 4px;
+  border-radius: 7px;
   color: var(--muted);
-  margin: 0 0 25px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.notes-view-switch button[aria-pressed="true"] {
+  color: var(--accent);
+  background: var(--surface);
+  box-shadow: 0 1px 4px #30264e0c;
+}
+.notes-view-switch button span {
+  display: grid;
+  place-items: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--surface-muted);
+  font-size: 10px;
+}
+.notes-section {
+  padding-bottom: 18px;
+}
+.notes-section-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 11px;
+}
+.notes-section-heading strong {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 550;
+}
+.notes-section-heading > span {
+  color: var(--muted);
+  font-size: 10px;
+}
+.saved-answer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.saved-answer-card {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.saved-answer-card > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  list-style: none;
+  cursor: pointer;
+}
+.saved-answer-card > summary::-webkit-details-marker {
+  display: none;
+}
+.saved-answer-card > summary > svg {
+  flex-shrink: 0;
+  color: var(--muted);
+  transition: transform 150ms ease;
+}
+.saved-answer-card[open] > summary {
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-quiet);
+}
+.saved-answer-card[open] > summary > svg {
+  transform: rotate(180deg);
+}
+.saved-answer-index {
+  display: grid;
+  place-items: center;
+  align-self: flex-start;
+  width: 29px;
+  height: 29px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  color: var(--accent);
+  background: var(--surface-muted);
+  font-size: 9px;
+  font-weight: 600;
+}
+.saved-answer-summary {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.saved-answer-summary small,
+.saved-answer-label,
+.saved-answer-question > span {
+  color: var(--muted);
+  font-size: 10px;
+}
+.saved-answer-summary strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.saved-answer-summary > span {
+  color: var(--muted);
+  font-size: 10px;
+}
+.saved-answer-detail {
+  padding: 14px;
+}
+.saved-answer-question {
+  padding: 0 0 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.saved-answer-question p {
+  margin: 5px 0 0;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.saved-answer-response.message {
+  margin: 0;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.65;
+}
+.saved-answer-response.message h1,
+.saved-answer-response.message h2,
+.saved-answer-response.message h3 {
+  margin-top: 12px;
+  font-size: 13px;
+}
+.saved-answer-label {
+  display: block;
+  margin-bottom: 5px;
+}
+.saved-answer-response .citation-list button {
+  font-size: 10px;
 }
 .notebook-note {
   border: 1px solid var(--line);
@@ -1479,7 +1637,7 @@ h1 {
   padding: 11px;
   border-bottom: 1px solid var(--line);
   color: var(--muted);
-  font-size: 9px;
+  font-size: 11px;
 }
 .notebook-note label > span {
   display: flex;
@@ -1495,23 +1653,12 @@ h1 {
   padding: 12px;
   height: 125px;
   min-height: 100px;
-  font-size: 11px;
-  line-height: 1.8;
+  font-size: 13px;
+  line-height: 1.65;
   color: var(--text);
 }
 .notebook-note textarea::placeholder {
   color: var(--muted);
-}
-.notes-section-title {
-  display: flex;
-  justify-content: space-between;
-  font-size: 8px;
-  letter-spacing: 1.2px;
-  color: var(--muted);
-  margin: 27px 0 13px;
-}
-.notes-section-title > span {
-  letter-spacing: 0;
 }
 .notes-empty {
   text-align: center;
@@ -1519,11 +1666,23 @@ h1 {
   color: var(--muted);
 }
 .notes-empty p {
-  font-size: 11px;
-  line-height: 1.8;
+  font-size: 13px;
+  line-height: 1.6;
 }
 .notes-empty > span {
-  font-size: 8px;
+  font-size: 10px;
+}
+.notes-empty .notes-open-chat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  margin-top: 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--accent);
+  background: var(--surface);
+  font-size: 11px;
 }
 .annotation-card {
   padding: 12px;
@@ -1549,12 +1708,18 @@ h1 {
   gap: 3px;
   align-items: center;
 }
+.annotation-sequence {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
 .annotation-source {
   display: flex;
   gap: 5px;
   align-items: center;
   text-align: left;
-  font-size: 7px;
+  font-size: 10px;
   padding: 0;
   color: var(--amber);
 }
@@ -1567,7 +1732,7 @@ h1 {
   margin: 10px 0;
   padding: 0 0 0 9px;
   color: var(--amber);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.6;
 }
 .annotation-card.mint blockquote {
@@ -1581,7 +1746,7 @@ h1 {
 .annotation-card textarea {
   background: transparent;
   width: 100%;
-  font-size: 10px;
+  font-size: 12px;
   min-height: 43px;
   color: var(--text);
   line-height: 1.6;

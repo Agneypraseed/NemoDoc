@@ -11,6 +11,7 @@ import {
   BookOpen,
   Check,
   Copy,
+  ChevronDown,
   ChevronRight,
   CircleHelp,
   FileText,
@@ -78,6 +79,115 @@ function Brand({ small = false }: { small?: boolean }) {
     </span>
   );
 }
+
+function SavedAnswerCard({
+  number,
+  question,
+  answer,
+  sources,
+  onCitation,
+}: {
+  number: number;
+  question: Message;
+  answer: Message;
+  sources: Source[];
+  onCitation: (citation: Citation) => void;
+}) {
+  const prompt =
+    question.content.split("\n\nSelected passage from ")[0].trim() ||
+    "Saved answer";
+  const citations = (answer.citations ?? []).filter((citation) => {
+    const source = sources.find(
+      (candidate) => candidate.id === citation.sourceId,
+    );
+    return (
+      source &&
+      citation.page >= 1 &&
+      citation.page <= source.pages.length &&
+      usesCitation(answer.content, citation, answer.citations ?? [])
+    );
+  });
+
+  return (
+    <details className="saved-answer-card">
+      <summary>
+        <span className="saved-answer-index">
+          {String(number).padStart(2, "0")}
+        </span>
+        <span className="saved-answer-summary">
+          <small>Saved answer {number}</small>
+          <strong>{prompt}</strong>
+          <span>
+            {citations.length
+              ? `${citations.length} cited ${citations.length === 1 ? "page" : "pages"}`
+              : "Saved from your conversation"}
+          </span>
+        </span>
+        <ChevronDown size={16} aria-hidden="true" />
+      </summary>
+      <div className="saved-answer-detail">
+        <div className="saved-answer-question">
+          <span>Question</span>
+          <p>{prompt}</p>
+        </div>
+        <div className="saved-answer-response message assistant">
+          <span className="saved-answer-label">Answer</span>
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm, remarkMath]}
+            rehypePlugins={[
+              [rehypeKatex, { trust: false, maxExpand: 1000, maxSize: 20 }],
+            ]}
+            components={{
+              a: ({ href, children }) => {
+                const citation = href?.startsWith("#citation-")
+                  ? citations.find((item) => item.id === Number(href.slice(10)))
+                  : undefined;
+                return citation ? (
+                  <button
+                    className="inline-citation"
+                    onClick={() => onCitation(citation)}
+                  >
+                    {children}
+                  </button>
+                ) : (
+                  <a href={href} target="_blank" rel="noreferrer">
+                    {children}
+                  </a>
+                );
+              },
+            }}
+          >
+            {citationMarkdown(answer.content, citations)}
+          </ReactMarkdown>
+          {!!citations.length && (
+            <div className="citation-list">
+              {citations.map((citation) => (
+                <button
+                  key={`${citation.sourceId}:${citation.page}`}
+                  title={citation.text}
+                  onClick={() => onCitation(citation)}
+                >
+                  <span>{citation.id}</span>
+                  {citation.sourceName
+                    .replace(/\.(pdf|pptx)$/i, "")
+                    .slice(0, 20)}
+                  <small>
+                    {sources.find((source) => source.id === citation.sourceId)
+                      ?.kind === "pptx"
+                      ? "Slide"
+                      : "Page"}{" "}
+                    {citation.page}
+                  </small>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </details>
+  );
+}
+
 function PassageNoteContent({
   note,
   sources,
@@ -351,6 +461,9 @@ export default function App() {
   }>();
   const featureAbort = useRef<AbortController>(null);
   const [annotationFilter, setAnnotationFilter] = useState("");
+  const [notesView, setNotesView] = useState<
+    "answers" | "highlights" | "scratchpad"
+  >("answers");
   const [historyVersion, setHistoryVersion] = useState(0);
   const undoStack = useRef<Annotation[][]>([]),
     redoStack = useRef<Annotation[][]>([]);
@@ -419,12 +532,30 @@ export default function App() {
   activeNotebookRef.current = activeId;
   const importingRef = useRef(false);
   const notebook = notebooks.find((n) => n.id === activeId);
+  const savedAnswers = (notebook?.messages ?? []).flatMap((answer, index) => {
+    if (answer.role !== "assistant" || !answer.savedToNotes) return [];
+    const question = (notebook?.messages ?? [])
+      .slice(0, index)
+      .reverse()
+      .find((message) => message.role === "user");
+    return question ? [{ answer, question }] : [];
+  });
   const activePassageNote = notebook?.passageNotes?.find((note) => note.active);
   const notebookSources = sources.filter((s) => s.notebookId === activeId);
   const source = notebookSources.find((s) => s.id === sourceId);
   const notebookAnnotations = annotations.filter((a) =>
     notebookSources.some((s) => s.id === a.sourceId),
   );
+  const filteredAnnotations = notebookAnnotations
+    .filter(
+      (annotation) =>
+        !annotationFilter ||
+        `${annotation.quote} ${annotation.note} ${(annotation.tags ?? []).join(" ")} ${annotation.kind ?? "highlight"}`
+          .toLowerCase()
+          .includes(annotationFilter.toLowerCase()),
+    )
+    .slice()
+    .sort((a, b) => a.createdAt - b.createdAt);
   const activeAnnotation = notebookAnnotations.find(
     (a) => a.id === selectedAnnotation,
   );
@@ -434,6 +565,17 @@ export default function App() {
     returnSidebarFocus.current = true;
     if (compactLayout) setSidebarOpen(false);
     else setSidebarCollapsed(true);
+  };
+  const openConversation = () => {
+    if (activePassageNote)
+      setPassageNote(activeId, activePassageNote.id, (note) => ({
+        ...note,
+        active: false,
+        collapsed: true,
+      }));
+    setMarginAnchor(undefined);
+    setTab("chat");
+    setPanelOpen(true);
   };
   useEffect(() => {
     if (compactLayout && sidebarVisible) sidebarCloser.current?.focus();
@@ -2128,11 +2270,74 @@ export default function App() {
                 <div className="chat-scroll">
                   {!notebook?.messages.length ? (
                     <div className="chat-welcome">
-                      <h2>A question in the margins.</h2>
+                      <div className="assistant-orbit">
+                        <Brand />
+                        <span className="orbit-dot" />
+                      </div>
+                      <span className="eyebrow">NOTEBOOK CONVERSATION</span>
+                      <h2>Ask. Explore. Follow up.</h2>
                       <p>
-                        Select a passage or ask below. Answers link back to the
-                        source.
+                        Get an explanation, connect ideas, or make a study plan.
+                        Your questions and source-linked answers stay together
+                        in order.
                       </p>
+                      <div className="prompt-cards">
+                        <button
+                          onClick={() =>
+                            chooseSuggestion(
+                              "Explain the most important idea in my sources in plain language.",
+                            )
+                          }
+                          disabled={!enabledSources.length}
+                        >
+                          <span className="prompt-icon violet">
+                            <BookOpen size={16} />
+                          </span>
+                          <span>
+                            <strong>Explain a concept</strong>
+                            <small>Start with a clear explanation</small>
+                          </span>
+                          <ArrowRight size={14} />
+                        </button>
+                        <button
+                          onClick={() =>
+                            chooseSuggestion(
+                              "Summarize the key ideas in my sources.",
+                            )
+                          }
+                          disabled={!enabledSources.length}
+                        >
+                          <span className="prompt-icon green">
+                            <Layers size={16} />
+                          </span>
+                          <span>
+                            <strong>Find the big picture</strong>
+                            <small>Bring the main ideas together</small>
+                          </span>
+                          <ArrowRight size={14} />
+                        </button>
+                        <button
+                          onClick={() =>
+                            chooseSuggestion(
+                              "Create five study questions with short answers based on my sources.",
+                            )
+                          }
+                          disabled={!enabledSources.length}
+                        >
+                          <span className="prompt-icon peach">
+                            <Sparkles size={16} />
+                          </span>
+                          <span>
+                            <strong>Practice what you learned</strong>
+                            <small>Turn the reading into questions</small>
+                          </span>
+                          <ArrowRight size={14} />
+                        </button>
+                      </div>
+                      <div className="grounded-note">
+                        <span className="status-dot" />
+                        Answers link back to the selected sources
+                      </div>
                     </div>
                   ) : (
                     <div className="messages" aria-live="polite">
@@ -2265,62 +2470,90 @@ export default function App() {
             ) : (
               <div className="notes-scroll">
                 <div className="notes-intro">
-                  <span className="eyebrow">MAKE IT YOURS</span>
-                  <h2>Thoughts in the margins.</h2>
-                  <p>A home for the ideas you want to keep.</p>
-                </div>
-                <div className="notebook-note">
-                  <label htmlFor="notebook-note">
-                    <NotebookPen size={15} />
-                    Notebook notes
-                    <span>
-                      <Check size={12} />
-                      Auto-saved
-                    </span>
-                  </label>
-                  <textarea
-                    id="notebook-note"
-                    aria-label="Notebook notes"
-                    placeholder="An idea, a connection, a question…"
-                    value={notebook?.notes ?? ""}
-                    onChange={(e) => {
-                      if (notebook)
-                        updateNotebook({ ...notebook, notes: e.target.value });
-                    }}
-                  />
-                </div>
-                <div className="notes-section-title">
-                  HIGHLIGHTS & ANNOTATIONS
-                  <span>{notebookAnnotations.length}</span>
-                </div>
-                <input
-                  className="annotation-filter"
-                  aria-label="Filter annotations"
-                  placeholder="Filter by note, passage, or tag…"
-                  value={annotationFilter}
-                  onChange={(e) => setAnnotationFilter(e.target.value)}
-                />
-                {!notebookAnnotations.length ? (
-                  <div className="notes-empty">
-                    <NotebookPen size={28} strokeWidth={1.2} />
-                    <p>
-                      Select a passage in your document
-                      <br />
-                      and choose Highlight or Note.
-                    </p>
-                    <span>For scanned pages, use the area highlight tool.</span>
+                  <h2>Your notebook</h2>
+                  <div
+                    className="notes-view-switch"
+                    role="group"
+                    aria-label="Notes sections"
+                  >
+                    <button
+                      type="button"
+                      aria-pressed={notesView === "answers"}
+                      onClick={() => setNotesView("answers")}
+                    >
+                      Answers <span>{savedAnswers.length}</span>
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={notesView === "highlights"}
+                      onClick={() => setNotesView("highlights")}
+                    >
+                      Highlights <span>{notebookAnnotations.length}</span>
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={notesView === "scratchpad"}
+                      onClick={() => setNotesView("scratchpad")}
+                    >
+                      Notebook
+                    </button>
                   </div>
-                ) : (
-                  notebookAnnotations
-                    .filter(
-                      (a) =>
-                        !annotationFilter ||
-                        `${a.quote} ${a.note} ${(a.tags ?? []).join(" ")} ${a.kind ?? "highlight"}`
-                          .toLowerCase()
-                          .includes(annotationFilter.toLowerCase()),
-                    )
-                    .sort((a, b) => b.createdAt - a.createdAt)
-                    .map((a) => (
+                </div>
+                {notesView === "answers" ? (
+                  <section className="notes-section" aria-label="Saved answers">
+                    <div className="notes-section-heading">
+                      <strong>Saved answers</strong>
+                      <span>Oldest first</span>
+                    </div>
+                    {savedAnswers.length ? (
+                      <div className="saved-answer-list">
+                        {savedAnswers.map(({ answer, question }, index) => (
+                          <SavedAnswerCard
+                            key={answer.id}
+                            number={index + 1}
+                            question={question}
+                            answer={answer}
+                            sources={notebookSources}
+                            onCitation={showCitation}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="notes-empty">
+                        <MessageSquare size={25} strokeWidth={1.5} />
+                        <p>
+                          Your saved explanations will appear here in order.
+                        </p>
+                        <span>
+                          Save any completed answer from your conversation.
+                        </span>
+                        <button
+                          type="button"
+                          className="notes-open-chat"
+                          onClick={openConversation}
+                        >
+                          Open conversation <ArrowRight size={14} />
+                        </button>
+                      </div>
+                    )}
+                  </section>
+                ) : notesView === "highlights" ? (
+                  <section
+                    className="notes-section"
+                    aria-label="Highlights and annotations"
+                  >
+                    <div className="notes-section-heading">
+                      <strong>Highlights & annotations</strong>
+                      <span>{notebookAnnotations.length} saved</span>
+                    </div>
+                    <input
+                      className="annotation-filter"
+                      aria-label="Filter annotations"
+                      placeholder="Filter highlights…"
+                      value={annotationFilter}
+                      onChange={(e) => setAnnotationFilter(e.target.value)}
+                    />
+                    {filteredAnnotations.map((a, index) => (
                       <div
                         key={a.id}
                         className={`annotation-card ${a.color} ${a.id === selectedAnnotation ? "focused" : ""}`}
@@ -2335,8 +2568,17 @@ export default function App() {
                               .find((s) => s.id === a.sourceId)
                               ?.name.replace(/\.(pdf|pptx)$/i, "")
                               .slice(0, 26)}
-                            <span>p. {a.page}</span>
+                            <span>
+                              {sources.find((s) => s.id === a.sourceId)
+                                ?.kind === "pptx"
+                                ? "slide"
+                                : "page"}{" "}
+                              {a.page}
+                            </span>
                           </button>
+                          <span className="annotation-sequence">
+                            {String(index + 1).padStart(2, "0")}
+                          </span>
                           <button
                             className="icon-button small"
                             aria-label="Delete annotation"
@@ -2360,7 +2602,7 @@ export default function App() {
                           <input
                             className="annotation-tags"
                             aria-label="Annotation tags"
-                            placeholder="tags, separated by commas"
+                            placeholder="Add tags…"
                             value={(a.tags ?? []).join(", ")}
                             onChange={(e) =>
                               editAnnotation({
@@ -2385,7 +2627,55 @@ export default function App() {
                           )}
                         </div>
                       </div>
-                    ))
+                    ))}
+                    {!filteredAnnotations.length && (
+                      <div className="notes-empty">
+                        <NotebookPen size={25} strokeWidth={1.4} />
+                        <p>
+                          {annotationFilter
+                            ? "No highlights match this filter."
+                            : "Highlights from your reading will appear here."}
+                        </p>
+                        <span>
+                          {annotationFilter
+                            ? "Try another word or clear the filter."
+                            : "Select a passage in the reader and choose Highlight or Note."}
+                        </span>
+                      </div>
+                    )}
+                  </section>
+                ) : (
+                  <section
+                    className="notes-section"
+                    aria-label="Notebook notes"
+                  >
+                    <div className="notes-section-heading">
+                      <strong>Notebook notes</strong>
+                      <span>Auto-saved</span>
+                    </div>
+                    <div className="notebook-note">
+                      <label htmlFor="notebook-note">
+                        <NotebookPen size={15} />
+                        Ideas, connections, and reminders
+                        <span>
+                          <Check size={12} /> Saved locally
+                        </span>
+                      </label>
+                      <textarea
+                        id="notebook-note"
+                        aria-label="Notebook notes"
+                        placeholder="A thought to come back to…"
+                        value={notebook?.notes ?? ""}
+                        onChange={(e) => {
+                          if (notebook)
+                            updateNotebook({
+                              ...notebook,
+                              notes: e.target.value,
+                            });
+                        }}
+                      />
+                    </div>
+                  </section>
                 )}
               </div>
             )}
@@ -2521,6 +2811,53 @@ export default function App() {
               void send();
             }}
           >
+            <div className="composer-session">
+              <div className="composer-session-copy">
+                <span className="composer-session-mark">
+                  <MessageSquare size={15} aria-hidden="true" />
+                </span>
+                <span>
+                  <strong>Ask your sources</strong>
+                  <small>
+                    {context
+                      ? `Selected passage · page ${context.page}`
+                      : `${enabledSources.length} ${enabledSources.length === 1 ? "source" : "sources"} selected`}
+                  </small>
+                </span>
+              </div>
+              <button
+                type="button"
+                ref={chatLauncher}
+                className="composer-chat-toggle"
+                aria-label={
+                  panelOpen && tab === "chat" ? "Close chat" : "Open chat"
+                }
+                title={
+                  panelOpen && tab === "chat"
+                    ? "Hide conversation"
+                    : "Open conversation"
+                }
+                aria-expanded={panelOpen && tab === "chat"}
+                aria-controls="notebook-assistant"
+                onClick={() => {
+                  if (panelOpen && tab === "chat") closeAssistant();
+                  else openConversation();
+                }}
+              >
+                <span>
+                  <span className="sr-only">
+                    {panelOpen && tab === "chat"
+                      ? "Hide conversation"
+                      : "Open conversation"}
+                  </span>
+                </span>
+                {panelOpen && tab === "chat" ? (
+                  <ChevronDown size={14} aria-hidden="true" />
+                ) : (
+                  <ChevronRight size={14} aria-hidden="true" />
+                )}
+              </button>
+            </div>
             <textarea
               ref={composer}
               aria-label="Ask about your sources"
@@ -2540,18 +2877,24 @@ export default function App() {
               }}
               rows={1}
             />
-            <div>
+            <div className="composer-layout">
               <div className="composer-tools">
                 <button
                   type="button"
                   className={`composer-suggestions ${topicNoteNext ? "active" : ""}`}
                   aria-label="Create a topic note from this question"
                   aria-pressed={topicNoteNext}
-                  title="Anchor the answer beside its first validated citation"
+                  title={
+                    topicNoteNext
+                      ? "Turn off topic note for the next answer"
+                      : "Create a topic note from the next answer"
+                  }
                   onClick={() => setTopicNoteNext((value) => !value)}
                 >
                   <NotebookPen size={15} />
-                  <span>{topicNoteNext ? "Topic note" : "New topic note"}</span>
+                  <span className="sr-only">
+                    {topicNoteNext ? "Topic note on" : "Create topic note"}
+                  </span>
                 </button>
                 <button
                   type="button"
@@ -2559,10 +2902,11 @@ export default function App() {
                   aria-label="Suggestions"
                   aria-expanded={suggestionsOpen}
                   aria-controls="chat-suggestions"
+                  title="Suggested prompts"
                   onClick={() => setSuggestionsOpen(!suggestionsOpen)}
                 >
                   <Grid2X2 size={15} />
-                  <span>Suggestions</span>
+                  <span className="sr-only">Suggested prompts</span>
                 </button>
                 <span className="composer-source-count sr-only">
                   <Layers size={13} />
@@ -2576,38 +2920,6 @@ export default function App() {
                   value={answerMode}
                   onChange={setAnswerMode}
                 />
-                <button
-                  type="button"
-                  ref={chatLauncher}
-                  className="composer-chat-toggle"
-                  aria-label={
-                    panelOpen && tab === "chat" ? "Close chat" : "Open chat"
-                  }
-                  aria-expanded={panelOpen && tab === "chat"}
-                  aria-controls="notebook-assistant"
-                  onClick={() => {
-                    if (panelOpen && tab === "chat") closeAssistant();
-                    else {
-                      // The global launcher always opens the whole-notebook
-                      // conversation. Passage markers/previews reopen notes.
-                      if (activePassageNote)
-                        setPassageNote(
-                          activeId,
-                          activePassageNote.id,
-                          (note) => ({
-                            ...note,
-                            active: false,
-                            collapsed: true,
-                          }),
-                        );
-                      setMarginAnchor(undefined);
-                      setTab("chat");
-                      setPanelOpen(true);
-                    }
-                  }}
-                >
-                  <MessageSquare size={17} />
-                </button>
                 {busy ? (
                   <button
                     type="button"
