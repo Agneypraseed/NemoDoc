@@ -192,7 +192,25 @@ test("paper workspace gives space to the document and passage questions return c
 test("paper and dark reading views stay compact on desktop and mobile", async ({
   page,
 }) => {
+  await page.route("**/api/status", (route) =>
+    route.fulfill({
+      json: {
+        configured: true,
+        local: false,
+        model: "nvidia/Nemotron-3_5-Lightning",
+      },
+    }),
+  );
+  await page.route("**/api/chat", (route) =>
+    route.fulfill({
+      contentType: "text/event-stream",
+      body: 'event: sources\ndata: [{"id":1,"sourceId":"sample-paper","sourceName":"Designing for human attention.pdf","page":2,"text":"Every interface asks for a little of our attention."}]\n\nevent: delta\ndata: "A clear reading space gives each idea room to breathe. [1]"\n\nevent: done\ndata: {}\n\n',
+    }),
+  );
   await page.goto("/");
+  const assistant = page.getByRole("complementary", {
+    name: "Notebook assistant",
+  });
   await expect(
     page.locator('[data-page="1"] .textLayer span').first(),
   ).toBeVisible();
@@ -239,23 +257,40 @@ test("paper and dark reading views stay compact on desktop and mobile", async ({
     path: "test-results/reading-dark.png",
     fullPage: true,
   });
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { name: "Light", exact: true }).click();
+  await page.getByRole("button", { name: "Close dialog", exact: true }).click();
+  await page.setViewportSize({ width: 440, height: 786 });
   const selection = await selectPassage(page);
   await selection.getByRole("button", { name: "Ask AI", exact: true }).click();
-  await selection
-    .getByRole("textbox", { name: "Ask about selected passage" })
-    .fill("What does attention mean here?");
+  const passageQuestion = selection.getByRole("textbox", {
+    name: "Ask about selected passage",
+  });
+  await passageQuestion.fill("What does attention mean here?");
   const box = await selection.boundingBox();
   expect(box!.x).toBeGreaterThanOrEqual(0);
-  expect(box!.x + box!.width).toBeLessThanOrEqual(390);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(440);
   await page.screenshot({
     path: "test-results/passage-mobile.png",
     fullPage: true,
   });
+  await passageQuestion.press("Enter");
+  await expect(assistant).toBeVisible();
+  await expect(page.locator(".passage-note-answer")).toContainText(
+    "A clear reading space gives each idea room to breathe",
+  );
+  const noteBox = await assistant.boundingBox();
+  expect(noteBox!.x).toBeGreaterThanOrEqual(0);
+  expect(noteBox!.x + noteBox!.width).toBeLessThanOrEqual(440);
+  expect(noteBox!.y + noteBox!.height).toBeLessThanOrEqual(786);
+  await page.screenshot({
+    path: "test-results/passage-note-mobile.png",
+    fullPage: true,
+  });
+  await page
+    .getByRole("button", { name: "Close assistant", exact: true })
+    .click();
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "Settings", exact: true }).click();
-  await page.getByRole("button", { name: "Light", exact: true }).click();
-  await page.getByRole("button", { name: "Close dialog", exact: true }).click();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,

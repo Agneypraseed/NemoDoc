@@ -1705,7 +1705,13 @@ export default function App() {
         )}
         <div
           ref={readingArea}
-          className={`work-area ${compareId ? "comparing" : ""}`}
+          className={[
+            "work-area",
+            compareId && "comparing",
+            activePassageNote && "has-passage-note",
+          ]
+            .filter(Boolean)
+            .join(" ")}
         >
           <div className="reading-workspace">
             {compareId && (
@@ -1910,6 +1916,9 @@ export default function App() {
             key={activeId}
             id="notebook-assistant"
             data-view={tab}
+            data-variant={
+              tab === "chat" && activePassageNote ? "passage-note" : undefined
+            }
             offset={tab === "chat" ? marginOffset : 46}
             geometry={activePassageNote?.card}
             geometryKey={activePassageNote?.id ?? `${activeId}:${tab}`}

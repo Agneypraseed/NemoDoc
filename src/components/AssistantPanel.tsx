@@ -260,9 +260,14 @@ export function AssistantPanel({
           const start = resizeGesture.current;
           if (!start || start.id !== event.pointerId) return;
           const box = panel.current!.getBoundingClientRect();
+          const minimumWidth =
+            panel.current?.dataset.variant === "passage-note" &&
+            panel.current.classList.contains("floating")
+              ? Math.max(280, Math.min(360, innerWidth - 24))
+              : 280;
           setSize({
             width: Math.max(
-              280,
+              minimumWidth,
               Math.min(
                 innerWidth - box.left - 8,
                 start.width + event.clientX - start.x,
