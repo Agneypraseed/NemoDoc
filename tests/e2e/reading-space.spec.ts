@@ -87,17 +87,11 @@ test("paper workspace gives space to the document and passage questions stay in 
   await expect(page.locator(".message.assistant")).toContainText(
     "Good design protects",
   );
-  await expect
-    .poll(async () => {
-      const line = await page
-        .locator('[data-page="2"] .textLayer span')
-        .filter({ hasText: "Every interface" })
-        .first()
-        .boundingBox();
-      const card = await assistant.boundingBox();
-      return Math.abs(card!.y - line!.y);
-    })
-    .toBeLessThan(48);
+  const firstCard = await assistant.boundingBox();
+  expect(firstCard!.width).toBeGreaterThanOrEqual(560);
+  expect(firstCard!.height).toBeGreaterThan(600);
+  expect(firstCard!.y).toBeLessThan(100);
+  expect(firstCard!.x + firstCard!.width).toBeLessThanOrEqual(1416);
   expect(requests).toHaveLength(1);
   expect(requests[0].answerMode).toBe("deep");
   expect(requests[0].question).toContain("Why does this matter?");
@@ -108,6 +102,12 @@ test("paper workspace gives space to the document and passage questions stay in 
   await expect(page.locator(".message.user p")).toHaveText(
     "Why does this matter?",
   );
+  const resize = page.getByRole("button", { name: "Resize answer card" });
+  await resize.focus();
+  await resize.press("Shift+ArrowRight");
+  const resizedCard = await assistant.boundingBox();
+  const carriedWidth = resizedCard!.width;
+  expect(resizedCard!.x + resizedCard!.width).toBeLessThanOrEqual(1416);
   await page.locator(".inline-citation").click();
   await expect(
     page.getByRole("textbox", { name: "Page number", exact: true }),
@@ -140,8 +140,12 @@ test("paper workspace gives space to the document and passage questions stay in 
   await expect(page.locator(".message.assistant")).toHaveCount(2);
   await expect(page.locator(".passage-message-actions")).toHaveCount(2);
   await expect(page.locator(".passage-note-inline-preview")).toHaveCount(0);
+  await expect
+    .poll(async () => (await assistant.boundingBox())!.width)
+    .toBeGreaterThanOrEqual(carriedWidth - 1);
+  const nextCard = await assistant.boundingBox();
+  expect(nextCard!.x + nextCard!.width).toBeLessThanOrEqual(1416);
   await page.screenshot({ path: "test-results/passage-chat-history.png" });
-  const resize = page.getByRole("button", { name: "Resize answer card" });
   await resize.focus();
   await resize.press("Shift+ArrowLeft");
   await resize.press("Shift+ArrowDown");

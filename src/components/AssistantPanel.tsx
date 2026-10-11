@@ -264,10 +264,10 @@ export function AssistantPanel({
             "data-context-answer",
           );
           const minimumWidth = contextAnswer
-            ? Math.max(280, Math.min(400, innerWidth - 32))
+            ? Math.max(280, Math.min(560, innerWidth - 32))
             : 280;
           const minimumHeight = contextAnswer
-            ? Math.max(240, Math.min(480, innerHeight - box.top - 8))
+            ? Math.max(240, Math.min(600, innerHeight - box.top - 8))
             : 240;
           setSize({
             width: Math.max(
@@ -321,10 +321,10 @@ export function AssistantPanel({
             "data-context-answer",
           );
           const minimumWidth = contextAnswer
-            ? Math.max(280, Math.min(400, innerWidth - 32))
+            ? Math.max(280, Math.min(560, innerWidth - 32))
             : 280;
           const minimumHeight = contextAnswer
-            ? Math.max(240, Math.min(480, innerHeight - box.top - 16))
+            ? Math.max(240, Math.min(600, innerHeight - box.top - 16))
             : 240;
           const next = {
             width: Math.max(
