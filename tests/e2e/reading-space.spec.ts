@@ -116,9 +116,9 @@ test("paper workspace gives space to the document and passage questions stay in 
   const carriedWidth = resizedCard!.width;
   expect(resizedCard!.x + resizedCard!.width).toBeLessThanOrEqual(1416);
   await page.locator(".inline-citation").click();
-  const citedPassage = page.locator(
-    '[data-page="2"] .evidence-highlight',
-  ).first();
+  const citedPassage = page
+    .locator('[data-page="2"] .evidence-highlight')
+    .first();
   await expect(citedPassage).toBeVisible();
   await expect(citedPassage).toHaveCSS("border-bottom-width", "0px");
   await expect(
@@ -251,7 +251,7 @@ test("an unverified passage error appears in the chat turn", async ({
   });
 });
 
-test("selected passage opens a roomy answer card on medium screens", async ({
+test("book-view passage answers stay beside the reader on medium screens", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 960, height: 800 });
@@ -271,6 +271,9 @@ test("selected passage opens a roomy answer card on medium screens", async ({
     }),
   );
   await page.goto("/");
+  await openReaderTools(page);
+  await page.getByRole("button", { name: "Book view", exact: true }).click();
+  await expect(page.locator(".page-scroller")).toHaveClass(/book/);
   const selection = await selectPassage(page);
   await selection.getByRole("button", { name: "Ask AI", exact: true }).click();
   const question = selection.getByRole("textbox", {
@@ -289,11 +292,38 @@ test("selected passage opens a roomy answer card on medium screens", async ({
   await expect(assistant).toHaveAttribute("data-context-answer", "true");
   const box = await assistant.boundingBox();
   const dock = await page.locator(".workspace-chat").boundingBox();
-  expect(box!.width).toBeGreaterThanOrEqual(440);
-  expect(box!.height).toBeGreaterThanOrEqual(420);
+  const reader = await page.locator(".reader").boundingBox();
+  expect(box!.width).toBeGreaterThanOrEqual(280);
+  expect(box!.width).toBeLessThan(500);
+  expect(box!.x).toBeGreaterThanOrEqual(reader!.x + reader!.width - 1);
+  expect(box!.height).toBeGreaterThanOrEqual(600);
   expect(box!.x + box!.width).toBeLessThanOrEqual(960);
   expect(box!.y + box!.height).toBeLessThanOrEqual(dock!.y);
-  await page.screenshot({ path: "test-results/passage-answer-medium.png" });
+  await page.screenshot({
+    path: "test-results/passage-answer-book-medium.png",
+  });
+
+  // A new selection should return to the reader margin even if the previous
+  // answer was moved. Keep its size, not stale screen coordinates.
+  const moveHandle = page.getByRole("button", { name: "Move answer card" });
+  await moveHandle.focus();
+  await moveHandle.press("ArrowLeft");
+  await expect(assistant).toHaveClass(/floating/);
+  const nextSelection = await selectPassage(page);
+  await nextSelection
+    .getByRole("button", { name: "Define", exact: true })
+    .click();
+  await expect(page.locator(".message.assistant")).toHaveCount(2);
+  await expect(assistant).not.toHaveClass(/floating/);
+  const nextBox = await assistant.boundingBox();
+  const nextReader = await page.locator(".reader").boundingBox();
+  expect(nextBox!.x).toBeGreaterThanOrEqual(
+    nextReader!.x + nextReader!.width - 1,
+  );
+  expect(nextBox!.x + nextBox!.width).toBeLessThanOrEqual(960);
+  await page.screenshot({
+    path: "test-results/passage-answer-book-next-medium.png",
+  });
 });
 
 test("paper and dark reading views stay compact on desktop and mobile", async ({

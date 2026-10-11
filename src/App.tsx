@@ -1019,9 +1019,17 @@ export default function App() {
       model: status.model,
       messages: [...baseMessages, user, answer],
       createdAt: existing?.createdAt ?? Date.now(),
-      // Carry the current answer card's geometry to the next passage so a new
-      // Explain/Define action doesn't snap back to the smaller default size.
-      card: existing?.card ?? activePassageNote?.card,
+      // Keep the user's chosen size, but let each new passage return to the
+      // reader margin. A prior screen position may cover a Book spread or be
+      // outside the current viewport after a resize.
+      card:
+        existing?.card ??
+        (activePassageNote?.card
+          ? {
+              width: activePassageNote.card.width,
+              height: activePassageNote.card.height,
+            }
+          : undefined),
       active: true,
       collapsed: true,
     };

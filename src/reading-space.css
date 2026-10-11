@@ -79,9 +79,10 @@ body,
     align-self: stretch;
     justify-self: end;
     width: 100%;
+    max-width: 100%;
     height: calc(100% - 24px);
     min-height: 0;
-    max-height: none;
+    max-height: calc(100% - 24px);
     margin-top: 12px;
     border: 1px solid var(--line);
     border-left: 2px solid var(--accent-line);
@@ -853,6 +854,8 @@ body,
     height: min(62dvh, calc(100dvh - 90px));
     min-height: min(42dvh, calc(100dvh - 90px));
     max-height: min(62dvh, calc(100dvh - 90px));
+    max-width: calc(100vw - 24px);
+    min-width: 0;
   }
   .assistant-panel[data-context-answer] .chat-scroll {
     flex: 1;
@@ -929,27 +932,32 @@ body,
   }
 }
 @media (min-width: 701px) and (max-width: 1100px) {
-  .assistant-panel[data-context-answer] {
-    --context-bottom: calc(var(--chat-dock-height, 48px) + 26px);
-    --context-top: min(
-      max(64px, calc(var(--margin-offset, 46px) + 48px)),
-      max(64px, calc(100dvh - 500px - var(--context-bottom)))
-    );
-    position: fixed;
-    inset: var(--context-top) 20px var(--context-bottom) auto;
-    width: min(600px, calc(100vw - 32px));
-    min-width: min(560px, calc(100vw - 32px));
-    height: auto;
-    min-height: min(
-      600px,
-      calc(100dvh - var(--context-top) - var(--context-bottom))
-    );
-    max-height: min(
-      840px,
-      calc(100dvh - var(--context-top) - var(--context-bottom))
-    );
-    margin: 0;
-    z-index: 35;
+  .work-area.has-passage-context {
+    grid-template-columns: minmax(0, 1fr) minmax(280px, min(420px, 42vw));
+    gap: 16px;
+    padding-inline: 16px;
+  }
+  .work-area.has-passage-context
+    .assistant-panel[data-context-answer]:not(.floating) {
+    position: relative;
+    inset: auto;
+    align-self: stretch;
+    justify-self: stretch;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    height: calc(100% - 24px);
+    min-height: 0;
+    max-height: calc(100% - 24px);
+    margin: 12px 0;
+    z-index: auto;
+  }
+  .work-area.has-passage-context
+    .assistant-panel[data-context-answer]:not(.floating)
+    .chat-scroll {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
   }
 }
 
