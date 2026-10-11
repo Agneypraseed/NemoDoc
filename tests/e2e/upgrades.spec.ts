@@ -42,6 +42,7 @@ test("reader navigation, bookmarks, markup history, tags, exports and complete r
   await page.locator(".page-scroller").dispatchEvent("mouseup");
   await page.getByRole("button", { name: "Underline", exact: true }).click();
   await page.getByRole("button", { name: /^Notes/ }).click();
+  await page.getByRole("button", { name: /^Highlights/ }).click();
   await expect(page.locator(".annotation-card")).toHaveCount(1);
   await page
     .getByRole("textbox", { name: "Annotation note", exact: true })
@@ -164,6 +165,7 @@ test("reader navigation, bookmarks, markup history, tags, exports and complete r
     .filter({ hasText: "The thoughtful interface (restored)" })
     .click();
   await page.getByRole("button", { name: /^Notes/ }).click();
+  await page.getByRole("button", { name: /^Highlights/ }).click();
   await expect(page.locator(".annotation-card")).toHaveCount(3);
   await openReaderTools(page);
   await expect(
@@ -753,9 +755,11 @@ test("existing MVP libraries migrate without losing original documents, notes, o
   await expect(page.locator('[data-page="1"] canvas')).toBeVisible();
   await expect(page.locator(".highlight")).toHaveCount(1);
   await page.getByRole("button", { name: /^Notes/ }).click();
+  await page.getByRole("button", { name: "Notebook", exact: true }).click();
   await expect(
     page.getByRole("textbox", { name: "Notebook notes", exact: true }),
   ).toHaveValue("Keep my original notebook notes.");
+  await page.getByRole("button", { name: /^Highlights/ }).click();
   await expect(
     page.getByRole("textbox", { name: "Annotation note", exact: true }),
   ).toHaveValue("Keep this annotation.");

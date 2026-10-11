@@ -65,7 +65,7 @@ export function NotebookActions({
           >
             <Download size={16} />
             <span>
-              Export notes<small>Markdown document (.md)</small>
+              Export notes<small>Notes & saved answers (.md)</small>
             </span>
           </button>
           <button

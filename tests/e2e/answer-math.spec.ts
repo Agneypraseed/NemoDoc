@@ -31,6 +31,7 @@ test("lecture answers render equations without breaking citations or saved notes
     .getByRole("button", { name: "Save to Notes", exact: true })
     .click();
   await page.getByRole("button", { name: "Notes", exact: true }).click();
+  await page.getByRole("button", { name: "Notebook", exact: true }).click();
   await expect(
     page.getByRole("textbox", { name: "Notebook notes", exact: true }),
   ).toContainText("$\\mathrm{rk}(A) = \\dim(U)$");

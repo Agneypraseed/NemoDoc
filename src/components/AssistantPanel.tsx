@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type HTMLAttributes,
@@ -21,6 +22,8 @@ export function AssistantPanel({
   geometry,
   geometryKey,
   onGeometryChange,
+  movable = false,
+  resizable = false,
   ...attributes
 }: Omit<HTMLAttributes<HTMLElement>, "title"> & {
   title: ReactNode;
@@ -29,6 +32,8 @@ export function AssistantPanel({
   geometry?: Partial<Geometry>;
   geometryKey?: string;
   onGeometryChange?: (value: Partial<Geometry>) => void;
+  movable?: boolean;
+  resizable?: boolean;
 }) {
   const panel = useRef<HTMLElement>(null);
   const handle = useRef<HTMLButtonElement>(null);
@@ -64,13 +69,13 @@ export function AssistantPanel({
       y: Math.max(8, Math.min(innerHeight - (box?.height ?? 180) - 8, point.y)),
     };
   };
-  const floating = !!position;
+  const floating = movable && !!position;
   const commitGeometry = (nextPosition = position, nextSize = size) =>
     onGeometryChange?.({ ...nextPosition, ...nextSize });
   // Geometry belongs to the displayed note, not to the assistant shell.  Do
   // not remount the shell (which would interrupt a stream), but do restore the
   // selected note's geometry when its identity changes.
-  useEffect(() => {
+  useLayoutEffect(() => {
     setPosition(
       geometry?.x === undefined || geometry.y === undefined
         ? undefined
@@ -186,30 +191,38 @@ export function AssistantPanel({
       className={`assistant-panel ${floating ? "floating" : ""} ${dragging ? "dragging" : ""}`}
       style={
         {
-          ...(position
+          ...(floating
             ? { transform: `translate3d(${position.x}px, ${position.y}px, 0)` }
             : { "--margin-offset": `${offset}px` }),
-          ...(size ? { width: size.width, height: size.height } : {}),
+          ...(resizable && size
+            ? { width: size.width, height: size.height }
+            : {}),
         } as CSSProperties
       }
     >
       <div className="margin-header">
-        <button
-          ref={handle}
-          type="button"
-          className="margin-drag-handle"
-          aria-label="Move answer card"
-          title="Drag to move. Arrow keys move; Home returns to the margin."
-          onPointerDown={start}
-          onPointerMove={move}
-          onPointerUp={finish}
-          onPointerCancel={finish}
-          onLostPointerCapture={finish}
-          onKeyDown={keyboardMove}
-        >
-          <GripVertical size={13} aria-hidden="true" />
-          <strong>{title}</strong>
-        </button>
+        {movable ? (
+          <button
+            ref={handle}
+            type="button"
+            className="margin-drag-handle"
+            aria-label="Move answer card"
+            title="Drag to move. Arrow keys move; Home returns to the margin."
+            onPointerDown={start}
+            onPointerMove={move}
+            onPointerUp={finish}
+            onPointerCancel={finish}
+            onLostPointerCapture={finish}
+            onKeyDown={keyboardMove}
+          >
+            <GripVertical size={13} aria-hidden="true" />
+            <strong>{title}</strong>
+          </button>
+        ) : (
+          <div className="margin-title">
+            <strong>{title}</strong>
+          </div>
+        )}
         {floating && (
           <button
             type="button"
@@ -236,7 +249,7 @@ export function AssistantPanel({
         </button>
       </div>
       {children}
-      <button
+      {resizable && <button
         type="button"
         className="assistant-resize-handle"
         aria-label="Resize answer card"
@@ -358,7 +371,7 @@ export function AssistantPanel({
           event.preventDefault();
           event.stopPropagation();
         }}
-      />
+      />}
     </aside>
   );
 }

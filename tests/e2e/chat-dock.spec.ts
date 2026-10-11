@@ -51,6 +51,7 @@ test("chat can close without losing a draft; bottom input sends and suggestions 
   await page.getByRole("button", { name: "Save to Notes" }).click();
   await expect(page.getByRole("button", { name: "Saved" })).toBeDisabled();
   await page.getByRole("button", { name: "Notes", exact: true }).click();
+  await page.getByRole("button", { name: "Notebook", exact: true }).click();
   const notes = page.getByRole("textbox", { name: "Notebook notes" });
   await expect(notes).toContainText("Summarize the key ideas in my sources.");
   await expect(notes).toContainText(

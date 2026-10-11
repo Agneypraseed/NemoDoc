@@ -75,7 +75,8 @@ body,
     grid-template-columns: minmax(0, 1fr) minmax(400px, min(600px, 40vw));
     padding-right: 40px;
   }
-  .work-area.has-passage-context .assistant-panel[data-context-answer] {
+  .work-area.has-passage-context
+    .assistant-panel[data-context-answer]:not(.floating) {
     align-self: stretch;
     justify-self: end;
     width: 100%;
@@ -90,7 +91,7 @@ body,
     box-shadow: 0 8px 35px #271e1712;
   }
   .work-area.has-passage-context
-    .assistant-panel[data-context-answer]
+    .assistant-panel[data-context-answer]:not(.floating)
     .chat-scroll {
     flex: 1;
     min-height: 0;
@@ -378,7 +379,19 @@ body,
   touch-action: none;
   user-select: none;
 }
+.margin-title {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+  padding: 5px 0;
+}
 .margin-drag-handle strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.margin-title strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

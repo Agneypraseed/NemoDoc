@@ -2,6 +2,7 @@ import { openReaderTools } from "./reader-tools";
 import { test, expect } from "@playwright/test";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import JSZip from "jszip";
+import { readFile } from "node:fs/promises";
 
 test("PDF reader layouts, selection, notes, persistence, search, and export", async ({
   page,
@@ -59,14 +60,17 @@ test("PDF reader layouts, selection, notes, persistence, search, and export", as
   await page
     .getByRole("textbox", { name: "Annotation note" })
     .fill("A finite resource worth protecting.");
+  await page.getByRole("button", { name: "Notebook", exact: true }).click();
   await page
     .getByRole("textbox", { name: "Notebook notes", exact: true })
     .fill("My research notes.");
   await page.reload();
   await page.getByRole("button", { name: /^Notes/ }).click();
+  await page.getByRole("button", { name: "Highlights 1", exact: true }).click();
   await expect(
     page.getByRole("textbox", { name: "Annotation note" }),
   ).toHaveValue("A finite resource worth protecting.");
+  await page.getByRole("button", { name: "Notebook", exact: true }).click();
   await expect(
     page.getByRole("textbox", { name: "Notebook notes", exact: true }),
   ).toHaveValue("My research notes.");
@@ -83,7 +87,13 @@ test("PDF reader layouts, selection, notes, persistence, search, and export", as
     .getByRole("button", { name: "Notebook actions", exact: true })
     .click();
   await page.getByRole("button", { name: "Export notes", exact: true }).click();
-  expect((await downloadPromise).suggestedFilename()).toMatch(/notes.md$/);
+  const notesDownload = await downloadPromise;
+  expect(notesDownload.suggestedFilename()).toMatch(/notes.md$/);
+  const markdown = await readFile((await notesDownload.path())!, "utf8");
+  expect(markdown).toContain("My research notes.");
+  expect(markdown).not.toContain("A finite resource worth protecting.");
+  expect(markdown).not.toContain("Highlights & annotations");
+  expect(markdown).not.toContain("## Conversation");
   expect(errors).toEqual([]);
 });
 

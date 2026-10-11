@@ -135,7 +135,7 @@ test("clean workspace, persistent sidebar, theme and saved model attribution", a
     .getByRole("button", { name: "Notebook actions", exact: true })
     .click();
   await expect(
-    page.getByText("Markdown document (.md)", { exact: true }),
+    page.getByText("Notes & saved answers (.md)", { exact: true }),
   ).toBeVisible();
   await expect(
     page.getByText("Sources, notes & chat (.zip)", { exact: true }),

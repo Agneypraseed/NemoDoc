@@ -310,6 +310,15 @@ export default function App() {
     return question ? [{ answer, question }] : [];
   });
   const activePassageNote = notebook?.passageNotes?.find((note) => note.active);
+  const passageMessageIds = new Set(
+    (notebook?.passageNotes ?? [])
+      .filter((note) => !note.topic)
+      .flatMap((note) => note.messages.map((message) => message.id)),
+  );
+  const generalConversationMessages = (notebook?.messages ?? []).filter(
+    (message) => !passageMessageIds.has(message.id),
+  );
+  const panelMessages = activePassageNote?.messages ?? generalConversationMessages;
   const notebookSources = sources.filter((s) => s.notebookId === activeId);
   const source = notebookSources.find((s) => s.id === sourceId);
   const notebookAnnotations = annotations.filter((a) =>
@@ -343,6 +352,8 @@ export default function App() {
         collapsed: true,
       }));
     setMarginAnchor(undefined);
+    setContext(undefined);
+    setMarginOffset(46);
     setTab("chat");
     setPanelOpen(true);
   };
@@ -666,6 +677,7 @@ export default function App() {
   };
   const addAnnotation = (value: Annotation) => {
     changeAnnotations([...annotations, value]);
+    setNotesView("highlights");
     notify("Highlight saved to your notebook");
   };
   const editAnnotation = (value: Annotation) => {
@@ -676,6 +688,7 @@ export default function App() {
   };
   const selectAnnotation = (value: Annotation) => {
     setSelectedAnnotation(value.id);
+    setNotesView("highlights");
     setTab("notes");
     setPanelOpen(true);
   };
@@ -877,29 +890,13 @@ export default function App() {
   };
   const exportNotes = () => {
     if (!notebook) return;
-    const text =
-      `# ${notebook.title}\n\n${notebook.description}\n\n${notebook.notes}\n\n## Highlights & annotations\n\n` +
-      notebookAnnotations
-        .map(
-          (a) =>
-            `### ${sources.find((s) => s.id === a.sourceId)?.name} · page ${a.page}\n\n> ${a.quote.replace(/\n/g, "\n> ")}\n\n${a.note}\n`,
-        )
-        .join("\n") +
-      "\n## Conversation\n\n" +
-      notebook.messages
-        .map(
-          (m) =>
-            `### ${m.role === "user" ? "You" : "NemoDoc"}\n\n${m.content}\n\n` +
-            (m.citations ?? [])
-              .map((c) => `[${c.id}] ${c.sourceName}, page ${c.page}\n`)
-              .join(""),
-        )
-        .join("\n");
+    const body = notebook.notes.trim();
+    const text = `# ${notebook.title}\n\n${body ? `${body}\n` : ""}`;
     download(
       new Blob([text], { type: "text/markdown" }),
       `${notebook.title.replace(/[^\p{L}\p{N} -]/gu, "") || "Notebook"} - notes.md`,
     );
-    notify("Notes exported");
+    notify("Notebook notes exported");
   };
   const saveAnswer = (answerId: string) => {
     if (!notebook || answerId === streamingMessageId) return;
@@ -1262,6 +1259,7 @@ export default function App() {
       setChatError("Select at least one source in the sidebar first.");
       return;
     }
+    openConversation();
     const target = notebook.id;
     setMarginAnchor(
       selected
@@ -1368,7 +1366,7 @@ export default function App() {
                     quote: selected.quote.slice(0, 16000),
                   }
                 : undefined,
-            history: originalMessages
+            history: generalConversationMessages
               .filter((m) => m.content && !m.incomplete)
               .slice(-12)
               .map(({ role, content }) => ({
@@ -1978,6 +1976,8 @@ export default function App() {
             offset={tab === "chat" ? marginOffset : 46}
             geometry={activePassageNote?.card}
             geometryKey={activePassageNote?.id ?? `${activeId}:${tab}`}
+            movable={Boolean(activePassageNote)}
+            resizable={Boolean(activePassageNote)}
             onGeometryChange={(card) => {
               if (activePassageNote)
                 setPassageNote(activeId, activePassageNote.id, (note) => ({
@@ -2038,7 +2038,7 @@ export default function App() {
             ) : tab === "chat" ? (
               <>
                 <div className="chat-scroll">
-                  {!notebook?.messages.length ? (
+                  {!panelMessages.length ? (
                     <div className="chat-welcome">
                       <div className="assistant-orbit">
                         <Brand />
@@ -2111,8 +2111,8 @@ export default function App() {
                     </div>
                   ) : (
                     <div className="messages" aria-live="polite">
-                      {notebook.messages.map((m) => {
-                        const passageNote = notebook.passageNotes?.find(
+                      {panelMessages.map((m) => {
+                        const passageNote = notebook?.passageNotes?.find(
                           (note) =>
                             note.messages.some(
                               (message) => message.id === m.id,

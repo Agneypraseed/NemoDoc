@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { openReaderTools } from "./reader-tools";
 
-async function selectPassage(page: Page) {
+async function selectPassage(page: Page, phrase = "Every interface") {
   const number = page.getByRole("textbox", {
     name: "Page number",
     exact: true,
@@ -10,7 +10,7 @@ async function selectPassage(page: Page) {
   await number.press("Enter");
   const text = page
     .locator('[data-page="2"] .textLayer span')
-    .filter({ hasText: "Every interface" })
+    .filter({ hasText: phrase })
     .first();
   await expect(text).toBeVisible();
   await text.evaluate((element) => {
@@ -158,7 +158,7 @@ test("paper workspace gives space to the document and passage questions stay in 
     fullPage: true,
   });
   await page.getByRole("button", { name: "Quick", exact: true }).click();
-  const nextSelection = await selectPassage(page);
+  const nextSelection = await selectPassage(page, "Clarity is not");
   await nextSelection
     .getByRole("button", { name: "Define", exact: true })
     .click();
@@ -168,12 +168,11 @@ test("paper workspace gives space to the document and passage questions stay in 
   await expect(
     page.getByRole("button", { name: "Add to Notes", exact: true }),
   ).toHaveCount(1);
-  await expect(page.locator(".message.user p")).toHaveText([
-    "Why does this matter?",
+  await expect(page.locator(".message.user p")).toHaveText(
     "Define the selected term in the context of this passage.",
-  ]);
-  await expect(page.locator(".message.assistant")).toHaveCount(2);
-  await expect(page.locator(".passage-message-actions")).toHaveCount(2);
+  );
+  await expect(page.locator(".message.assistant")).toHaveCount(1);
+  await expect(page.locator(".passage-message-actions")).toHaveCount(1);
   await expect(page.locator(".passage-note-inline-preview")).toHaveCount(0);
   await expect
     .poll(async () => (await assistant.boundingBox())!.width)
@@ -191,14 +190,28 @@ test("paper workspace gives space to the document and passage questions stay in 
   await page.reload();
   await expect(assistant).toBeHidden();
   await page.getByRole("button", { name: "Open chat", exact: true }).click();
-  await expect(page.locator(".chat-welcome")).toBeHidden();
-  await expect(page.locator(".message.assistant")).toHaveCount(2);
+  await expect(page.locator(".chat-welcome")).toBeVisible();
   await expect(
     page.locator('[data-page="2"] .passage-note-marker'),
-  ).toHaveCount(1);
-  await page.locator('[data-page="2"] .passage-note-marker').first().click();
-  await expect(page.locator(".message.assistant")).toHaveCount(2);
-  await expect(page.locator(".message-passage-context")).toHaveCount(2);
+  ).toHaveCount(2);
+  await page
+    .getByRole("button", { name: "Open passage note: Why does this matter?" })
+    .click();
+  await expect(page.locator(".message.assistant")).toHaveCount(1);
+  await expect(page.locator(".message.assistant")).toContainText(
+    "Good design protects our limited attention.",
+  );
+  await expect(page.locator(".message-passage-context")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Saved" })).toBeVisible();
+  await page
+    .getByRole("button", {
+      name: "Open passage note: Define the selected term in the context of this passage.",
+    })
+    .click();
+  await expect(page.locator(".message.assistant")).toHaveCount(1);
+  await expect(page.locator(".message.user p")).toHaveText(
+    "Define the selected term in the context of this passage.",
+  );
   await expect(
     page.getByRole("button", { name: "Add to Notes", exact: true }),
   ).toBeVisible();
@@ -332,11 +345,14 @@ test("book-view passage answers stay beside the reader on medium screens", async
   await moveHandle.focus();
   await moveHandle.press("ArrowLeft");
   await expect(assistant).toHaveClass(/floating/);
-  const nextSelection = await selectPassage(page);
+  const nextSelection = await selectPassage(
+    page,
+    "It is the careful arrangement of information",
+  );
   await nextSelection
     .getByRole("button", { name: "Define", exact: true })
     .click();
-  await expect(page.locator(".message.assistant")).toHaveCount(2);
+  await expect(page.locator(".message.assistant")).toHaveCount(1);
   await expect(assistant).not.toHaveClass(/floating/);
   const nextBox = await assistant.boundingBox();
   const nextReader = await page.locator(".reader").boundingBox();
@@ -347,6 +363,107 @@ test("book-view passage answers stay beside the reader on medium screens", async
   await page.screenshot({
     path: "test-results/passage-answer-book-next-medium.png",
   });
+});
+
+test("bottom chat stays separate from selected-passage chats in Book view", async ({
+  page,
+}) => {
+  const requests: any[] = [];
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.route("**/api/status", (route) =>
+    route.fulfill({
+      json: {
+        configured: true,
+        local: false,
+        model: "nvidia/Nemotron-3_5-Lightning",
+      },
+    }),
+  );
+  await page.route("**/api/chat", (route) => {
+    const request = route.request().postDataJSON();
+    requests.push(request);
+    const pageNumber = request.selection?.page ?? 3;
+    const excerpt =
+      request.selection?.quote ??
+      "Vertical scrolling supports continuous reading.";
+    const answer = request.selection
+      ? "This selected passage deserves its own explanation. [1]"
+      : request.question.startsWith("Follow up")
+        ? "The notebook overview connected attention and space. [1]"
+        : "The notebook overview connects ideas across the source. [1]";
+    return route.fulfill({
+      contentType: "text/event-stream",
+      body:
+        `event: sources\ndata: ${JSON.stringify([{ id: 1, sourceId: "sample-paper", sourceName: "Designing for human attention.pdf", page: pageNumber, text: excerpt }])}\n\n` +
+        `event: delta\ndata: ${JSON.stringify(answer)}\n\n` +
+        "event: done\ndata: {}\n\n",
+    });
+  });
+
+  await page.goto("/");
+  await openReaderTools(page);
+  await page.getByRole("button", { name: "Book view", exact: true }).click();
+  await page
+    .getByRole("textbox", { name: "Ask about your sources" })
+    .fill("Summarize this notebook.");
+  await page
+    .getByRole("textbox", { name: "Ask about your sources" })
+    .press("Enter");
+
+  const assistant = page.getByRole("complementary", {
+    name: "Notebook assistant",
+  });
+  await expect(assistant.locator(".message.assistant")).toContainText(
+    "connects ideas across the source",
+  );
+  await expect(assistant.locator(".margin-title")).toHaveText("Conversation");
+  await expect(assistant).not.toHaveAttribute("data-context-answer");
+  await expect(assistant).not.toHaveClass(/floating/);
+  await expect(assistant.locator(".assistant-resize-handle")).toHaveCount(0);
+  const conversationBox = await assistant.boundingBox();
+  const readerBox = await page.locator(".reader").boundingBox();
+  const dockBox = await page.locator(".workspace-chat").boundingBox();
+  expect(conversationBox!.width).toBeLessThan(400);
+  expect(conversationBox!.x).toBeGreaterThanOrEqual(
+    readerBox!.x + readerBox!.width - 1,
+  );
+  expect(conversationBox!.height).toBeLessThan(820);
+  expect(conversationBox!.y + conversationBox!.height).toBeLessThanOrEqual(
+    dockBox!.y,
+  );
+  await page.screenshot({ path: "test-results/book-bottom-chat.png" });
+
+  const selection = await selectPassage(page);
+  await selection.getByRole("button", { name: "Define", exact: true }).click();
+  await expect(assistant).toHaveAttribute("data-context-answer", "true");
+  await expect(assistant.locator(".message.assistant")).toContainText(
+    "its own explanation",
+  );
+  await expect(assistant).not.toContainText("connects ideas across the source");
+  expect(requests[1].history).toEqual([]);
+  await page.screenshot({ path: "test-results/book-passage-chat.png" });
+
+  await page.getByRole("button", { name: "Close chat", exact: true }).click();
+  await page.getByRole("button", { name: "Open chat", exact: true }).click();
+  await expect(assistant.locator(".margin-title")).toHaveText("Conversation");
+  await expect(assistant.locator(".message.assistant")).toContainText(
+    "connects ideas across the source",
+  );
+  await expect(assistant).not.toContainText("its own explanation");
+
+  const input = page.getByRole("textbox", { name: "Ask about your sources" });
+  await input.fill("Follow up on that.");
+  await input.press("Enter");
+  await expect(assistant.locator(".message.assistant").last()).toContainText(
+    "overview connected attention",
+  );
+  expect(requests[2].history.map((message: any) => message.content)).toEqual([
+    "Summarize this notebook.",
+    "The notebook overview connects ideas across the source. [1]",
+  ]);
+  expect(requests[2].history.some((message: any) =>
+    message.content.includes("selected passage"),
+  )).toBe(false);
 });
 
 test("paper and dark reading views stay compact on desktop and mobile", async ({
