@@ -255,27 +255,95 @@ body,
 }
 .passage-note-marker {
   position: absolute;
-  width: 7px;
-  height: 7px;
-  min-width: 7px;
+  display: grid;
+  place-items: center;
+  width: 12px;
+  height: 12px;
+  min-width: 12px;
   padding: 0;
-  border: 0;
+  border: 2px solid var(--surface);
   border-radius: 50%;
-  background: color-mix(in srgb, #b85d3b 58%, transparent);
+  background: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 72%, transparent);
   transform: translate(-50%, -50%);
   pointer-events: auto;
   cursor: pointer;
   transition:
+    transform 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+.passage-note-marker::before,
+.passage-note-marker::after {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 7px);
+  z-index: 1;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 140ms ease,
     transform 140ms ease,
-    background-color 140ms ease,
-    box-shadow 140ms ease;
+    visibility 140ms ease;
+}
+.passage-note-marker::before {
+  z-index: 0;
+  content: "";
+  width: 7px;
+  height: 7px;
+  background: var(--ink);
+  transform: translate(-50%, 4px) rotate(45deg);
+}
+.passage-note-marker::after {
+  z-index: 1;
+  content: attr(data-tooltip);
+  width: max-content;
+  max-width: min(260px, calc(100vw - 40px));
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--surface) 14%, transparent);
+  border-radius: 8px;
+  background: var(--ink);
+  color: var(--surface);
+  box-shadow: 0 8px 24px rgb(31 25 20 / 18%);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  transform: translate(-50%, 4px);
+}
+.passage-note-marker:hover::before,
+.passage-note-marker:focus-visible::before {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 4px) rotate(45deg);
+}
+.passage-note-marker:hover::after,
+.passage-note-marker:focus-visible::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
 }
 .passage-note-marker:hover,
 .passage-note-marker:focus-visible,
 .passage-note-marker.active {
-  transform: translate(-50%, -50%) scale(1.25);
-  background: #b85d3b;
-  box-shadow: 0 0 0 3px color-mix(in srgb, #b85d3b 12%, transparent);
+  transform: translate(-50%, -50%) scale(1.12);
+  background: var(--accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.passage-note-marker:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .passage-note-marker,
+  .passage-note-marker::before,
+  .passage-note-marker::after {
+    transition: none;
+  }
 }
 .assistant-panel[data-view="notes"],
 .assistant-panel[data-view="studio"],

@@ -705,7 +705,7 @@ export function Reader({
               top: `${(rect.y + rect.height / 2) * 100}%`,
             }}
             aria-label={`Open passage note: ${note.question}`}
-            title={note.question}
+            data-tooltip={note.question}
             onClick={(event) => {
               event.stopPropagation();
               onOpenPassageNote?.(note.id);

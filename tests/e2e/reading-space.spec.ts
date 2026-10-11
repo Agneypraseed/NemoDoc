@@ -102,10 +102,33 @@ test("paper workspace gives space to the document and passage questions stay in 
   const passageMarker = page
     .locator('[data-page="2"] .passage-note-marker')
     .first();
-  await expect(passageMarker).toHaveCSS("width", "7px");
-  await expect(passageMarker).toHaveCSS("height", "7px");
+  await expect(passageMarker).toHaveCSS("width", "12px");
+  await expect(passageMarker).toHaveCSS("height", "12px");
   await expect(passageMarker).toHaveCSS("border-radius", "50%");
-  await expect(passageMarker).toHaveCSS("border-bottom-width", "0px");
+  await expect(passageMarker).not.toHaveAttribute("title");
+  await expect(passageMarker).toHaveAttribute(
+    "data-tooltip",
+    "Why does this matter?",
+  );
+  await passageMarker.hover();
+  await expect
+    .poll(() =>
+      passageMarker.evaluate((element) =>
+        getComputedStyle(element, "::after").getPropertyValue("opacity"),
+      ),
+    )
+    .toBe("1");
+  await expect
+    .poll(() =>
+      passageMarker.evaluate((element) =>
+        getComputedStyle(element, "::after").getPropertyValue("content"),
+      ),
+    )
+    .toContain("Why does this matter?");
+  await page.screenshot({
+    path: "test-results/passage-marker-tooltip.png",
+    fullPage: true,
+  });
   await expect(page.locator(".message.user p")).toHaveText(
     "Why does this matter?",
   );
