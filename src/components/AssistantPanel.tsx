@@ -260,11 +260,15 @@ export function AssistantPanel({
           const start = resizeGesture.current;
           if (!start || start.id !== event.pointerId) return;
           const box = panel.current!.getBoundingClientRect();
-          const minimumWidth =
-            panel.current?.dataset.variant === "passage-note" &&
-            panel.current.classList.contains("floating")
-              ? Math.max(280, Math.min(360, innerWidth - 24))
-              : 280;
+          const contextAnswer = panel.current?.hasAttribute(
+            "data-context-answer",
+          );
+          const minimumWidth = contextAnswer
+            ? Math.max(280, Math.min(400, innerWidth - 32))
+            : 280;
+          const minimumHeight = contextAnswer
+            ? Math.max(240, Math.min(480, innerHeight - box.top - 8))
+            : 240;
           setSize({
             width: Math.max(
               minimumWidth,
@@ -274,7 +278,7 @@ export function AssistantPanel({
               ),
             ),
             height: Math.max(
-              240,
+              minimumHeight,
               Math.min(
                 innerHeight - box.top - 8,
                 start.height + event.clientY - start.y,
@@ -313,9 +317,18 @@ export function AssistantPanel({
           }
           const delta = event.shiftKey ? 40 : 16;
           const box = panel.current!.getBoundingClientRect();
+          const contextAnswer = panel.current?.hasAttribute(
+            "data-context-answer",
+          );
+          const minimumWidth = contextAnswer
+            ? Math.max(280, Math.min(400, innerWidth - 32))
+            : 280;
+          const minimumHeight = contextAnswer
+            ? Math.max(240, Math.min(480, innerHeight - box.top - 16))
+            : 240;
           const next = {
             width: Math.max(
-              280,
+              minimumWidth,
               Math.min(
                 innerWidth - 16,
                 box.width +
@@ -327,7 +340,7 @@ export function AssistantPanel({
               ),
             ),
             height: Math.max(
-              240,
+              minimumHeight,
               Math.min(
                 innerHeight - 16,
                 box.height +

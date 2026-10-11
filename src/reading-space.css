@@ -71,8 +71,24 @@ body,
   grid-template-columns: minmax(0, 1fr) 312px;
 }
 @media (min-width: 1101px) {
-  .work-area.has-passage-note {
-    grid-template-columns: minmax(0, 1fr) 390px;
+  .work-area.has-passage-context {
+    grid-template-columns: minmax(0, 1fr) minmax(400px, min(480px, 40vw));
+  }
+  .work-area.has-passage-context .assistant-panel[data-context-answer] {
+    height: min(680px, calc(100dvh - var(--margin-offset, 46px) - 92px));
+    min-height: min(480px, calc(100dvh - var(--margin-offset, 46px) - 92px));
+    max-height: calc(100dvh - var(--margin-offset, 46px) - 92px);
+    border: 1px solid var(--line);
+    border-left: 2px solid var(--accent-line);
+    border-radius: 10px;
+    box-shadow: 0 8px 35px #271e1712;
+  }
+  .work-area.has-passage-context
+    .assistant-panel[data-context-answer]
+    .chat-scroll {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
   }
 }
 .panel-hidden .work-area {
@@ -836,6 +852,16 @@ body,
   .assistant-panel[data-view="agent"] {
     height: 62dvh;
   }
+  .assistant-panel[data-context-answer] {
+    height: min(62dvh, calc(100dvh - 90px));
+    min-height: min(42dvh, calc(100dvh - 90px));
+    max-height: min(62dvh, calc(100dvh - 90px));
+  }
+  .assistant-panel[data-context-answer] .chat-scroll {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+  }
   .chat-scroll {
     max-height: calc(62dvh - 44px);
   }
@@ -905,6 +931,31 @@ body,
     font-size: 10px;
   }
 }
+@media (min-width: 701px) and (max-width: 1100px) {
+  .assistant-panel[data-context-answer] {
+    --context-bottom: calc(var(--chat-dock-height, 48px) + 22px);
+    --context-top: min(
+      max(64px, calc(var(--margin-offset, 46px) + 48px)),
+      max(64px, calc(100dvh - 500px - var(--context-bottom)))
+    );
+    position: fixed;
+    inset: var(--context-top) 20px var(--context-bottom) auto;
+    width: min(480px, calc(100vw - 32px));
+    min-width: min(400px, calc(100vw - 32px));
+    height: auto;
+    min-height: min(
+      480px,
+      calc(100dvh - var(--context-top) - var(--context-bottom))
+    );
+    max-height: min(
+      680px,
+      calc(100dvh - var(--context-top) - var(--context-bottom))
+    );
+    margin: 0;
+    z-index: 35;
+  }
+}
+
 @media (max-height: 600px) {
   .app {
     min-height: 320px;
@@ -930,16 +981,31 @@ body,
   right: auto;
   bottom: auto;
   margin: 0;
-  width: min(312px, calc(100vw - 24px));
-  max-height: calc(100dvh - 110px);
+  width: min(480px, calc(100vw - 32px));
+  max-height: calc(100dvh - 64px);
   border: 1px solid var(--line);
   border-left: 2px solid var(--accent-line);
   border-radius: 10px;
   box-shadow: 0 8px 35px #271e1725;
   z-index: 25;
 }
+.assistant-panel[data-context-answer] {
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--accent-line);
+  border-radius: 10px;
+  box-shadow: 0 8px 35px #271e1712;
+}
+.assistant-panel.floating[data-context-answer] {
+  min-width: min(400px, calc(100vw - 32px));
+  min-height: min(480px, calc(100dvh - 64px));
+}
+.assistant-panel[data-context-answer] .chat-scroll {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+}
 .assistant-panel.floating .chat-scroll {
-  max-height: calc(100dvh - 165px);
+  max-height: calc(100dvh - 118px);
 }
 .assistant-panel.dragging {
   will-change: transform;

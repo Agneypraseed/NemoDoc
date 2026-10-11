@@ -235,6 +235,51 @@ test("an unverified passage error appears in the chat turn", async ({
   });
 });
 
+test("selected passage opens a roomy answer card on medium screens", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 960, height: 800 });
+  await page.route("**/api/status", (route) =>
+    route.fulfill({
+      json: {
+        configured: true,
+        local: false,
+        model: "nvidia/Nemotron-3_5-Lightning",
+      },
+    }),
+  );
+  await page.route("**/api/chat", (route) =>
+    route.fulfill({
+      contentType: "text/event-stream",
+      body: 'event: sources\ndata: [{"id":1,"sourceId":"sample-paper","sourceName":"Designing for human attention.pdf","page":2,"text":"Every interface asks for a little of our attention."}]\n\nevent: delta\ndata: "A comfortable answer needs room to read. [1]"\n\nevent: done\ndata: {}\n\n',
+    }),
+  );
+  await page.goto("/");
+  const selection = await selectPassage(page);
+  await selection.getByRole("button", { name: "Ask AI", exact: true }).click();
+  const question = selection.getByRole("textbox", {
+    name: "Ask about selected passage",
+  });
+  await question.fill("Why does this matter?");
+  await question.press("Enter");
+
+  const assistant = page.getByRole("complementary", {
+    name: "Notebook assistant",
+  });
+  await expect(assistant).toBeVisible();
+  await expect(assistant.locator(".message.assistant")).toContainText(
+    "A comfortable answer needs room to read.",
+  );
+  await expect(assistant).toHaveAttribute("data-context-answer", "true");
+  const box = await assistant.boundingBox();
+  const dock = await page.locator(".workspace-chat").boundingBox();
+  expect(box!.width).toBeGreaterThanOrEqual(440);
+  expect(box!.height).toBeGreaterThanOrEqual(420);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(960);
+  expect(box!.y + box!.height).toBeLessThanOrEqual(dock!.y);
+  await page.screenshot({ path: "test-results/passage-answer-medium.png" });
+});
+
 test("paper and dark reading views stay compact on desktop and mobile", async ({
   page,
 }) => {

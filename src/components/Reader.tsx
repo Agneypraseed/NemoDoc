@@ -689,16 +689,10 @@ export function Reader({
         const markerRects = mergeRectsByLine(rects);
         // Repeated questions on the same exact selection stay in Chat history,
         // while the page keeps one clean, clickable underline for that text.
-        const markerSignature = `${note.quote
+        const markerSignature = note.quote
           .trim()
           .replace(/\s+/g, " ")
-          .toLocaleLowerCase()}|${markerRects
-          .map((rect) =>
-            [rect.x, rect.y, rect.width, rect.height]
-              .map((value) => Math.round(value * 1000))
-              .join(":"),
-          )
-          .join("|")}`;
+          .toLocaleLowerCase();
         if (!markerRects.length || seenSelections.has(markerSignature))
           return [];
         seenSelections.add(markerSignature);

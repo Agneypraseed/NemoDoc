@@ -1788,7 +1788,9 @@ export default function App() {
           className={[
             "work-area",
             compareId && "comparing",
-            activePassageNote && "has-passage-note",
+            tab === "chat" &&
+              (activePassageNote || marginAnchor) &&
+              "has-passage-context",
           ]
             .filter(Boolean)
             .join(" ")}
@@ -1958,6 +1960,11 @@ export default function App() {
             key={activeId}
             id="notebook-assistant"
             data-view={tab}
+            data-context-answer={
+              tab === "chat" && (activePassageNote || marginAnchor)
+                ? "true"
+                : undefined
+            }
             offset={tab === "chat" ? marginOffset : 46}
             geometry={activePassageNote?.card}
             geometryKey={activePassageNote?.id ?? `${activeId}:${tab}`}
