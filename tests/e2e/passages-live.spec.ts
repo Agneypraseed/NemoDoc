@@ -125,21 +125,25 @@ test("live Nebius defines the selected MML Rank with its page context in Quick a
       });
       await number.fill("53");
       await number.press("Enter");
+      const term = index === 0 ? "Rank" : "rank deficient";
       const rank = page
         .locator('[data-page="53"] .textLayer span')
-        .filter({ hasText: /Rank/ })
+        .filter({ hasText: new RegExp(term, "i") })
         .first();
       await expect(rank).toBeVisible();
-      await rank.evaluate((element) => {
+      await rank.evaluate((element, selected) => {
         const node = element.firstChild!;
-        const start = node.textContent!.indexOf("Rank");
+        const value = node.textContent!;
+        const start = value.toLowerCase().indexOf(selected.toLowerCase());
+        if (start < 0)
+          throw new Error(`Could not find selected term: ${selected}`);
         const range = document.createRange();
         range.setStart(node, start);
-        range.setEnd(node, start + 4);
+        range.setEnd(node, start + selected.length);
         const selection = window.getSelection()!;
         selection.removeAllRanges();
         selection.addRange(range);
-      });
+      }, term);
       await page.locator(".page-scroller").dispatchEvent("mouseup");
       await page
         .getByRole("toolbar", { name: "Selected text actions" })
@@ -148,7 +152,7 @@ test("live Nebius defines the selected MML Rank with its page context in Quick a
       await expect(
         page.getByRole("button", { name: "Send question", exact: true }),
       ).toBeVisible({ timeout: 120000 });
-      await expect(page.locator(".message.assistant")).toHaveCount(index + 1);
+      await expect(page.locator(".message.assistant")).toHaveCount(1);
       const answer = await page
         .locator(".message.assistant")
         .last()
@@ -158,7 +162,9 @@ test("live Nebius defines the selected MML Rank with its page context in Quick a
         answer,
       );
       expect(answer).toMatch(/rank/i);
-      expect(answer).toMatch(/independent|dimension/i);
+      expect(answer).toMatch(
+        index === 0 ? /independent|dimension/i : /deficien/i,
+      );
       expect(answer).not.toMatch(
         /thinking process|Analyze User Input|<think>|Let me think|\\mathbb|\\mathrm/i,
       );
@@ -170,11 +176,25 @@ test("live Nebius defines the selected MML Rank with its page context in Quick a
       ).not.toHaveCount(0);
       expect(requests[index].selection).toMatchObject({
         page: 53,
-        quote: "Rank",
+        quote: term,
       });
       expect(requests[index].answerMode).toBe(mode.toLowerCase());
       answers[mode] = answer;
     }
+    const passageMarkers = page.locator(
+      '[data-page="53"] .passage-note-marker',
+    );
+    await expect(passageMarkers).toHaveCount(2);
+    // The newest selected passage is listed first; the earlier one remains
+    // available from its own page marker rather than being merged into it.
+    await passageMarkers.nth(1).click();
+    await expect(page.locator(".message.assistant")).toContainText(
+      /number of linearly independent columns/i,
+    );
+    await passageMarkers.nth(0).click();
+    await expect(page.locator(".message.assistant")).toContainText(
+      /rank deficient/i,
+    );
     await Promise.all(inspections);
     expect(receipts).toHaveLength(2);
     for (const receipt of receipts) {

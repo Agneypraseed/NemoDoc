@@ -215,6 +215,42 @@ test("paper workspace gives space to the document and passage questions stay in 
   await expect(
     page.getByRole("button", { name: "Add to Notes", exact: true }),
   ).toBeVisible();
+  const wholeNotebookQuestion = "What should I remember from all my sources?";
+  const notebookComposer = page.getByRole("textbox", {
+    name: "Ask about your sources",
+  });
+  await notebookComposer.fill(wholeNotebookQuestion);
+  await page
+    .getByRole("button", { name: "Send question", exact: true })
+    .click();
+  await expect(page.locator(".message.user p")).toHaveText(
+    wholeNotebookQuestion,
+  );
+  await expect(page.locator(".message.assistant")).toHaveCount(1);
+  await expect(page.locator(".message-passage-context")).toHaveCount(0);
+  expect(requests[2].selection).toBeUndefined();
+  expect(requests[2].question).toBe(wholeNotebookQuestion);
+  await page
+    .getByRole("button", { name: "Open passage note: Why does this matter?" })
+    .click();
+  await expect(page.locator(".message.user p")).toHaveText(
+    "Why does this matter?",
+  );
+  await expect(page.locator(".message.assistant")).toHaveCount(1);
+  await page.getByRole("button", { name: "Chat", exact: true }).click();
+  await expect(page.locator(".message.user p")).toHaveText(
+    wholeNotebookQuestion,
+  );
+  await expect(page.locator(".message.assistant")).toContainText(
+    "Good design protects our limited attention.",
+  );
+  await expect(page.locator(".message-passage-context")).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Open passage note: Why does this matter?" })
+    .click();
+  await expect(page.locator(".message.assistant")).toContainText(
+    "Good design protects our limited attention.",
+  );
   await page
     .getByRole("button", { name: "Close assistant", exact: true })
     .click();
@@ -403,6 +439,9 @@ test("bottom chat stays separate from selected-passage chats in Book view", asyn
   await page.goto("/");
   await openReaderTools(page);
   await page.getByRole("button", { name: "Book view", exact: true }).click();
+  await expect(
+    page.locator('[data-page="1"] .textLayer span').first(),
+  ).toBeVisible();
   await page
     .getByRole("textbox", { name: "Ask about your sources" })
     .fill("Summarize this notebook.");
@@ -461,9 +500,11 @@ test("bottom chat stays separate from selected-passage chats in Book view", asyn
     "Summarize this notebook.",
     "The notebook overview connects ideas across the source. [1]",
   ]);
-  expect(requests[2].history.some((message: any) =>
-    message.content.includes("selected passage"),
-  )).toBe(false);
+  expect(
+    requests[2].history.some((message: any) =>
+      message.content.includes("selected passage"),
+    ),
+  ).toBe(false);
 });
 
 test("paper and dark reading views stay compact on desktop and mobile", async ({

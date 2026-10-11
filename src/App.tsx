@@ -45,6 +45,7 @@ import { importDocument } from "./lib/documents";
 import { download, storage } from "./lib/storage";
 import { streamChat } from "./lib/chat";
 import { citationMarkdown, usesCitation } from "./lib/citations";
+import { exportNotebookNotes } from "./lib/notes-export";
 import { mergeStreamMessages, saveAnswerToNotes } from "./lib/save-answer";
 import { createBackup, readBackup } from "./lib/backup";
 import { apiJSON } from "./lib/api";
@@ -318,7 +319,8 @@ export default function App() {
   const generalConversationMessages = (notebook?.messages ?? []).filter(
     (message) => !passageMessageIds.has(message.id),
   );
-  const panelMessages = activePassageNote?.messages ?? generalConversationMessages;
+  const panelMessages =
+    activePassageNote?.messages ?? generalConversationMessages;
   const notebookSources = sources.filter((s) => s.notebookId === activeId);
   const source = notebookSources.find((s) => s.id === sourceId);
   const notebookAnnotations = annotations.filter((a) =>
@@ -890,8 +892,11 @@ export default function App() {
   };
   const exportNotes = () => {
     if (!notebook) return;
-    const body = notebook.notes.trim();
-    const text = `# ${notebook.title}\n\n${body ? `${body}\n` : ""}`;
+    const text = exportNotebookNotes(
+      notebook,
+      notebookAnnotations,
+      notebookSources,
+    );
     download(
       new Blob([text], { type: "text/markdown" }),
       `${notebook.title.replace(/[^\p{L}\p{N} -]/gu, "") || "Notebook"} - notes.md`,
@@ -1727,6 +1732,10 @@ export default function App() {
             active={tab}
             open={panelOpen}
             onSelect={(value) => {
+              if (value === "chat") {
+                openConversation();
+                return;
+              }
               setTab(value);
               setPanelOpen(true);
             }}

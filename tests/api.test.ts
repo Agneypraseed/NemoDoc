@@ -161,6 +161,40 @@ test("answer detail changes response budget without changing the chosen model or
     fetcher,
   );
 });
+test("requests for supporting pages require citation IDs instead of bare page numbers", async () => {
+  let requested: any;
+  const fetcher = (async (_url, init) => {
+    requested = JSON.parse(String(init?.body));
+    return new Response(
+      `data: {"choices":[{"delta":{"content":"The excerpt supports attention. [1]"}}]}\n\ndata: [DONE]\n\n`,
+      { headers: { "Content-Type": "text/event-stream" } },
+    );
+  }) as typeof fetch;
+  await withApp(
+    { ...config, apiKey: "test-mode-key" },
+    async (url) => {
+      const response = await fetch(url + "/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...body,
+          question: "Show the supporting pages that discuss attention.",
+        }),
+      });
+      assert.equal(response.status, 200);
+      assert.match(await response.text(), /supports attention/);
+      assert.match(
+        requested.messages[0].content,
+        /cite each included page with its exact bracketed excerpt ID/,
+      );
+      assert.match(
+        requested.messages[0].content,
+        /Never list bare page numbers/,
+      );
+    },
+    fetcher,
+  );
+});
 test("Nebius passage questions pin the selected page and omit stale history in both answer modes", async () => {
   const requests: any[] = [];
   const fetcher = (async (_url, init) => {

@@ -349,6 +349,7 @@ export function Reader({
   const currentPage = useRef(page);
   useEffect(() => {
     currentPage.current = page;
+    setPageInput(String(page));
   }, [page]);
   useEffect(() => () => clearTimeout(persistTimer.current), []);
   useEffect(() => {
@@ -388,9 +389,6 @@ export function Reader({
     if (sizeRef.current) observer.observe(sizeRef.current);
     return () => observer.disconnect();
   }, []);
-  useEffect(() => {
-    setPageInput(String(page));
-  }, [page]);
   useEffect(() => {
     clearTimeout(persistTimer.current);
     setDoc(undefined);
@@ -483,10 +481,13 @@ export function Reader({
           active = currentPage.current;
         pagesRef.current.forEach((element, number) => {
           const rect = element.getBoundingClientRect();
+          // The page stack has its own top padding and a visible gutter. Use
+          // an activation line below that gutter so clicking a citation still
+          // marks the destination page current after responsive reflow.
           const distance =
             mode === "vertical"
-              ? rect.top <= rootRect.top + 31
-                ? rootRect.top + 31 - rect.top
+              ? rect.top <= rootRect.top + 60
+                ? rootRect.top + 60 - rect.top
                 : Infinity
               : Math.abs(rect.left - rootRect.left - 30);
           if (distance < closest) {
@@ -548,7 +549,10 @@ export function Reader({
     return () => window.removeEventListener("keydown", onKey);
   });
   const navigate = (value: number) => {
-    setPage(Math.min(count, Math.max(1, value)));
+    const target = Math.min(count, Math.max(1, value));
+    currentPage.current = target;
+    setPageInput(String(target));
+    setPage(target);
     setNavigation((n) => n + 1);
     setSelection(undefined);
   };

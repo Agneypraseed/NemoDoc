@@ -91,8 +91,9 @@ test("PDF reader layouts, selection, notes, persistence, search, and export", as
   expect(notesDownload.suggestedFilename()).toMatch(/notes.md$/);
   const markdown = await readFile((await notesDownload.path())!, "utf8");
   expect(markdown).toContain("My research notes.");
-  expect(markdown).not.toContain("A finite resource worth protecting.");
-  expect(markdown).not.toContain("Highlights & annotations");
+  expect(markdown).toContain("A finite resource worth protecting.");
+  expect(markdown).toContain("Highlights & annotations");
+  expect(markdown).toContain("Every interface");
   expect(markdown).not.toContain("## Conversation");
   expect(errors).toEqual([]);
 });

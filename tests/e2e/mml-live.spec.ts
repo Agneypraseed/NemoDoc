@@ -178,7 +178,7 @@ test("real Nemotron answers and exports supporting MML book pages", async ({
     await page.screenshot({ path: "test-results/mml-answer.png" });
 
     const downloadQuestion =
-      "Return just the supporting pages about principal component analysis (PCA), variance maximization and dimensionality reduction so I can download them. Reply with one short sentence and the most relevant citation IDs only.";
+      "Show the supporting pages about principal component analysis (PCA), variance maximization and dimensionality reduction so I can download them. Use only the most relevant supplied citation IDs, formatted as [id], and do not list bare page numbers.";
     await ask.fill(downloadQuestion);
     await ask.press("Enter");
     const downloadAnswer = page.locator(".message.assistant").last();

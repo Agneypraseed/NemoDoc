@@ -149,8 +149,12 @@ test("live Nebius document and personal agent workflow", async ({
       { timeout: 90000 },
     );
     await expect(page.locator(".message.assistant").last()).toContainText("6");
-    await expect(page.locator(".inline-citation").first()).toBeVisible();
-    await page.locator(".inline-citation").first().click();
+    const pageTwoCitation = page
+      .locator(".citation-list button")
+      .filter({ hasText: /Page 2/ })
+      .first();
+    await expect(pageTwoCitation).toBeVisible();
+    await pageTwoCitation.click();
     await expect(
       page.getByRole("textbox", { name: "Page number", exact: true }),
     ).toHaveValue("2");
@@ -224,7 +228,9 @@ test("live Nebius document and personal agent workflow", async ({
       .getByLabel("Allow one follow-up review per run", { exact: true })
       .check();
     await page.getByRole("button", { name: "Run task", exact: true }).click();
-    await expect(page.getByRole("status")).toContainText("Task queued");
+    await expect(page.locator(".agent-panel .form-success")).toContainText(
+      "Task queued",
+    );
     const task = app.locals.agent.data.state.tasks[0];
     const waitForRun = async (taskId: string) => {
       await expect
