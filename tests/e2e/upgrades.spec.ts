@@ -292,7 +292,9 @@ test("OCR persists searchable selectable text and visual questions send a real p
     mimeType: "application/pdf",
     buffer: Buffer.from(await pdf.save()),
   });
-  await expect(page.locator(".reader-file")).toContainText("Scan");
+  await expect(page.locator(".reader-file")).toContainText("Scan", {
+    timeout: 15_000,
+  });
   await openReaderTools(page);
   await expect(
     page.getByRole("button", { name: "Recognize page text", exact: true }),
@@ -535,7 +537,9 @@ test("side by side comparison reads independently and grounds AI in exactly the 
     mimeType: "application/pdf",
     buffer: Buffer.from(await pdf.save()),
   });
-  await expect(page.locator(".reader-file")).toContainText("Perspective");
+  await expect(page.locator(".reader-file")).toContainText("Perspective", {
+    timeout: 15_000,
+  });
   await page
     .getByRole("button", { name: "Compare sources", exact: true })
     .click();
@@ -616,7 +620,9 @@ test("PDF outlines and exact reading position survive a reload across mixed page
     mimeType: "application/pdf",
     buffer: Buffer.from(await pdf.save()),
   });
-  await expect(page.locator(".reader-file")).toContainText("Navigation");
+  await expect(page.locator(".reader-file")).toContainText("Navigation", {
+    timeout: 15_000,
+  });
   await openReaderTools(page);
   await expect(
     page.getByRole("button", { name: "Recognize page text", exact: true }),

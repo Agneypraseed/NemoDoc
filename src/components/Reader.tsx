@@ -38,6 +38,7 @@ import { slideImage } from "../lib/page-image";
 import type {
   Annotation,
   HighlightColor,
+  PassageNote,
   Rect,
   Source,
   ViewMode,
@@ -64,11 +65,14 @@ interface Props {
     page: number,
     question?: string,
     anchorY?: number,
+    rects?: Rect[],
   ) => void;
   answerMode?: AnswerMode;
   onAnswerMode?: (value: AnswerMode) => void;
   askingBusy?: boolean;
   passageAnchor?: { sourceId: string; page: number; text: string };
+  passageNotes?: PassageNote[];
+  onOpenPassageNote?: (id: string) => void;
   onPassagePosition?: (y: number) => void;
   onSelectAnnotation: (annotation: Annotation) => void;
   onUpload: () => void;
@@ -185,6 +189,8 @@ export function Reader({
   onAnswerMode,
   askingBusy = false,
   passageAnchor,
+  passageNotes = [],
+  onOpenPassageNote,
   onPassagePosition,
   onSelectAnnotation,
   onUpload,
@@ -615,7 +621,13 @@ export function Reader({
   };
   const askPassage = (question: string) => {
     if (!selection || !question.trim() || askingBusy) return;
-    onAsk(selection.quote, selection.page, question.trim(), selection.anchorY);
+    onAsk(
+      selection.quote,
+      selection.page,
+      question.trim(),
+      selection.anchorY,
+      selection.rects,
+    );
     setSelection(undefined);
     window.getSelection()?.removeAllRanges();
   };
@@ -1217,6 +1229,80 @@ export function Reader({
                     onSelect={onSelectAnnotation}
                     evidence={evidence?.page === number ? support : []}
                   />
+                  <div
+                    className="passage-note-markers"
+                    aria-label="Passage notes"
+                  >
+                    {passageNotes
+                      .filter(
+                        (note) =>
+                          note.sourceId === source.id && note.page === number,
+                      )
+                      .flatMap((note) => {
+                        const pageElement = pagesRef.current.get(number);
+                        // Selected passages persist their exact normalized
+                        // rectangles. A topic note instead derives a marker
+                        // from its validated cited excerpt in the rendered
+                        // local page, and stays unmarked if that text cannot
+                        // be found verbatim in the PDF/PPTX layer.
+                        const rects = note.rects.length
+                          ? note.rects
+                          : note.topic && pageElement
+                            ? evidenceRects(pageElement, note.quote)
+                            : [];
+                        return rects.map((rect, index) => (
+                          <button
+                            key={`${note.id}-${index}`}
+                            className={`passage-note-marker ${note.active ? "active" : ""}`}
+                            style={{
+                              left: `${rect.x * 100}%`,
+                              top: `${(rect.y + rect.height) * 100}%`,
+                              width: `${rect.width * 100}%`,
+                            }}
+                            aria-label={`Open passage note: ${note.question}`}
+                            title={note.question}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onOpenPassageNote?.(note.id);
+                            }}
+                          />
+                        ));
+                      })}
+                    {passageNotes
+                      .filter(
+                        (note) =>
+                          note.sourceId === source.id &&
+                          note.page === number &&
+                          !note.active &&
+                          note.rects.length,
+                      )
+                      .map((note, noteIndex) => {
+                        const rect = note.rects[0];
+                        const answer = note.messages
+                          .filter((message) => message.role === "assistant")
+                          .at(-1);
+                        return (
+                          <button
+                            key={`preview-${note.id}`}
+                            className="passage-note-inline-preview"
+                            style={{
+                              top: `${Math.min(88, (rect.y + rect.height) * 100 + noteIndex * 8)}%`,
+                            }}
+                            aria-label={`Open passage note: ${note.question}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onOpenPassageNote?.(note.id);
+                            }}
+                          >
+                            <strong>{note.question}</strong>
+                            <span>
+                              {answer?.content.slice(0, 90) ||
+                                "Waiting for an answer…"}
+                            </span>
+                          </button>
+                        );
+                      })}
+                  </div>
                   {pen?.page === number && (
                     <svg
                       className={`pen-overlay pending ${color}`}

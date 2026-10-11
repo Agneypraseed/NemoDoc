@@ -9,6 +9,7 @@ function Preview({ source, page }: { source: Source; page: number }) {
     [error, setError] = useState("");
   useEffect(() => {
     let cancelled = false;
+    let completed = false;
     let loading: ReturnType<typeof pdfjs.getDocument> | undefined;
     let render: import("pdfjs-dist").RenderTask | undefined;
     setImage("");
@@ -31,7 +32,9 @@ function Preview({ source, page }: { source: Source; page: number }) {
           if (cancelled) return;
           const base = pdfPage.getViewport({ scale: 1 });
           const viewport = pdfPage.getViewport({
-            scale: Math.min(1.5, 900 / base.width),
+            // A compact local thumbnail is both sufficient for the card and
+            // avoids making PDF.js rasterize a full reader-sized page.
+            scale: Math.min(1, 480 / base.width),
           });
           const canvas = document.createElement("canvas");
           canvas.width = viewport.width;
@@ -40,29 +43,36 @@ function Preview({ source, page }: { source: Source; page: number }) {
           await render.promise;
           result = canvas.toDataURL("image/png");
         }
-        if (!cancelled) setImage(result);
+        if (!cancelled) {
+          completed = true;
+          setImage(result);
+        }
       } catch (e) {
         if (!cancelled)
           setError(e instanceof Error ? e.message : "Preview failed.");
-      } finally {
-        await loading?.destroy();
       }
     })();
     return () => {
       cancelled = true;
       render?.cancel();
-      void loading?.destroy();
+      // Cancel only work that is still in flight. Destroying an already
+      // completed PDF.js loading task also tears down its shared worker and
+      // can race the next local document import.
+      if (!completed) void loading?.destroy();
     };
   }, [source, page]);
   return error ? (
     <p role="alert">Preview unavailable: {error}</p>
-  ) : image ? (
-    <img
-      src={image}
-      alt={`${source.name}, ${source.kind === "pptx" ? "Slide" : "Page"} ${page}`}
-    />
-  ) : (
+  ) : !image ? (
     <p role="status">Rendering local preview…</p>
+  ) : (
+    <>
+      <img
+        src={image}
+        alt={`${source.name}, ${source.kind === "pptx" ? "Slide" : "Page"} ${page}`}
+        aria-busy={!image}
+      />
+    </>
   );
 }
 export function SupportingPages({

@@ -22,6 +22,17 @@ const citation = z.object({
   page: z.number().int().positive(),
   text: z.string(),
 });
+const message = z.object({
+  id: z.string(),
+  role: z.enum(["user", "assistant"]),
+  content: z.string(),
+  citations: z.array(citation).optional(),
+  showPages: z.boolean().optional(),
+  savedToNotes: z.boolean().optional(),
+  incomplete: z.boolean().optional(),
+  error: z.string().optional(),
+  cancelled: z.boolean().optional(),
+});
 const manifest = z.object({
   version: z.literal(1),
   notebooks: z
@@ -32,17 +43,34 @@ const manifest = z.object({
         description: z.string(),
         createdAt: z.number(),
         notes: z.string(),
-        messages: z.array(
-          z.object({
-            id: z.string(),
-            role: z.enum(["user", "assistant"]),
-            content: z.string(),
-            citations: z.array(citation).optional(),
-            showPages: z.boolean().optional(),
-            savedToNotes: z.boolean().optional(),
-            incomplete: z.boolean().optional(),
-          }),
-        ),
+        messages: z.array(message),
+        passageNotes: z
+          .array(
+            z.object({
+              id: z.string(),
+              sourceId: z.string(),
+              page: z.number().int().positive(),
+              quote: z.string(),
+              rects: z.array(rect),
+              question: z.string(),
+              answerMode: z.enum(["quick", "deep"]),
+              model: z.string(),
+              messages: z.array(message),
+              createdAt: z.number(),
+              collapsed: z.boolean().optional(),
+              active: z.boolean().optional(),
+              topic: z.boolean().optional(),
+              card: z
+                .object({
+                  x: z.number().optional(),
+                  y: z.number().optional(),
+                  width: z.number().positive().optional(),
+                  height: z.number().positive().optional(),
+                })
+                .optional(),
+            }),
+          )
+          .optional(),
       }),
     )
     .max(1000),
@@ -242,6 +270,16 @@ export async function readBackup(file: Blob): Promise<LibraryBackup> {
       a.page > data.sources.find((s) => s.id === a.sourceId)!.pages.length
     )
       throw new Error("An annotation refers to a missing page.");
+  for (const notebook of data.notebooks)
+    for (const note of notebook.passageNotes ?? []) {
+      const source = data.sources.find((item) => item.id === note.sourceId);
+      if (
+        !source ||
+        source.notebookId !== notebook.id ||
+        note.page > source.pages.length
+      )
+        throw new Error("A passage note refers to a missing page.");
+    }
   for (const a of data.artifacts)
     if (!notebookIds.has(a.notebookId))
       throw new Error("A study artifact has no notebook.");
@@ -254,6 +292,16 @@ export async function readBackup(file: Blob): Promise<LibraryBackup> {
         ...m,
         id: crypto.randomUUID(),
         citations: m.citations?.map(remapCitation),
+      })),
+      passageNotes: n.passageNotes?.map((note) => ({
+        ...note,
+        id: crypto.randomUUID(),
+        sourceId: sourceIds.get(note.sourceId)!,
+        messages: note.messages.map((message) => ({
+          ...message,
+          id: crypto.randomUUID(),
+          citations: message.citations?.map(remapCitation),
+        })),
       })),
     })),
     sources,

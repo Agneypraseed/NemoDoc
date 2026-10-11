@@ -135,15 +135,32 @@ test("paper workspace gives space to the document and passage questions return c
   await expect(
     page.getByRole("button", { name: "Save to Notes", exact: true }),
   ).toHaveCount(1);
+  const collapsedNote = page.locator(".passage-note-inline-preview");
+  await expect(collapsedNote).toHaveCount(1);
+  const collapsedBox = await collapsedNote.boundingBox();
+  const originBox = await page
+    .locator('[data-page="2"] .passage-note-marker')
+    .first()
+    .boundingBox();
+  expect(Math.abs(collapsedBox!.y - originBox!.y)).toBeLessThan(120);
+  await page.screenshot({ path: "test-results/passage-notes-collapsed.png" });
+  const resize = page.getByRole("button", { name: "Resize answer card" });
+  await resize.focus();
+  await resize.press("Shift+ArrowLeft");
+  await resize.press("Shift+ArrowDown");
+  await page.screenshot({ path: "test-results/passage-note-resized.png" });
   await page
     .getByRole("button", { name: "Close assistant", exact: true })
     .click();
   await page.reload();
   await expect(assistant).toBeHidden();
   await page.getByRole("button", { name: "Open chat", exact: true }).click();
-  await expect(page.locator(".message.assistant")).toHaveCount(2);
+  await expect(page.locator(".chat-welcome")).toBeVisible();
+  await page.locator(".passage-note-inline-preview").first().click();
+  await expect(page.locator(".message.assistant")).toHaveCount(1);
+  await expect(page.locator(".passage-note-inline-preview")).toHaveCount(1);
   await expect(
-    page.getByRole("button", { name: "Saved", exact: true }),
+    page.getByRole("button", { name: "Save to Notes", exact: true }),
   ).toBeDisabled();
   await page
     .getByRole("button", { name: "Close assistant", exact: true })

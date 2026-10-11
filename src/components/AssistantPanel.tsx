@@ -11,21 +11,37 @@ import {
 import { GripVertical, RotateCcw, X } from "lucide-react";
 
 type Point = { x: number; y: number };
+type Geometry = Point & { width: number; height: number };
 
 export function AssistantPanel({
   title,
   offset,
   onClose,
   children,
+  geometry,
+  geometryKey,
+  onGeometryChange,
   ...attributes
 }: Omit<HTMLAttributes<HTMLElement>, "title"> & {
   title: ReactNode;
   offset: number;
   onClose: () => void;
+  geometry?: Partial<Geometry>;
+  geometryKey?: string;
+  onGeometryChange?: (value: Partial<Geometry>) => void;
 }) {
   const panel = useRef<HTMLElement>(null);
   const handle = useRef<HTMLButtonElement>(null);
-  const [position, setPosition] = useState<Point>();
+  const [position, setPosition] = useState<Point | undefined>(
+    geometry?.x === undefined || geometry.y === undefined
+      ? undefined
+      : { x: geometry.x, y: geometry.y },
+  );
+  const [size, setSize] = useState(
+    geometry?.width && geometry?.height
+      ? { width: geometry.width, height: geometry.height }
+      : undefined,
+  );
   const [dragging, setDragging] = useState(false);
   const gesture = useRef<
     | {
@@ -37,6 +53,10 @@ export function AssistantPanel({
       }
     | undefined
   >(undefined);
+  const resizeGesture = useRef<
+    | { id: number; x: number; y: number; width: number; height: number }
+    | undefined
+  >(undefined);
   const bound = (point: Point): Point => {
     const box = panel.current?.getBoundingClientRect();
     return {
@@ -45,6 +65,23 @@ export function AssistantPanel({
     };
   };
   const floating = !!position;
+  const commitGeometry = (nextPosition = position, nextSize = size) =>
+    onGeometryChange?.({ ...nextPosition, ...nextSize });
+  // Geometry belongs to the displayed note, not to the assistant shell.  Do
+  // not remount the shell (which would interrupt a stream), but do restore the
+  // selected note's geometry when its identity changes.
+  useEffect(() => {
+    setPosition(
+      geometry?.x === undefined || geometry.y === undefined
+        ? undefined
+        : { x: geometry.x, y: geometry.y },
+    );
+    setSize(
+      geometry?.width && geometry?.height
+        ? { width: geometry.width, height: geometry.height }
+        : undefined,
+    );
+  }, [geometryKey]);
   useEffect(() => {
     if (!floating || !panel.current) return;
     const constrain = () => {
@@ -106,7 +143,10 @@ export function AssistantPanel({
   const finish = (event: PointerEvent<HTMLButtonElement>) => {
     const active = gesture.current;
     if (!active || event.pointerId !== active.id) return;
-    if (active.moved) setPosition(active.latest);
+    if (active.moved) {
+      setPosition(active.latest);
+      commitGeometry(active.latest);
+    }
     gesture.current = undefined;
     setDragging(false);
     if (event.currentTarget.hasPointerCapture(event.pointerId))
@@ -117,6 +157,7 @@ export function AssistantPanel({
       event.preventDefault();
       event.stopPropagation();
       setPosition(undefined);
+      onGeometryChange?.({ ...size, x: undefined, y: undefined });
       return;
     }
     const steps: Record<string, Point> = {
@@ -131,9 +172,12 @@ export function AssistantPanel({
     event.stopPropagation();
     const box = panel.current!.getBoundingClientRect();
     const distance = event.shiftKey ? 40 : 16;
-    setPosition(
-      bound({ x: box.x + step.x * distance, y: box.y + step.y * distance }),
-    );
+    const next = bound({
+      x: box.x + step.x * distance,
+      y: box.y + step.y * distance,
+    });
+    setPosition(next);
+    commitGeometry(next);
   };
   return (
     <aside
@@ -141,9 +185,12 @@ export function AssistantPanel({
       ref={panel}
       className={`assistant-panel ${floating ? "floating" : ""} ${dragging ? "dragging" : ""}`}
       style={
-        position
-          ? { transform: `translate3d(${position.x}px, ${position.y}px, 0)` }
-          : ({ "--margin-offset": `${offset}px` } as CSSProperties)
+        {
+          ...(position
+            ? { transform: `translate3d(${position.x}px, ${position.y}px, 0)` }
+            : { "--margin-offset": `${offset}px` }),
+          ...(size ? { width: size.width, height: size.height } : {}),
+        } as CSSProperties
       }
     >
       <div className="margin-header">
@@ -171,6 +218,7 @@ export function AssistantPanel({
             title="Return to margin"
             onClick={() => {
               setPosition(undefined);
+              onGeometryChange?.({ ...size, x: undefined, y: undefined });
               handle.current?.focus();
             }}
           >
@@ -188,6 +236,111 @@ export function AssistantPanel({
         </button>
       </div>
       {children}
+      <button
+        type="button"
+        className="assistant-resize-handle"
+        aria-label="Resize answer card"
+        title="Drag to resize. Arrow keys resize; Home resets size."
+        onPointerDown={(event) => {
+          if (!event.isPrimary || event.button !== 0) return;
+          const target = event.currentTarget;
+          const box = panel.current!.getBoundingClientRect();
+          resizeGesture.current = {
+            id: event.pointerId,
+            x: event.clientX,
+            y: event.clientY,
+            width: box.width,
+            height: box.height,
+          };
+          target.setPointerCapture(event.pointerId);
+          event.preventDefault();
+          event.stopPropagation();
+        }}
+        onPointerMove={(event) => {
+          const start = resizeGesture.current;
+          if (!start || start.id !== event.pointerId) return;
+          const box = panel.current!.getBoundingClientRect();
+          setSize({
+            width: Math.max(
+              280,
+              Math.min(
+                innerWidth - box.left - 8,
+                start.width + event.clientX - start.x,
+              ),
+            ),
+            height: Math.max(
+              240,
+              Math.min(
+                innerHeight - box.top - 8,
+                start.height + event.clientY - start.y,
+              ),
+            ),
+          });
+        }}
+        onPointerUp={(event) => {
+          if (resizeGesture.current?.id !== event.pointerId) return;
+          resizeGesture.current = undefined;
+          if (event.currentTarget.hasPointerCapture(event.pointerId))
+            event.currentTarget.releasePointerCapture(event.pointerId);
+          setSize((value) => {
+            commitGeometry(position, value);
+            return value;
+          });
+        }}
+        onPointerCancel={(event) => {
+          if (resizeGesture.current?.id === event.pointerId)
+            resizeGesture.current = undefined;
+        }}
+        onLostPointerCapture={() => {
+          resizeGesture.current = undefined;
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Home") {
+            setSize(undefined);
+            onGeometryChange?.({
+              ...position,
+              width: undefined,
+              height: undefined,
+            });
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+          }
+          const delta = event.shiftKey ? 40 : 16;
+          const box = panel.current!.getBoundingClientRect();
+          const next = {
+            width: Math.max(
+              280,
+              Math.min(
+                innerWidth - 16,
+                box.width +
+                  (event.key === "ArrowRight"
+                    ? delta
+                    : event.key === "ArrowLeft"
+                      ? -delta
+                      : 0),
+              ),
+            ),
+            height: Math.max(
+              240,
+              Math.min(
+                innerHeight - 16,
+                box.height +
+                  (event.key === "ArrowDown"
+                    ? delta
+                    : event.key === "ArrowUp"
+                      ? -delta
+                      : 0),
+              ),
+            ),
+          };
+          if (!event.key.startsWith("Arrow")) return;
+          setSize(next);
+          commitGeometry(position, next);
+          event.preventDefault();
+          event.stopPropagation();
+        }}
+      />
     </aside>
   );
 }

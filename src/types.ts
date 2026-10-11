@@ -71,6 +71,25 @@ export interface Message {
   showPages?: boolean;
   savedToNotes?: boolean;
   incomplete?: boolean;
+  error?: string;
+  cancelled?: boolean;
+}
+export interface PassageNote {
+  id: string;
+  sourceId: string;
+  page: number;
+  quote: string;
+  rects: Rect[];
+  question: string;
+  answerMode: "quick" | "deep";
+  model: string;
+  messages: Message[];
+  createdAt: number;
+  collapsed?: boolean;
+  active?: boolean;
+  card?: { x?: number; y?: number; width?: number; height?: number };
+  /** Topic notes acquire an anchor only after a cited source/page is validated. */
+  topic?: boolean;
 }
 export interface Notebook {
   id: string;
@@ -79,6 +98,7 @@ export interface Notebook {
   createdAt: number;
   notes: string;
   messages: Message[];
+  passageNotes?: PassageNote[];
 }
 export interface AIStatus {
   configured: boolean;

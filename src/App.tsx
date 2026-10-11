@@ -10,6 +10,7 @@ import {
   ArrowUp,
   BookOpen,
   Check,
+  Copy,
   ChevronRight,
   CircleHelp,
   FileText,
@@ -25,6 +26,7 @@ import {
   Sparkles,
   Square,
   Trash2,
+  RefreshCw,
   Upload,
   X,
   PanelLeftClose,
@@ -63,6 +65,8 @@ import type {
   Source,
   StudyArtifact,
   Citation,
+  PassageNote,
+  Rect,
 } from "./types";
 
 function Brand({ small = false }: { small?: boolean }) {
@@ -72,6 +76,219 @@ function Brand({ small = false }: { small?: boolean }) {
         <path d="M6 21V7h3l10 14h3V7h-3v9L9 7" />
       </svg>
     </span>
+  );
+}
+function PassageNoteContent({
+  note,
+  sources,
+  streamingId,
+  busy,
+  model,
+  onCitation,
+  onCopy,
+  onRegenerate,
+  onSave,
+  onDelete,
+  onFollowUp,
+  onConversation,
+}: {
+  note: PassageNote;
+  sources: Source[];
+  streamingId: string;
+  busy: boolean;
+  model: string;
+  onCitation: (citation: Citation) => void;
+  onCopy: (answer: string) => void;
+  onRegenerate: () => void;
+  onSave: (id: string) => void;
+  onDelete: () => void;
+  onFollowUp: (question: string) => void;
+  onConversation: () => void;
+}) {
+  const [followUp, setFollowUp] = useState("");
+  const answer = note.messages
+    .filter((message) => message.role === "assistant")
+    .at(-1);
+  useEffect(() => setFollowUp(""), [note.id]);
+  const turns = note.messages.reduce<{ question: Message; answer?: Message }[]>(
+    (result, message) => {
+      if (message.role === "user") result.push({ question: message });
+      else if (result.length) result[result.length - 1].answer = message;
+      return result;
+    },
+    [],
+  );
+  return (
+    <div className="passage-note-content">
+      {note.quote && <blockquote>{note.quote}</blockquote>}
+      <button className="back-to-conversation" onClick={onConversation}>
+        Whole-notebook conversation
+      </button>
+      <div className="passage-note-turns" aria-live="polite">
+        {turns.map(({ question, answer: turnAnswer }) => (
+          <div className="passage-note-turn" key={question.id}>
+            <div className="passage-note-question message user">
+              <p>{question.content}</p>
+            </div>
+            <div className="passage-note-answer message assistant">
+              {turnAnswer?.content ? (
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm, remarkMath]}
+                  rehypePlugins={[
+                    [
+                      rehypeKatex,
+                      { trust: false, maxExpand: 1000, maxSize: 20 },
+                    ],
+                  ]}
+                  components={{
+                    a: ({ href, children }) => {
+                      const citation = href?.startsWith("#citation-")
+                        ? turnAnswer.citations?.find(
+                            (item) => item.id === Number(href.slice(10)),
+                          )
+                        : undefined;
+                      return citation ? (
+                        <button
+                          className="inline-citation"
+                          onClick={() => onCitation(citation)}
+                        >
+                          {children}
+                        </button>
+                      ) : (
+                        <a href={href}>{children}</a>
+                      );
+                    },
+                  }}
+                >
+                  {citationMarkdown(
+                    turnAnswer.content,
+                    turnAnswer.citations ?? [],
+                  )}
+                </ReactMarkdown>
+              ) : turnAnswer?.error || turnAnswer?.cancelled ? (
+                <div className="form-error" role="alert">
+                  {turnAnswer.error ||
+                    "Answer cancelled. You can regenerate it."}
+                </div>
+              ) : (
+                <div className="thinking">
+                  <span />
+                  <span />
+                  <span />
+                  <small>Reading this passage</small>
+                </div>
+              )}
+              {turnAnswer?.content && (
+                <SupportingPages
+                  message={turnAnswer}
+                  sources={sources}
+                  open={onCitation}
+                />
+              )}
+              {!!turnAnswer?.citations?.length && (
+                <div className="citation-list">
+                  {turnAnswer.citations
+                    .filter((citation) =>
+                      usesCitation(
+                        turnAnswer.content,
+                        citation,
+                        turnAnswer.citations ?? [],
+                      ),
+                    )
+                    .map((citation) => (
+                      <button
+                        key={citation.id}
+                        onClick={() => onCitation(citation)}
+                      >
+                        <span>{citation.id}</span>
+                        {citation.sourceName
+                          .replace(/\.(pdf|pptx)$/i, "")
+                          .slice(0, 20)}
+                        <small>
+                          {sources.find(
+                            (source) => source.id === citation.sourceId,
+                          )?.kind === "pptx"
+                            ? "Slide"
+                            : "Page"}{" "}
+                          {citation.page}
+                        </small>
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="passage-note-meta">
+        {modelName(model)} · {note.answerMode === "quick" ? "Quick" : "Deep"}
+      </div>
+      <div className="passage-note-actions">
+        <button
+          aria-label="Copy passage note answer"
+          title="Copy"
+          disabled={!answer?.content}
+          onClick={() => answer && onCopy(answer.content)}
+        >
+          <Copy size={15} />
+          <span>Copy</span>
+        </button>
+        <button
+          aria-label="Regenerate passage note answer"
+          title="Regenerate"
+          disabled={busy}
+          onClick={onRegenerate}
+        >
+          <RefreshCw size={15} />
+          <span>Regenerate</span>
+        </button>
+        <button
+          className="save-answer"
+          aria-label="Save to Notes"
+          title="Add to Notes"
+          disabled={
+            !answer?.content ||
+            answer.incomplete ||
+            answer.id === streamingId ||
+            answer.savedToNotes
+          }
+          onClick={() => answer && onSave(answer.id)}
+        >
+          <Check size={15} />
+          <span>{answer?.savedToNotes ? "Saved" : "Add to Notes"}</span>
+        </button>
+        <button
+          aria-label="Delete passage note"
+          title="Delete"
+          onClick={onDelete}
+        >
+          <Trash2 size={15} />
+          <span>Delete</span>
+        </button>
+      </div>
+      <form
+        className="passage-follow-up"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!followUp.trim() || busy) return;
+          onFollowUp(followUp.trim());
+          setFollowUp("");
+        }}
+      >
+        <input
+          aria-label="Ask a follow-up in this passage note"
+          placeholder="Ask a follow-up…"
+          value={followUp}
+          onChange={(event) => setFollowUp(event.target.value)}
+        />
+        <button
+          aria-label="Send passage follow-up"
+          disabled={!followUp.trim() || busy}
+        >
+          <ArrowUp size={15} />
+        </button>
+      </form>
+    </div>
   );
 }
 export default function App() {
@@ -146,6 +363,7 @@ export default function App() {
       sourceId: string;
       page: number;
       anchorY?: number;
+      rects?: Rect[];
     }>(),
     [selectedAnnotation, setSelectedAnnotation] = useState<string>();
   const [sidebarOpen, setSidebarOpen] = useState(false),
@@ -169,6 +387,7 @@ export default function App() {
       setMarginOffset(Math.max(46, Math.min(area.height - 180, y - area.top)));
   }, []);
   const [answerMode, setAnswerMode] = useState<AnswerMode>("quick");
+  const [topicNoteNext, setTopicNoteNext] = useState(false);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const chatDock = useRef<HTMLDivElement>(null),
     chatLauncher = useRef<HTMLButtonElement>(null);
@@ -181,6 +400,7 @@ export default function App() {
   activeNotebookRef.current = activeId;
   const importingRef = useRef(false);
   const notebook = notebooks.find((n) => n.id === activeId);
+  const activePassageNote = notebook?.passageNotes?.find((note) => note.active);
   const notebookSources = sources.filter((s) => s.notebookId === activeId);
   const source = notebookSources.find((s) => s.id === sourceId);
   const notebookAnnotations = annotations.filter((a) =>
@@ -527,6 +747,7 @@ export default function App() {
     selectedPage: number,
     question?: string,
     anchorY?: number,
+    rects?: Rect[],
   ) => {
     if (!source) return;
     const selected = {
@@ -534,6 +755,7 @@ export default function App() {
       page: selectedPage,
       sourceId: source.id,
       anchorY,
+      rects,
     };
     if (question) {
       void send(question, undefined, selected);
@@ -603,6 +825,10 @@ export default function App() {
   };
   const removeSource = async (value: Source) => {
     const savedAnnotations = annotations.filter((a) => a.sourceId === value.id);
+    const savedPassageNotes =
+      notebooks
+        .find((item) => item.id === value.notebookId)
+        ?.passageNotes?.filter((note) => note.sourceId === value.id) ?? [];
     try {
       await apiJSON("/api/agent/sources/revoke", {
         id: value.id,
@@ -611,6 +837,19 @@ export default function App() {
       await storage.removeSource(value.id);
       setSources((list) => list.filter((s) => s.id !== value.id));
       setAnnotations((list) => list.filter((a) => a.sourceId !== value.id));
+      setNotebooks((list) =>
+        list.map((item) => {
+          if (item.id !== value.notebookId) return item;
+          const updated = {
+            ...item,
+            passageNotes: (item.passageNotes ?? []).filter(
+              (note) => note.sourceId !== value.id,
+            ),
+          };
+          void storage.notebook(updated).catch(reportStorageError);
+          return updated;
+        }),
+      );
       undoStack.current = [];
       redoStack.current = [];
       setHistoryVersion((v) => v + 1);
@@ -623,6 +862,29 @@ export default function App() {
           for (const a of savedAnnotations) await storage.annotation(a);
           setSources((list) => [...list, value]);
           setAnnotations((list) => [...list, ...savedAnnotations]);
+          setNotebooks((list) =>
+            list.map((item) => {
+              if (item.id !== value.notebookId) return item;
+              const known = new Set(
+                (item.passageNotes ?? []).map((note) => note.id),
+              );
+              const updated = {
+                ...item,
+                passageNotes: [
+                  ...(item.passageNotes ?? []),
+                  ...savedPassageNotes
+                    .filter((note) => !known.has(note.id))
+                    .map((note) => ({
+                      ...note,
+                      active: false,
+                      collapsed: true,
+                    })),
+                ],
+              };
+              void storage.notebook(updated).catch(reportStorageError);
+              return updated;
+            }),
+          );
         })().catch(reportStorageError);
         setToast(undefined);
       });
@@ -721,12 +983,186 @@ export default function App() {
       }),
     );
   };
+  const setPassageNote = (
+    notebookId: string,
+    noteId: string,
+    change: (note: PassageNote) => PassageNote,
+  ) => {
+    setNotebooks((list) =>
+      list.map((current) => {
+        if (current.id !== notebookId) return current;
+        const updated = {
+          ...current,
+          passageNotes: (current.passageNotes ?? []).map((note) =>
+            note.id === noteId ? change(note) : note,
+          ),
+        };
+        void storage.notebook(updated).catch(reportStorageError);
+        return updated;
+      }),
+    );
+  };
+  const openPassageNote = (id: string) => {
+    if (!notebook) return;
+    const selected = notebook.passageNotes?.find((note) => note.id === id);
+    if (!selected) return;
+    const updated = {
+      ...notebook,
+      passageNotes: (notebook.passageNotes ?? []).map((note) => ({
+        ...note,
+        active: note.id === id,
+        collapsed: note.id !== id,
+      })),
+    };
+    updateNotebook(updated);
+    openSource(selected.sourceId, selected.page);
+    setMarginAnchor({
+      sourceId: selected.sourceId,
+      page: selected.page,
+      text: selected.quote,
+    });
+    setTab("chat");
+    setPanelOpen(true);
+  };
+  const sendPassage = async (
+    question: string,
+    selected: NonNullable<typeof context>,
+    existing?: PassageNote,
+  ) => {
+    if (!notebook || streaming.current) return;
+    setChatError("");
+    setRetrievalInfo("");
+    const target = notebook.id;
+    const noteId = existing?.id ?? crypto.randomUUID();
+    const user: Message = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: question,
+    };
+    const answer: Message = {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: "",
+      citations: [],
+      incomplete: true,
+    };
+    const baseMessages = existing?.messages ?? [];
+    const nextNote: PassageNote = {
+      id: noteId,
+      sourceId: selected.sourceId,
+      page: selected.page,
+      quote: selected.quote,
+      rects: selected.rects ?? existing?.rects ?? [],
+      question: existing?.question ?? question,
+      answerMode: existing?.answerMode ?? answerMode,
+      model: status.model,
+      messages: [...baseMessages, user, answer],
+      createdAt: existing?.createdAt ?? Date.now(),
+      card: existing?.card,
+      active: true,
+      collapsed: false,
+    };
+    const initial = {
+      ...notebook,
+      passageNotes: [
+        ...(notebook.passageNotes ?? [])
+          .filter((note) => note.id !== noteId)
+          .map((note) => ({ ...note, active: false, collapsed: true })),
+        nextNote,
+      ],
+    };
+    updateNotebook(initial);
+    setMarginAnchor({
+      sourceId: selected.sourceId,
+      page: selected.page,
+      text: selected.quote,
+    });
+    if (selected.anchorY !== undefined) trackPassage(selected.anchorY);
+    setContext(undefined);
+    setDraft("");
+    setPanelOpen(true);
+    setTab("chat");
+    setBusy(true);
+    streaming.current = true;
+    setStreamingMessageId(answer.id);
+    abort.current = new AbortController();
+    const refresh = () =>
+      setPassageNote(target, noteId, (current) => ({
+        ...current,
+        messages: current.messages.map((message) =>
+          message.id === answer.id ? { ...answer } : message,
+        ),
+      }));
+    try {
+      const selectedSource = sources.find(
+        (item) => item.id === selected.sourceId,
+      );
+      await streamChat(
+        {
+          question,
+          answerMode: nextNote.answerMode,
+          selection: {
+            sourceId: selected.sourceId,
+            page: selected.page,
+            quote: selected.quote.slice(0, 16000),
+          },
+          history: baseMessages
+            .filter((message) => message.content && !message.incomplete)
+            .slice(-12)
+            .map(({ role, content }) => ({
+              role,
+              content: content.slice(0, 16000),
+            })),
+          sources: selectedSource
+            ? [
+                {
+                  id: selectedSource.id,
+                  name: selectedSource.name,
+                  pages: selectedSource.pages,
+                },
+              ]
+            : [],
+        },
+        abort.current.signal,
+        (text) => {
+          answer.content += text;
+          refresh();
+        },
+        (citations) => {
+          answer.citations = citations;
+          refresh();
+        },
+        (info) =>
+          setRetrievalInfo(info.warning || `Sources retrieved by ${info.mode}`),
+      );
+      answer.incomplete = false;
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        answer.cancelled = true;
+      } else {
+        answer.error =
+          error instanceof Error
+            ? error.message
+            : "Unable to answer this passage question.";
+        setChatError(answer.error);
+      }
+    } finally {
+      refresh();
+      setBusy(false);
+      streaming.current = false;
+      setStreamingMessageId("");
+    }
+  };
   const send = async (
     question = draft,
     onlySources?: Source[],
     selected = context,
   ) => {
     if (!notebook || !question.trim() || streaming.current) return;
+    if (selected && !onlySources) {
+      await sendPassage(question.trim(), selected);
+      return;
+    }
     if (
       !enabledSources.length &&
       !selected &&
@@ -879,6 +1315,63 @@ export default function App() {
         );
       }
       answer.incomplete = false;
+      // A source-grounded topic question becomes an independent note only
+      // after the model has actually cited a source/page that exists. Keep the
+      // same turn in the whole-notebook conversation as well.
+      if (topicNoteNext && !selected && !onlySources && !imageQuestion) {
+        const anchor = answer.citations?.find((citation) => {
+          const candidate = selectedSources.find(
+            (item) => item.id === citation.sourceId,
+          );
+          return (
+            candidate &&
+            citation.page > 0 &&
+            citation.page <= candidate.pages.length &&
+            usesCitation(answer.content, citation, answer.citations ?? [])
+          );
+        });
+        if (anchor) {
+          const noteId = crypto.randomUUID();
+          setNotebooks((list) =>
+            list.map((current) => {
+              if (current.id !== target) return current;
+              const topicNote: PassageNote = {
+                id: noteId,
+                sourceId: anchor.sourceId,
+                page: anchor.page,
+                quote: anchor.text,
+                rects: [],
+                question,
+                answerMode,
+                model: status.model,
+                messages: [{ ...user, content: question }, { ...answer }],
+                createdAt: Date.now(),
+                topic: true,
+                active: true,
+                collapsed: false,
+              };
+              return {
+                ...current,
+                passageNotes: [
+                  ...(current.passageNotes ?? []).map((note) => ({
+                    ...note,
+                    active: false,
+                    collapsed: true,
+                  })),
+                  topicNote,
+                ],
+              };
+            }),
+          );
+          openSource(anchor.sourceId, anchor.page);
+          setMarginAnchor({
+            sourceId: anchor.sourceId,
+            page: anchor.page,
+            text: anchor.text,
+          });
+          setTopicNoteNext(false);
+        }
+      }
     } catch (error) {
       if (!(error instanceof Error && error.name === "AbortError"))
         setChatError(
@@ -1306,6 +1799,8 @@ export default function App() {
                 onAnswerMode={setAnswerMode}
                 askingBusy={busy}
                 passageAnchor={marginAnchor}
+                passageNotes={notebook?.passageNotes}
+                onOpenPassageNote={openPassageNote}
                 onPassagePosition={trackPassage}
                 onSelectAnnotation={selectAnnotation}
                 onUpload={() => input.current?.click()}
@@ -1330,12 +1825,13 @@ export default function App() {
                   navigationKey={0}
                   setPage={setComparePage}
                   onAnnotate={addAnnotation}
-                  onAsk={(quote, number, question, anchorY) => {
+                  onAsk={(quote, number, question, anchorY, rects) => {
                     const selected = {
                       quote,
                       page: number,
                       sourceId: compareId,
                       anchorY,
+                      rects,
                     };
                     if (question) {
                       void send(question, undefined, selected);
@@ -1349,6 +1845,8 @@ export default function App() {
                   onAnswerMode={setAnswerMode}
                   askingBusy={busy}
                   passageAnchor={marginAnchor}
+                  passageNotes={notebook?.passageNotes}
+                  onOpenPassageNote={openPassageNote}
                   onPassagePosition={trackPassage}
                   onSelectAnnotation={selectAnnotation}
                   onUpload={() => input.current?.click()}
@@ -1370,17 +1868,76 @@ export default function App() {
               )}
             </div>
           </div>
+          {!!notebook?.passageNotes?.some(
+            (note) =>
+              !note.active &&
+              (!note.rects.length ||
+                note.sourceId !== sourceId ||
+                note.page !== page),
+          ) && (
+            <div
+              className="passage-note-previews"
+              aria-label="Collapsed passage notes"
+            >
+              {notebook.passageNotes
+                .filter(
+                  (note) =>
+                    !note.active &&
+                    (!note.rects.length ||
+                      note.sourceId !== sourceId ||
+                      note.page !== page),
+                )
+                .map((note) => (
+                  <button
+                    key={note.id}
+                    onClick={() => openPassageNote(note.id)}
+                  >
+                    <strong>{note.question}</strong>
+                    <span>
+                      {note.messages
+                        .filter((message) => message.role === "assistant")
+                        .at(-1)
+                        ?.content.slice(0, 90) || "Waiting for an answer…"}
+                    </span>
+                    <small>
+                      {source?.kind === "pptx" ? "Slide" : "Page"} {note.page}
+                    </small>
+                  </button>
+                ))}
+            </div>
+          )}
           <AssistantPanel
             key={activeId}
             id="notebook-assistant"
             data-view={tab}
             offset={tab === "chat" ? marginOffset : 46}
-            onClose={closeAssistant}
+            geometry={activePassageNote?.card}
+            geometryKey={activePassageNote?.id ?? `${activeId}:${tab}`}
+            onGeometryChange={(card) => {
+              if (activePassageNote)
+                setPassageNote(activeId, activePassageNote.id, (note) => ({
+                  ...note,
+                  card,
+                }));
+            }}
+            onClose={() => {
+              if (activePassageNote) {
+                setPassageNote(activeId, activePassageNote.id, (note) => ({
+                  ...note,
+                  active: false,
+                  collapsed: true,
+                }));
+                setMarginAnchor(undefined);
+              }
+              closeAssistant();
+            }}
             title={
               tab === "chat"
-                ? marginAnchor
-                  ? `Ask · ${notebookSources.find((s) => s.id === marginAnchor.sourceId)?.kind === "pptx" ? "Slide" : "Page"} ${marginAnchor.page}`
-                  : "Conversation"
+                ? activePassageNote
+                  ? `Ask · ${source?.kind === "pptx" ? "Slide" : "Page"} ${activePassageNote.page}`
+                  : marginAnchor
+                    ? `Ask · ${notebookSources.find((s) => s.id === marginAnchor.sourceId)?.kind === "pptx" ? "Slide" : "Page"} ${marginAnchor.page}`
+                    : "Conversation"
                 : tab === "notes"
                   ? "Notes"
                   : tab === "studio"
@@ -1395,7 +1952,121 @@ export default function App() {
               }
             }}
           >
-            {tab === "agent" ? (
+            {tab === "chat" && activePassageNote ? (
+              <PassageNoteContent
+                note={activePassageNote}
+                sources={notebookSources}
+                streamingId={streamingMessageId}
+                busy={busy}
+                model={activePassageNote.model}
+                onCitation={showCitation}
+                onCopy={(answer) => {
+                  void navigator.clipboard.writeText(answer);
+                  notify("Answer copied");
+                }}
+                onRegenerate={() => {
+                  const messages = activePassageNote.messages;
+                  const lastUser = [...messages]
+                    .reverse()
+                    .find((message) => message.role === "user");
+                  const trimmed = messages.slice(
+                    0,
+                    Math.max(0, messages.length - 2),
+                  );
+                  const reset = { ...activePassageNote, messages: trimmed };
+                  setPassageNote(activeId, activePassageNote.id, () => reset);
+                  void sendPassage(
+                    lastUser?.content ?? activePassageNote.question,
+                    {
+                      sourceId: activePassageNote.sourceId,
+                      page: activePassageNote.page,
+                      quote: activePassageNote.quote,
+                      rects: activePassageNote.rects,
+                    },
+                    reset,
+                  );
+                }}
+                onSave={(answerId) => {
+                  if (streamingMessageId === answerId || !notebook) return;
+                  const saved = saveAnswerToNotes(
+                    notebook.notes,
+                    activePassageNote.messages,
+                    answerId,
+                    notebookSources,
+                  );
+                  if (!saved) return;
+                  updateNotebook({
+                    ...notebook,
+                    notes: saved.notes,
+                    passageNotes: (notebook.passageNotes ?? []).map((note) =>
+                      note.id === activePassageNote.id
+                        ? { ...note, messages: saved.messages }
+                        : note,
+                    ),
+                  });
+                }}
+                onDelete={() => {
+                  if (!notebook) return;
+                  const removed = activePassageNote;
+                  const updated = {
+                    ...notebook,
+                    passageNotes: (notebook.passageNotes ?? []).filter(
+                      (note) => note.id !== removed.id,
+                    ),
+                  };
+                  updateNotebook(updated);
+                  setMarginAnchor(undefined);
+                  notify("Passage note deleted", () =>
+                    setNotebooks((list) =>
+                      list.map((latest) => {
+                        if (latest.id !== removed.id && latest.id !== activeId)
+                          return latest;
+                        if (
+                          (latest.passageNotes ?? []).some(
+                            (note) => note.id === removed.id,
+                          )
+                        )
+                          return latest;
+                        const restored = {
+                          ...removed,
+                          active: false,
+                          collapsed: true,
+                        };
+                        const next = {
+                          ...latest,
+                          passageNotes: [
+                            ...(latest.passageNotes ?? []),
+                            restored,
+                          ],
+                        };
+                        void storage.notebook(next).catch(reportStorageError);
+                        return next;
+                      }),
+                    ),
+                  );
+                }}
+                onFollowUp={(question) =>
+                  void sendPassage(
+                    question,
+                    {
+                      sourceId: activePassageNote.sourceId,
+                      page: activePassageNote.page,
+                      quote: activePassageNote.quote,
+                      rects: activePassageNote.rects,
+                    },
+                    activePassageNote,
+                  )
+                }
+                onConversation={() => {
+                  setPassageNote(activeId, activePassageNote.id, (note) => ({
+                    ...note,
+                    active: false,
+                    collapsed: true,
+                  }));
+                  setMarginAnchor(undefined);
+                }}
+              />
+            ) : tab === "agent" ? (
               <AgentPanel
                 key={activeId}
                 notebookId={activeId}
@@ -1834,6 +2505,17 @@ export default function App() {
               <div className="composer-tools">
                 <button
                   type="button"
+                  className={`composer-suggestions ${topicNoteNext ? "active" : ""}`}
+                  aria-label="Create a topic note from this question"
+                  aria-pressed={topicNoteNext}
+                  title="Anchor the answer beside its first validated citation"
+                  onClick={() => setTopicNoteNext((value) => !value)}
+                >
+                  <NotebookPen size={15} />
+                  <span>{topicNoteNext ? "Topic note" : "New topic note"}</span>
+                </button>
+                <button
+                  type="button"
                   className="composer-suggestions"
                   aria-label="Suggestions"
                   aria-expanded={suggestionsOpen}
@@ -1867,6 +2549,19 @@ export default function App() {
                   onClick={() => {
                     if (panelOpen && tab === "chat") closeAssistant();
                     else {
+                      // The global launcher always opens the whole-notebook
+                      // conversation. Passage markers/previews reopen notes.
+                      if (activePassageNote)
+                        setPassageNote(
+                          activeId,
+                          activePassageNote.id,
+                          (note) => ({
+                            ...note,
+                            active: false,
+                            collapsed: true,
+                          }),
+                        );
+                      setMarginAnchor(undefined);
                       setTab("chat");
                       setPanelOpen(true);
                     }

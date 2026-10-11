@@ -66,6 +66,40 @@ test("complete backup round-trip restores originals, reading preferences, annota
           },
         ],
         createdAt: 1,
+        passageNotes: [
+          {
+            id: "passage",
+            sourceId: "s",
+            page: 2,
+            quote: "A passage",
+            rects: [{ x: 0.1, y: 0.2, width: 0.4, height: 0.03 }],
+            question: "What does this mean?",
+            answerMode: "quick",
+            model: "nvidia/nemotron-3-nano-30b-a3b",
+            messages: [
+              { id: "pq", role: "user", content: "What does this mean?" },
+              {
+                id: "pa",
+                role: "assistant",
+                content: "It means this [1]",
+                citations: [
+                  {
+                    id: 1,
+                    sourceId: "s",
+                    sourceName: "Paper.pdf",
+                    page: 2,
+                    text: "A passage",
+                  },
+                ],
+                savedToNotes: true,
+              },
+            ],
+            createdAt: 2,
+            active: true,
+            topic: true,
+            card: { x: 40, y: 50, width: 420, height: 500 },
+          },
+        ],
       },
     ],
     sources: [source],
@@ -102,6 +136,16 @@ test("complete backup round-trip restores originals, reading preferences, annota
     restored.sources[0].id,
   );
   assert.equal(restored.notebooks[0].messages[0].savedToNotes, true);
+  const passage = restored.notebooks[0].passageNotes![0];
+  assert.notEqual(passage.id, "passage");
+  assert.equal(passage.sourceId, restored.sources[0].id);
+  assert.equal(
+    passage.messages[1].citations?.[0].sourceId,
+    restored.sources[0].id,
+  );
+  assert.equal(passage.messages[1].savedToNotes, true);
+  assert.equal(passage.topic, true);
+  assert.deepEqual(passage.card, { x: 40, y: 50, width: 420, height: 500 });
   assert.equal(restored.annotations[0].note, annotation.note);
   assert.deepEqual(restored.sources[0].readingState, source.readingState);
   assert.equal(restored.artifacts[0].notebookId, restored.notebooks[0].id);

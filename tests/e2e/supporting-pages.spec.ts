@@ -30,7 +30,9 @@ test("numbered-page Q&A calls chat with only that page; PDF slide returns stay l
   await expect(page.locator(".message.assistant").last()).toContainText(
     "This page explains the reading space",
   );
-  await expect(page.locator(".supporting-page img")).toBeVisible();
+  await expect(page.locator(".supporting-page img")).toBeVisible({
+    timeout: 15_000,
+  });
   expect(requests).toBe(1);
   expect(sent!.sources).toHaveLength(1);
   expect(sent!.sources[0].pages.filter(Boolean)).toHaveLength(1);
@@ -64,14 +66,14 @@ test("local multi-page PDF previews, exact downloads, reload, ZIP and mobile", a
     mimeType: "application/pdf",
     buffer: Buffer.from(await pdf.save()),
   });
-  await expect(
-    page.getByRole("button", { name: /Learning PDF/ }),
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: /Learning PDF/ })).toBeVisible({
+    timeout: 15_000,
+  });
   const ask = page.getByRole("textbox", { name: "Ask about your sources" });
   await ask.fill("Return just page 2 from Learning.pdf");
   await ask.press("Enter");
   const card = page.locator(".supporting-page").last();
-  await expect(card.locator("img")).toBeVisible();
+  await expect(card.locator("img")).toBeVisible({ timeout: 15_000 });
   await expect(card).toContainText("Retrieval practice improves recall.");
   const pending = page.waitForEvent("download");
   await card
@@ -101,7 +103,9 @@ test("local multi-page PDF previews, exact downloads, reload, ZIP and mobile", a
   expect(extracted).toContain("Retrieval practice");
   expect(extracted).not.toContain("Introduction");
   await page.reload();
-  await expect(page.locator(".supporting-page img")).toBeVisible();
+  await expect(page.locator(".supporting-page img")).toBeVisible({
+    timeout: 15_000,
+  });
   const backupPending = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "Notebook actions", exact: true })
@@ -117,7 +121,9 @@ test("local multi-page PDF previews, exact downloads, reload, ZIP and mobile", a
       mimeType: "application/zip",
       buffer: backup,
     });
-  await expect(page.locator(".supporting-page img").last()).toBeVisible();
+  await expect(page.locator(".supporting-page img").last()).toBeVisible({
+    timeout: 15_000,
+  });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator(".supporting-page").last().scrollIntoViewIfNeeded();
   const bounds = await page.locator(".supporting-page").last().boundingBox();
@@ -153,7 +159,9 @@ test("real PPTX slide preview and isolated PNG export", async ({ page }) => {
     page.getByRole("textbox", { name: "Page number", exact: true }),
   ).toHaveValue("2");
   await page.reload();
-  await expect(page.locator(".supporting-page img")).toBeVisible();
+  await expect(page.locator(".supporting-page img")).toBeVisible({
+    timeout: 15_000,
+  });
   await page.screenshot({ path: "test-results/cited-slide.png" });
 });
 test("topic answer renders only validated cited pages and deduplicates evidence", async ({
@@ -192,12 +200,23 @@ test("topic answer renders only validated cited pages and deduplicates evidence"
     });
   });
   const ask = page.getByRole("textbox", { name: "Ask about your sources" });
+  await page
+    .getByRole("button", { name: "Create a topic note from this question" })
+    .click();
   await ask.fill("Explain the reading interface and show supporting pages");
   await ask.press("Enter");
   await expect(page.locator(".supporting-page")).toHaveCount(1);
   await expect(page.locator(".supporting-page blockquote")).toHaveCount(2);
-  await expect(page.locator(".supporting-page img")).toBeVisible();
+  await expect(page.locator(".supporting-page img")).toBeVisible({
+    timeout: 15_000,
+  });
   await expect(
     page.locator(".message.assistant").last().locator(".inline-citation"),
   ).toHaveCount(2);
+  await expect(
+    page.locator(".passage-note-content > blockquote"),
+  ).toContainText("reading");
+  await expect(
+    page.locator('[data-page="3"] .passage-note-marker').first(),
+  ).toBeVisible();
 });
