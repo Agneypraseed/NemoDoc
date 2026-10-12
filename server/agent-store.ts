@@ -65,13 +65,20 @@ export class AgentStore {
           "Agent data could not be loaded. Preserve data/agent.json before repairing it.",
         );
       this.state = value;
-      for (const run of value.runs)
+      for (const run of value.runs) {
+        for (const delivery of run.deliveries || [])
+          if (delivery.status === "sending") {
+            delivery.status = "unknown";
+            delivery.error =
+              "Server stopped during delivery. Check the provider before sending again.";
+          }
         if (run.status === "running") {
           run.status = "interrupted";
           run.finishedAt = Date.now();
           run.error =
             "The server stopped during this run. Review its actions before running again.";
         }
+      }
       this.flush();
     }
   }

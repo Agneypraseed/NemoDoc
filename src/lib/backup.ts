@@ -238,7 +238,14 @@ export async function readBackup(file: Blob): Promise<LibraryBackup> {
     throw new Error("This backup contains duplicate IDs.");
   const remapCitation = (
     c: (typeof data.artifacts)[number]["citations"][number],
-  ) => ({ ...c, sourceId: sourceIds.get(c.sourceId) ?? c.sourceId });
+  ) => ({
+    ...c,
+    sourceId:
+      sourceIds.get(c.sourceId) ??
+      (c.sourceId.startsWith("notes:") && notebookIds.has(c.sourceId.slice(6))
+        ? "notes:" + notebookIds.get(c.sourceId.slice(6))
+        : c.sourceId),
+  });
   let total = 0;
   const sources: Source[] = [];
   for (const source of data.sources) {

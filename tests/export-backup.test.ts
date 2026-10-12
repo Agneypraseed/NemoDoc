@@ -171,6 +171,52 @@ test("invalid backups fail without partial restore data", async () => {
     /invalid|unsupported/,
   );
 });
+test("note-based study citations keep their snapshot and follow the restored notebook ID", async () => {
+  const backup = await createBackup({
+    notebooks: [
+      {
+        id: "notes-book",
+        title: "Study",
+        description: "",
+        notes: "Current notes",
+        messages: [],
+        createdAt: 1,
+      },
+    ],
+    sources: [],
+    annotations: [],
+    artifacts: [
+      {
+        id: "guide",
+        notebookId: "notes-book",
+        kind: "guide",
+        title: "Review",
+        content: "Use spaced practice. [1]",
+        items: [],
+        createdAt: 1,
+        citations: [
+          {
+            id: 1,
+            sourceId: "notes:notes-book",
+            sourceName: "Notebook notes",
+            page: 1,
+            text: "The earlier approved note snapshot",
+          },
+        ],
+      },
+    ],
+  });
+  const restored = await readBackup(backup);
+  assert.equal(
+    restored.artifacts[0].citations[0].sourceId,
+    "notes:" + restored.notebooks[0].id,
+  );
+  assert.equal(
+    restored.artifacts[0].citations[0].text,
+    "The earlier approved note snapshot",
+  );
+  assert.equal(restored.notebooks[0].notes, "Current notes");
+});
 test("export preserves page rotation and stores Unicode comments as PDF annotations", async () => {
   const { source, annotation } = await fixture();
   const output = await exportAnnotatedPdf(source, [

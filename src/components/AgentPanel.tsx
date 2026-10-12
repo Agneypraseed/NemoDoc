@@ -17,6 +17,12 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { apiJSON } from "../lib/api";
 import { download } from "../lib/storage";
+import { AgentConnections } from "./AgentConnections";
+import { AgentDelivery } from "./AgentDelivery";
+import type {
+  AgentChannel,
+  AgentConnections as ConnectionSummary,
+} from "../agent-types";
 import type {
   AgentState,
   AgentMemory,
@@ -40,20 +46,22 @@ const at = (n: number) =>
 export function AgentPanel({
   notebookId,
   sources,
+  notes,
   onCitation,
   onSave,
   onSettings,
 }: {
   notebookId: string;
   sources: Source[];
+  notes: string;
   onCitation: (c: Citation) => void;
   onSave: (a: StudyArtifact) => void;
   onSettings: () => void;
 }) {
   const [data, setData] = useState<Overview>();
-  const [view, setView] = useState<"tasks" | "memory" | "skills" | "access">(
-    "tasks",
-  );
+  const [view, setView] = useState<
+    "tasks" | "memory" | "skills" | "access" | "connections"
+  >("tasks");
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState("");
@@ -62,13 +70,19 @@ export function AgentPanel({
   const [prompt, setPrompt] = useState(""),
     [title, setTitle] = useState("My study session");
   const [when, setWhen] = useState(""),
-    [repeat, setRepeat] = useState(0);
+    [repeat, setRepeat] = useState<number | "weekdays">(0);
+  const [weekdayTime, setWeekdayTime] = useState("08:00"),
+    [timeZone, setTimeZone] = useState("Europe/Berlin");
   const [allowMemory, setAllowMemory] = useState(false),
     [allowSchedule, setAllowSchedule] = useState(false);
   const [selected, setSelected] = useState<string[]>([]),
     [consent, setConsent] = useState(false);
   const [memory, setMemory] = useState<Partial<AgentMemory>>();
   const [skill, setSkill] = useState<Partial<AgentSkill>>();
+  const [connectionSummary, setConnectionSummary] =
+    useState<ConnectionSummary>();
+  const [channels, setChannels] = useState<AgentChannel[]>([]);
+  const noteId = "notes:" + notebookId;
   const [runId, setRunId] = useState("");
   const refresh = async (signal?: AbortSignal) =>
     setData(await apiJSON<Overview>("/api/agent", undefined, signal));
@@ -101,6 +115,21 @@ export function AgentPanel({
       setBusy(false);
     }
   };
+  useEffect(() => {
+    if (!form) return;
+    const controller = new AbortController();
+    setConnectionSummary(undefined);
+    void apiJSON<ConnectionSummary>(
+      "/api/agent/connections",
+      undefined,
+      controller.signal,
+    )
+      .then(setConnectionSummary)
+      .catch((e) => {
+        if (e.name !== "AbortError") setError(e.message);
+      });
+    return () => controller.abort();
+  }, [form]);
   if (!data)
     return (
       <div className="agent-panel">
@@ -117,7 +146,11 @@ export function AgentPanel({
   const run = runs.find((r) => r.id === runId) || runs[0];
   const plan = data.plans.find((p) => p.notebookId === notebookId);
   const submitTask = async () => {
-    if (when && !Number.isFinite(new Date(when).getTime())) {
+    if (
+      repeat !== "weekdays" &&
+      when &&
+      !Number.isFinite(new Date(when).getTime())
+    ) {
       setError("Choose a valid time.");
       return;
     }
@@ -130,11 +163,22 @@ export function AgentPanel({
           skillId,
           sourceIds: selected,
           dueAt: when ? new Date(when).getTime() : Date.now(),
-          repeatHours: repeat,
+          repeatHours: repeat === "weekdays" ? 0 : repeat,
+          schedule:
+            repeat === "weekdays"
+              ? { kind: "weekdays", time: weekdayTime, timeZone }
+              : undefined,
           allowMemory,
           allowSchedule,
+          channels,
+          channelRevisions: Object.fromEntries(
+            channels.map((channel) => [
+              channel,
+              connectionSummary?.[channel].revision || "",
+            ]),
+          ),
         }),
-      when
+      when || repeat === "weekdays"
         ? "Task scheduled."
         : "Task queued. The local worker will begin shortly.",
     );
@@ -156,23 +200,25 @@ export function AgentPanel({
       </header>
       <p className="agent-intro">
         A study partner with memory, reusable skills and a local task worker.
-        Results arrive here, even when the browser is closed.
+        Use an open model and receive results here, by email or on WhatsApp.
       </p>
       <div className="agent-subtabs" aria-label="Agent sections">
-        {(["tasks", "memory", "skills", "access"] as const).map((v) => (
-          <button
-            key={v}
-            className={view === v ? "active" : ""}
-            onClick={() => {
-              setView(v);
-              if (v === "access") setSelected(approved.map((s) => s.id));
-              setError("");
-              setMessage("");
-            }}
-          >
-            {v === "access" ? "Sources" : v[0].toUpperCase() + v.slice(1)}
-          </button>
-        ))}
+        {(["tasks", "memory", "skills", "access", "connections"] as const).map(
+          (v) => (
+            <button
+              key={v}
+              className={view === v ? "active" : ""}
+              onClick={() => {
+                setView(v);
+                if (v === "access") setSelected(approved.map((s) => s.id));
+                setError("");
+                setMessage("");
+              }}
+            >
+              {v === "access" ? "Sources" : v[0].toUpperCase() + v.slice(1)}
+            </button>
+          ),
+        )}
       </div>
       {error && (
         <p className="form-error" role="alert">
@@ -185,6 +231,7 @@ export function AgentPanel({
           {message}
         </p>
       )}
+      {view === "connections" && <AgentConnections />}
       {view === "tasks" && (
         <>
           <div className="agent-section-title">
@@ -282,25 +329,62 @@ export function AgentPanel({
                   </label>
                 ))}
               </fieldset>
-              <label className="field-label">
-                Start time (leave blank to run now)
-                <input
-                  type="datetime-local"
-                  value={when}
-                  onChange={(e) => setWhen(e.target.value)}
-                />
-              </label>
+              {repeat !== "weekdays" && (
+                <label className="field-label">
+                  Start time (leave blank to run now)
+                  <input
+                    type="datetime-local"
+                    value={when}
+                    onChange={(e) => setWhen(e.target.value)}
+                  />
+                </label>
+              )}
               <label className="field-label">
                 Repeat
                 <select
+                  aria-label="Repeat"
                   value={repeat}
-                  onChange={(e) => setRepeat(Number(e.target.value))}
+                  onChange={(e) =>
+                    setRepeat(
+                      e.target.value === "weekdays"
+                        ? "weekdays"
+                        : Number(e.target.value),
+                    )
+                  }
                 >
                   <option value={0}>Once</option>
                   <option value={24}>Daily</option>
                   <option value={168}>Weekly</option>
+                  <option value="weekdays">Weekdays (Monday–Friday)</option>
                 </select>
               </label>
+              {repeat === "weekdays" && (
+                <>
+                  <label className="field-label">
+                    Weekday delivery time
+                    <input
+                      type="time"
+                      required
+                      value={weekdayTime}
+                      onChange={(e) => setWeekdayTime(e.target.value)}
+                    />
+                  </label>
+                  <label className="field-label">
+                    Schedule time zone
+                    <input
+                      required
+                      value={timeZone}
+                      onChange={(e) => setTimeZone(e.target.value)}
+                      placeholder="Europe/Berlin"
+                    />
+                  </label>
+                  <p className="agent-fine">
+                    Run Monday–Friday at this local time, including
+                    daylight-saving changes. Delivery follows generation; keep
+                    the server running.
+                  </p>
+                </>
+              )}
               <label className="check-field">
                 <input
                   type="checkbox"
@@ -317,6 +401,38 @@ export function AgentPanel({
                 />
                 Allow one follow-up review per run
               </label>
+              <fieldset>
+                <legend>Automatically deliver the completed answer</legend>
+                {(["email", "whatsapp"] as const).map((channel) => (
+                  <label className="check-field" key={channel}>
+                    <input
+                      type="checkbox"
+                      checked={channels.includes(channel)}
+                      disabled={
+                        !connectionSummary?.[channel].recipient ||
+                        (channel === "email"
+                          ? !connectionSummary.email.hasPassword
+                          : !connectionSummary.whatsapp.hasApiKey)
+                      }
+                      onChange={(e) =>
+                        setChannels(
+                          e.target.checked
+                            ? [...channels, channel]
+                            : channels.filter((c) => c !== channel),
+                        )
+                      }
+                    />
+                    {channel === "email" ? "Email" : "WhatsApp"} to{" "}
+                    {connectionSummary?.[channel].recipient ||
+                      "a recipient you configure in Connections"}
+                  </label>
+                ))}
+                <p className="agent-fine">
+                  Selecting a channel authorizes delivery after each successful
+                  run of this task. Follow-up reviews stay in the app. Leave
+                  unchecked to preview and send manually.
+                </p>
+              </fieldset>
               <p className="agent-fine">
                 This task sends its prompt, skill, this notebook’s memory and
                 plan, source names and retrieved passages to the saved provider.
@@ -333,7 +449,7 @@ export function AgentPanel({
                 type="submit"
               >
                 <Play size={14} />
-                {when ? "Schedule task" : "Run task"}
+                {when || repeat === "weekdays" ? "Schedule task" : "Run task"}
               </button>
             </form>
           )}
@@ -344,7 +460,11 @@ export function AgentPanel({
                 <span className={`agent-status ${t.status}`}>{t.status}</span>
               </div>
               <p>
-                {t.repeatHours ? `Every ${t.repeatHours} hours · ` : ""}
+                {t.schedule
+                  ? `Mon–Fri ${t.schedule.time} (${t.schedule.timeZone}) · `
+                  : t.repeatHours
+                    ? `Every ${t.repeatHours} hours · `
+                    : ""}
                 {t.status === "active" && t.dueAt !== Number.MAX_SAFE_INTEGER
                   ? `Due ${at(t.dueAt)}`
                   : t.status === "active"
@@ -352,6 +472,10 @@ export function AgentPanel({
                     : `Created ${at(t.createdAt)}`}
               </p>
               <small>
+                {t.deliveries
+                  ?.map((d) => `${d.channel} → ${d.recipient}`)
+                  .join(" · ")}
+                {!!t.deliveries?.length && <br />}
                 {t.connection.model} · {t.sourceIds.length} approved source
                 {t.sourceIds.length === 1 ? "" : "s"}
               </small>
@@ -679,8 +803,25 @@ export function AgentPanel({
           <p className="agent-intro">
             Approve extracted text for this notebook. A local snapshot lets the
             worker search while the browser is closed. Original PDFs and slides
-            stay in browser storage.
+            stay in browser storage. Notes are a snapshot; save these
+            permissions again after editing notes.
           </p>
+          {!!notes.trim() && (
+            <label className="check-field">
+              <input
+                type="checkbox"
+                checked={selected.includes(noteId)}
+                onChange={(e) =>
+                  setSelected(
+                    e.target.checked
+                      ? [...selected, noteId]
+                      : selected.filter((id) => id !== noteId),
+                  )
+                }
+              />
+              Notebook notes, saved answers and annotations
+            </label>
+          )}
           {sources.map((s) => (
             <label className="check-field" key={s.id}>
               <input
@@ -715,14 +856,27 @@ export function AgentPanel({
                   apiJSON("/api/agent/sources", {
                     notebookId,
                     consent: true,
-                    sources: sources
-                      .filter((s) => selected.includes(s.id))
-                      .map(({ id, name, pages }) => ({
-                        id,
-                        notebookId,
-                        name,
-                        pages,
-                      })),
+                    sources: [
+                      ...sources
+                        .filter((s) => selected.includes(s.id))
+                        .map(({ id, name, pages }) => ({
+                          id,
+                          notebookId,
+                          name,
+                          pages,
+                        })),
+                      ...(selected.includes(noteId) && notes.trim()
+                        ? [
+                            {
+                              id: noteId,
+                              notebookId,
+                              name: "Notebook notes",
+                              kind: "notes",
+                              pages: notes.match(/[\s\S]{1,6000}/g) || [],
+                            },
+                          ]
+                        : []),
+                    ],
                   }),
                 "Source permissions updated.",
               )
@@ -808,7 +962,8 @@ export function AgentPanel({
             <summary>Erase all agent data</summary>
             <p>
               Deletes all notebooks’ agent memories, cached text, tasks, plans,
-              run history and receipts. Browser notebooks remain available.
+              run history and receipts. Browser notebooks and connection
+              settings remain available.
             </p>
             <button
               className="secondary-button"
@@ -819,7 +974,7 @@ export function AgentPanel({
                     apiJSON("/api/agent/clear", {
                       confirm: "forget agent data",
                     }),
-                  "All agent data erased.",
+                  "Agent history and cached context erased. Connection settings remain.",
                 )
               }
             >
@@ -864,15 +1019,25 @@ function RunResult({
           </ReactMarkdown>
         </div>
       )}
-      {run.citations.map((c) => (
-        <button
-          className="agent-citation"
-          key={c.id}
-          onClick={() => onCitation(c)}
-        >
-          [{c.id}] {c.sourceName} · p. {c.page}
-        </button>
-      ))}
+      {run.status === "completed" && <AgentDelivery key={run.id} run={run} />}
+      {run.citations.map((c) =>
+        c.sourceId.startsWith("notes:") ? (
+          <details key={c.id}>
+            <summary>
+              [{c.id}] {c.sourceName} · section {c.page}
+            </summary>
+            <pre>{c.text}</pre>
+          </details>
+        ) : (
+          <button
+            className="agent-citation"
+            key={c.id}
+            onClick={() => onCitation(c)}
+          >
+            [{c.id}] {c.sourceName} · p. {c.page}
+          </button>
+        ),
+      )}
       {run.materials.map((a) => (
         <details key={a.id}>
           <summary>

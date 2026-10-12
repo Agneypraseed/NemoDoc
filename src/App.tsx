@@ -245,6 +245,7 @@ export default function App() {
     model: "nvidia/nemotron-3-nano-30b-a3b",
     local: false,
   });
+  const [noteCitation, setNoteCitation] = useState<Citation>();
   const [modal, setModal] = useState<
       "settings" | "new" | "library" | "help" | null
     >(null),
@@ -566,6 +567,10 @@ export default function App() {
     setEvidence(undefined);
   };
   const showCitation = (c: Citation) => {
+    if (c.sourceId === "notes:" + activeId) {
+      setNoteCitation(c);
+      return;
+    }
     if (!sources.some((s) => s.id === c.sourceId)) {
       notify("This source has been removed from the notebook.");
       return;
@@ -2031,6 +2036,19 @@ export default function App() {
                 key={activeId}
                 notebookId={activeId}
                 sources={notebookSources}
+                notes={
+                  notebook &&
+                  (notebook.notes.trim() ||
+                    notebook.passageNotes?.length ||
+                    notebook.messages.some((m) => m.savedToNotes) ||
+                    notebookAnnotations.length)
+                    ? exportNotebookNotes(
+                        notebook,
+                        notebookAnnotations,
+                        notebookSources,
+                      )
+                    : ""
+                }
                 onCitation={showCitation}
                 onSave={saveArtifact}
                 onSettings={() => setModal("settings")}
@@ -2837,6 +2855,19 @@ export default function App() {
           <LoaderCircle className="spin" size={17} />
           <span>{importing}</span>
         </div>
+      )}
+      {noteCitation && (
+        <Modal
+          title={`Notebook notes · section ${noteCitation.page}`}
+          onClose={() => setNoteCitation(undefined)}
+        >
+          <p className="modal-description">
+            Approved note snapshot used when this material was created.
+          </p>
+          <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+            {noteCitation.text}
+          </p>
+        </Modal>
       )}
       {modal === "new" && (
         <Modal title="A new place to think" onClose={() => setModal(null)}>

@@ -13,6 +13,7 @@ import { chatOptions, providerKind } from "./providers.ts";
 import { SemanticRetriever } from "./semantic.ts";
 import { registerFeatures } from "./features.ts";
 import { registerAgent } from "./agent.ts";
+import type { SmtpTransportFactory } from "./smtp.ts";
 import { isNemotron, requireNemotron } from "../src/lib/model-policy.ts";
 
 export interface Config {
@@ -53,10 +54,15 @@ const schema = z.object({
 export function createApp(
   initialConfig: Config,
   fetcher: typeof fetch = fetch,
-  options: { settingsFile?: string; agentFile?: string } = {},
+  options: {
+    settingsFile?: string;
+    agentFile?: string;
+    smtpTransportFactory?: SmtpTransportFactory;
+  } = {},
 ) {
   const providerFetch = fetcher;
-  // Covers streaming chat, agent calls, and all optional inference routes.
+  // Covers notebook chat and optional notebook inference routes.
+  // Separate agent connections use the original fetcher and their own model policy.
   fetcher = (async (url, init) => {
     if (init?.body) requireNemotron(JSON.parse(String(init.body)).model);
     return providerFetch(url, init);
@@ -80,7 +86,13 @@ export function createApp(
     next();
   });
   app.use(express.json({ limit: "12mb" }));
-  const agent = registerAgent(app, store, fetcher, options.agentFile);
+  const agent = registerAgent(
+    app,
+    store,
+    providerFetch,
+    options.agentFile,
+    options.smtpTransportFactory,
+  );
   app.get("/api/settings", (_req, res) => res.json(store.public()));
   app.get("/api/models", async (_req, res) => {
     try {
@@ -127,6 +139,7 @@ export function createApp(
       for (const task of agent.data.state.tasks)
         if (
           task.status === "active" &&
+          (task.connectionMode || "notebook") === "notebook" &&
           (task.connection.baseUrl !== store.value.baseUrl ||
             task.connection.model !== store.value.model)
         )

@@ -69,7 +69,7 @@ Open [localhost:5173](http://127.0.0.1:5173). To enable AI, open **Settings → 
 
 ### Open models, your choice of runtime
 
-NemoDoc runs Nemotron through **Nebius Token Factory**, **NVIDIA-hosted endpoints**, or **local compatible inference**. This MVP currently enables Nemotron models only; support for other open-weight model families is planned.
+NemoDoc agents use your current **NVIDIA Nemotron** connection by default, or a separate tool-capable open model such as local **Gemma 4 through Ollama**. Approve notebook notes as agent sources, then preview or schedule completed summaries for **standard SMTP email** through an existing mailbox or **WhatsApp Business** delivery. Weekday schedules follow a chosen local time and time zone. See the [agent connections setup guide](docs/AGENT_CONNECTIONS.md).
 
 Notebooks stay on your device; hosted AI receives relevant text or selected page images. Export notes or back up notebooks as ZIP files.
 

@@ -38,6 +38,7 @@
   background: var(--surface-muted);
   margin: 18px 0;
   gap: 3px;
+  flex-wrap: wrap;
 }
 .agent-subtabs button {
   flex: 1;
@@ -341,4 +342,11 @@
     padding-left: 8px;
     padding-right: 8px;
   }
+}
+
+.agent-delivery {
+  margin: 16px 0;
+}
+.agent-delivery > button {
+  margin: 8px 5px 0 0;
 }
