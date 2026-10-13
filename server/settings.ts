@@ -165,12 +165,21 @@ export async function providerJSON(
         ? "Set an image-capable vision model in Settings → OCR & images. The chat model is text-only."
         : "Set an embedding or reranking model in Settings before using semantic search.",
     );
-  const response = await fetcher(url, {
-    method: "POST",
-    headers: headers(settings, url),
-    body: JSON.stringify(body),
-    signal,
-  });
+  let response: Response;
+  try {
+    response = await fetcher(url, {
+      method: "POST",
+      headers: headers(settings, url),
+      body: JSON.stringify(body),
+      signal,
+    });
+  } catch (error) {
+    if (capability === "embedding" && isLocal(url))
+      throw new Error(
+        `Could not reach the local embedding service at ${new URL(url).origin}. Start Ollama and pull ${settings.embeddingModel}, then test again.`,
+      );
+    throw error;
+  }
   if (!response.ok)
     throw new Error(
       response.status === 401 || response.status === 403

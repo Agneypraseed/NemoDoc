@@ -22,6 +22,26 @@ test("settings label provider text and vision Nemotron models by input modality"
   assert.equal(modelModality("nvidia/nemotron-nano-12b-v2-vl"), "Vision");
   assert.equal(modelModality("openbmb/MiniCPM-V-4_5"), "Vision");
 });
+test("missing local embedding runtime explains how to start it", async () => {
+  const s = {
+    ...new SettingsStore(config).value,
+    embeddingBaseUrl: "http://127.0.0.1:11434/v1",
+    embeddingModel: "embeddinggemma-2:270m",
+  };
+  await assert.rejects(
+    providerJSON(
+      (async () => {
+        throw new TypeError("fetch failed");
+      }) as typeof fetch,
+      s.embeddingBaseUrl + "/embeddings",
+      { model: s.embeddingModel },
+      s,
+      undefined,
+      "embedding",
+    ),
+    /Start Ollama and pull embeddinggemma-2:270m/,
+  );
+});
 test("chat stays Nemotron-only while capability models can be configured independently", async () => {
   const s = new SettingsStore(config).value;
   assert.equal(settingsSchema.safeParse(s).success, true);
