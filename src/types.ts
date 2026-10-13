@@ -73,6 +73,8 @@ export interface Message {
   incomplete?: boolean;
   error?: string;
   cancelled?: boolean;
+  /** Original wording when the user prompt was rewritten before sending. */
+  originalPrompt?: string;
 }
 export interface PassageNote {
   id: string;

@@ -108,14 +108,26 @@ test("rejects empty answers and answers without an associated question", () => {
 test("stream updates preserve the saved state of an earlier answer", () => {
   const current: Message[] = [
     { id: "old", role: "assistant", content: "Old", savedToNotes: true },
+    {
+      id: "question",
+      role: "user",
+      content: "Explain the basis definition concisely.",
+      originalPrompt: "Could you explain what a basis is?",
+    },
     { id: "new", role: "assistant", content: "Part" },
   ];
   const merged = mergeStreamMessages(current, [
     { id: "old", role: "assistant", content: "Old" },
+    {
+      id: "question",
+      role: "user",
+      content: "Explain the basis definition concisely.",
+    },
     { id: "new", role: "assistant", content: "Partial answer" },
   ]);
   assert.equal(merged[0].savedToNotes, true);
-  assert.equal(merged[1].content, "Partial answer");
+  assert.equal(merged[1].originalPrompt, "Could you explain what a basis is?");
+  assert.equal(merged[2].content, "Partial answer");
 });
 
 test("unfinished answers and invalid source pages cannot become saved evidence", () => {

@@ -161,6 +161,95 @@ test("answer detail changes response budget without changing the chosen model or
     fetcher,
   );
 });
+test("Quick and Deep rewrite requests with Nemotron and the rewritten wording is used for chat", async () => {
+  const rewriteRequests: any[] = [];
+  const chatRequests: any[] = [];
+  const rewrittenPrompts = {
+    quick: "Explain attention concisely.",
+    deep: "Explain attention in depth, with a clear structure and relevant steps.",
+  };
+  const fetcher = (async (_url, init) => {
+    const request = JSON.parse(String(init?.body));
+    if (request.stream === false) {
+      rewriteRequests.push(request);
+      const mode = request.messages[0].content.includes("Quick mode")
+        ? "quick"
+        : "deep";
+      return Response.json({
+        choices: [{ message: { content: rewrittenPrompts[mode] } }],
+      });
+    }
+    chatRequests.push(request);
+    return new Response(
+      'data: {"choices":[{"delta":{"content":"Attention is finite. [1]"}}]}\n\ndata: [DONE]\n\n',
+      { headers: { "Content-Type": "text/event-stream" } },
+    );
+  }) as typeof fetch;
+  await withApp(
+    { ...config, apiKey: "prompt-test-key" },
+    async (url) => {
+      for (const answerMode of ["quick", "deep"] as const) {
+        const rewriteResponse = await fetch(url + "/api/prompt/rewrite", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            question: "Could you please explain attention for me?",
+            answerMode,
+          }),
+        });
+        assert.equal(rewriteResponse.status, 200);
+        const rewrite = await rewriteResponse.json();
+        assert.equal(rewrite.prompt, rewrittenPrompts[answerMode]);
+        const chatResponse = await fetch(url + "/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...body,
+            answerMode,
+            question: rewrite.prompt,
+          }),
+        });
+        assert.equal(chatResponse.status, 200);
+        assert.match(await chatResponse.text(), /Attention is finite/);
+      }
+      assert.equal(rewriteRequests.length, 2);
+      assert.equal(chatRequests.length, 2);
+      for (const request of rewriteRequests) {
+        assert.equal(request.model, config.model);
+        assert.equal(request.max_tokens, 700);
+        assert.equal(request.chat_template_kwargs.enable_thinking, false);
+        assert.equal(request.messages.length, 2);
+        assert.match(request.messages[1].content, /Could you please explain/);
+        assert.doesNotMatch(
+          JSON.stringify(request.messages),
+          /Paper\.pdf|Attention is finite/,
+        );
+      }
+      assert.match(rewriteRequests[0].messages[0].content, /Quick mode/);
+      assert.match(rewriteRequests[1].messages[0].content, /Deep mode/);
+      assert.match(
+        rewriteRequests[0].messages[0].content,
+        /Preserve its requested action and target/,
+      );
+      assert.match(
+        rewriteRequests[0].messages[0].content,
+        /Never turn a request to explain source material in your own words into a request to rewrite the source/,
+      );
+      assert.match(
+        rewriteRequests[0].messages[0].content,
+        /Phrase the result directly as a request to the assistant/,
+      );
+      for (const [index, request] of chatRequests.entries()) {
+        assert.equal(request.model, config.model);
+        assert.equal(
+          request.messages.at(-1).content,
+          rewrittenPrompts[index ? "deep" : "quick"],
+        );
+      }
+    },
+    fetcher,
+  );
+});
 test("requests for supporting pages require citation IDs instead of bare page numbers", async () => {
   let requested: any;
   const fetcher = (async (_url, init) => {

@@ -8,12 +8,14 @@ export interface SavedAnswer {
 
 /** Keep locally persisted message metadata when a streaming snapshot arrives. */
 export function mergeStreamMessages(current: Message[], streamed: Message[]) {
-  return streamed.map((message) => ({
-    ...message,
-    savedToNotes:
-      current.find((candidate) => candidate.id === message.id)?.savedToNotes ??
-      message.savedToNotes,
-  }));
+  return streamed.map((message) => {
+    const existing = current.find((candidate) => candidate.id === message.id);
+    return {
+      ...message,
+      savedToNotes: existing?.savedToNotes ?? message.savedToNotes,
+      originalPrompt: existing?.originalPrompt ?? message.originalPrompt,
+    };
+  });
 }
 
 /** Build and append a note from a completed answer, without trusting retrieval

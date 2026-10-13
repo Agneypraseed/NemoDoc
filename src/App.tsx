@@ -275,7 +275,8 @@ export default function App() {
     [saveError, setSaveError] = useState("");
   const [draft, setDraft] = useState(""),
     [chatError, setChatError] = useState(""),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [preparingPrompt, setPreparingPrompt] = useState(false);
   const [streamingMessageId, setStreamingMessageId] = useState("");
   const [context, setContext] = useState<{
       quote: string;
@@ -316,6 +317,7 @@ export default function App() {
     chatBottom = useRef<HTMLDivElement>(null);
   const abort = useRef<AbortController>(null),
     streaming = useRef(false);
+  const rewritingPrompt = useRef(false);
   const activeNotebookRef = useRef(activeId);
   activeNotebookRef.current = activeId;
   const importingRef = useRef(false);
@@ -1023,6 +1025,7 @@ export default function App() {
     selected: NonNullable<typeof context>,
     existing?: PassageNote,
     replaceMessageIds: string[] = [],
+    promptMetadata?: Pick<Message, "originalPrompt">,
   ) => {
     if (!notebook || streaming.current) return;
     setChatError("");
@@ -1034,6 +1037,7 @@ export default function App() {
       id: crypto.randomUUID(),
       role: "user",
       content: question,
+      ...promptMetadata,
     };
     const answer: Message = {
       id: crypto.randomUUID(),
@@ -1268,6 +1272,9 @@ export default function App() {
       },
       reset,
       replaceMessageIds,
+      {
+        originalPrompt: question.originalPrompt,
+      },
     );
   };
   const send = async (
@@ -1275,11 +1282,14 @@ export default function App() {
     onlySources?: Source[],
     selected = context,
   ) => {
-    if (!notebook || !question.trim() || streaming.current) return;
-    if (selected && !onlySources) {
-      await sendPassage(question.trim(), selected);
+    if (
+      !notebook ||
+      !question.trim() ||
+      streaming.current ||
+      rewritingPrompt.current
+    )
       return;
-    }
+    const originalQuestion = question.trim();
     if (
       !enabledSources.length &&
       !selected &&
@@ -1287,6 +1297,38 @@ export default function App() {
       !onlySources?.length
     ) {
       setChatError("Select at least one source in the sidebar first.");
+      return;
+    }
+    setChatError("");
+    setPreparingPrompt(true);
+    rewritingPrompt.current = true;
+    openConversation();
+    try {
+      const rewritten = await apiJSON<{ prompt: string }>(
+        "/api/prompt/rewrite",
+        { question: originalQuestion, answerMode },
+        AbortSignal.timeout(50000),
+      );
+      question = rewritten.prompt.trim();
+      if (!question || question.length > 8000)
+        throw new Error("The model returned an invalid rewritten request.");
+    } catch (error) {
+      setChatError(
+        `Could not refine your ${answerMode === "quick" ? "Quick" : "Deep"} prompt: ${error instanceof Error ? error.message : "Try again."}`,
+      );
+      setPreparingPrompt(false);
+      rewritingPrompt.current = false;
+      return;
+    }
+    setPreparingPrompt(false);
+    rewritingPrompt.current = false;
+    const promptMetadata = {
+      ...(question !== originalQuestion
+        ? { originalPrompt: originalQuestion }
+        : {}),
+    } satisfies Pick<Message, "originalPrompt">;
+    if (selected && !onlySources) {
+      await sendPassage(question, selected, undefined, [], promptMetadata);
       return;
     }
     openConversation();
@@ -1316,6 +1358,7 @@ export default function App() {
       id: crypto.randomUUID(),
       role: "user",
       content: fullQuestion,
+      ...promptMetadata,
     };
     const answer: Message = {
       id: crypto.randomUUID(),
@@ -2205,6 +2248,15 @@ export default function App() {
                                 <strong>NemoDoc</strong>
                               </div>
                             )}
+                            {m.role === "user" && m.originalPrompt && (
+                              <details
+                                className="message-original-prompt"
+                                title="NemoDoc rewrote this request before sending it."
+                              >
+                                <summary>Original prompt</summary>
+                                <p>{m.originalPrompt}</p>
+                              </details>
+                            )}
                             {m.content ? (
                               <ReactMarkdown
                                 remarkPlugins={[remarkGfm, remarkMath]}
@@ -2738,12 +2790,20 @@ export default function App() {
               void send();
             }}
           >
+            {preparingPrompt && (
+              <div className="prompt-rewrite-status" role="status">
+                <Sparkles size={13} aria-hidden="true" />
+                Refining your {answerMode === "quick" ? "Quick" : "Deep"}{" "}
+                request with {modelName(status.model)}…
+              </div>
+            )}
             <textarea
               ref={composer}
               aria-label="Ask about your sources"
               placeholder="Ask about your sources…"
               value={draft}
               maxLength={8000}
+              disabled={preparingPrompt}
               onFocus={() => {
                 if (activePassageNote) openConversation();
               }}
@@ -2827,6 +2887,7 @@ export default function App() {
                 <AnswerModeControl
                   value={answerMode}
                   onChange={setAnswerMode}
+                  disabled={preparingPrompt}
                 />
                 {busy ? (
                   <button
@@ -2836,6 +2897,16 @@ export default function App() {
                     onClick={() => abort.current?.abort()}
                   >
                     <Square size={13} fill="currentColor" />
+                  </button>
+                ) : preparingPrompt ? (
+                  <button
+                    type="button"
+                    className="send-button prompt-preparing"
+                    aria-label="Refining prompt"
+                    title="Refining your prompt with Nemotron"
+                    disabled
+                  >
+                    <Sparkles size={15} />
                   </button>
                 ) : (
                   <button

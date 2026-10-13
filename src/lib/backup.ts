@@ -32,6 +32,7 @@ const message = z.object({
   incomplete: z.boolean().optional(),
   error: z.string().optional(),
   cancelled: z.boolean().optional(),
+  originalPrompt: z.string().max(8000).optional(),
 });
 const manifest = z.object({
   version: z.literal(1),

@@ -49,7 +49,12 @@ test("complete backup round-trip restores originals, reading preferences, annota
         description: "",
         notes: "Keep this.",
         messages: [
-          { id: "pq", role: "user", content: "What does this mean?" },
+          {
+            id: "pq",
+            role: "user",
+            content: "Explain the basis definition concisely.",
+            originalPrompt: "Could you explain what a basis is?",
+          },
           {
             id: "pa",
             role: "assistant",
@@ -78,7 +83,12 @@ test("complete backup round-trip restores originals, reading preferences, annota
             answerMode: "quick",
             model: "nvidia/nemotron-3-nano-30b-a3b",
             messages: [
-              { id: "pq", role: "user", content: "What does this mean?" },
+              {
+                id: "pq",
+                role: "user",
+                content: "Explain the basis definition concisely.",
+                originalPrompt: "Could you explain what a basis is?",
+              },
               {
                 id: "pa",
                 role: "assistant",
@@ -137,6 +147,10 @@ test("complete backup round-trip restores originals, reading preferences, annota
     restored.sources[0].id,
   );
   assert.equal(restored.notebooks[0].messages[1].savedToNotes, true);
+  assert.equal(
+    restored.notebooks[0].messages[0].originalPrompt,
+    "Could you explain what a basis is?",
+  );
   const passage = restored.notebooks[0].passageNotes![0];
   assert.equal(passage.messages[0].id, restored.notebooks[0].messages[0].id);
   assert.equal(passage.messages[1].id, restored.notebooks[0].messages[1].id);
@@ -147,6 +161,10 @@ test("complete backup round-trip restores originals, reading preferences, annota
     restored.sources[0].id,
   );
   assert.equal(passage.messages[1].savedToNotes, true);
+  assert.equal(
+    passage.messages[0].originalPrompt,
+    "Could you explain what a basis is?",
+  );
   assert.equal(passage.topic, true);
   assert.deepEqual(passage.card, { x: 40, y: 50, width: 420, height: 500 });
   assert.equal(restored.annotations[0].note, annotation.note);
