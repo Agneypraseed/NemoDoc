@@ -66,12 +66,23 @@ export function AgentConnections() {
         type={options.type || "text"}
         value={value}
         placeholder={options.placeholder}
-        onChange={(e) =>
+        onChange={(e) => {
+          const value = e.target.value;
+          if (section === "email" && name === "from") {
+            const email = { ...data.email, from: value };
+            if (
+              email.smtpHost === "smtp.gmail.com" &&
+              (!data.email.smtpUser || data.email.smtpUser === data.email.from)
+            )
+              email.smtpUser = value;
+            setData({ ...data, email });
+            return;
+          }
           setData({
             ...data,
-            [section]: { ...data[section], [name]: e.target.value },
-          })
-        }
+            [section]: { ...data[section], [name]: value },
+          });
+        }}
       />
     </label>
   );
@@ -262,6 +273,7 @@ export function AgentConnections() {
                 smtpHost: "smtp.gmail.com",
                 smtpPort: 587,
                 smtpSecurity: "starttls",
+                smtpUser: data.email.smtpUser || data.email.from,
               },
             })
           }
