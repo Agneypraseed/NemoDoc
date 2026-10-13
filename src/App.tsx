@@ -1026,17 +1026,9 @@ export default function App() {
       model: status.model,
       messages: [...baseMessages, user, answer],
       createdAt: existing?.createdAt ?? Date.now(),
-      // Keep the user's chosen size, but let each new passage return to the
-      // reader margin. A prior screen position may cover a Book spread or be
-      // outside the current viewport after a resize.
-      card:
-        existing?.card ??
-        (activePassageNote?.card
-          ? {
-              width: activePassageNote.card.width,
-              height: activePassageNote.card.height,
-            }
-          : undefined),
+      // A new passage starts at the standard reader/chat split. Only a
+      // reopened note keeps a size or position the user chose for that note.
+      card: existing?.card,
       active: true,
       collapsed: true,
     };
@@ -1807,13 +1799,7 @@ export default function App() {
         )}
         <div
           ref={readingArea}
-          className={[
-            "work-area",
-            compareId && "comparing",
-            tab === "chat" &&
-              (activePassageNote || marginAnchor) &&
-              "has-passage-context",
-          ]
+          className={["work-area", compareId && "comparing"]
             .filter(Boolean)
             .join(" ")}
         >
@@ -1988,10 +1974,10 @@ export default function App() {
                 : undefined
             }
             offset={tab === "chat" ? marginOffset : 46}
-            geometry={activePassageNote?.card}
+            geometry={tab === "chat" ? activePassageNote?.card : undefined}
             geometryKey={activePassageNote?.id ?? `${activeId}:${tab}`}
-            movable={Boolean(activePassageNote)}
-            resizable={Boolean(activePassageNote)}
+            movable={tab === "chat" && Boolean(activePassageNote)}
+            resizable={tab === "chat" && Boolean(activePassageNote)}
             onGeometryChange={(card) => {
               if (activePassageNote)
                 setPassageNote(activeId, activePassageNote.id, (note) => ({
@@ -2719,6 +2705,9 @@ export default function App() {
               placeholder="Ask about your sources…"
               value={draft}
               maxLength={8000}
+              onFocus={() => {
+                if (activePassageNote) openConversation();
+              }}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
                 if (

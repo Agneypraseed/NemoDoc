@@ -1,15 +1,27 @@
 import { useEffect, useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import type { AgentConnections as Connections } from "../agent-types";
 import { apiJSON } from "../lib/api";
 
 export function AgentConnections() {
   const [data, setData] = useState<Connections>();
   const [keys, setKeys] = useState({ model: "", email: "", whatsapp: "" });
+  const [showEmailPassword, setShowEmailPassword] = useState(false);
+  const [revealingEmailPassword, setRevealingEmailPassword] = useState(false);
+  const [passwordNotice, setPasswordNotice] = useState<
+    { state: "success" | "error"; message: string } | undefined
+  >();
+  const [emailTestResult, setEmailTestResult] = useState<
+    { state: "checking" | "success" | "error"; message: string } | undefined
+  >();
   const [clear, setClear] = useState({
     model: false,
-    email: false,
     whatsapp: false,
   });
+  const [gmailPresetBackup, setGmailPresetBackup] = useState<Pick<
+    Connections["email"],
+    "smtpHost" | "smtpPort" | "smtpSecurity" | "smtpUser"
+  > | null>(null);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [message, setMessage] = useState("");
@@ -36,17 +48,87 @@ export function AgentConnections() {
         section,
         ...data[section],
         ...(section === "email"
-          ? { password: keys.email, clearPassword: clear.email }
+          ? { password: keys.email }
           : { apiKey: keys[section], clearApiKey: clear[section] }),
       });
       setData((old) => (old ? { ...old, [section]: value[section] } : value));
       setKeys((old) => ({ ...old, [section]: "" }));
-      setClear((old) => ({ ...old, [section]: false }));
+      if (section === "email") {
+        setShowEmailPassword(false);
+        setPasswordNotice(undefined);
+        setEmailTestResult(undefined);
+      }
+      if (section !== "email")
+        setClear((old) => ({ ...old, [section]: false }));
       setMessage(
         "Connection saved. Existing active tasks are paused; create a new task to approve changed settings.",
       );
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const toggleEmailPassword = async () => {
+    if (showEmailPassword) {
+      setShowEmailPassword(false);
+      return;
+    }
+    if (keys.email) {
+      setShowEmailPassword(true);
+      return;
+    }
+    setRevealingEmailPassword(true);
+    setPasswordNotice(undefined);
+    setEmailTestResult(undefined);
+    try {
+      const { password } = await apiJSON<{ password: string }>(
+        "/api/agent/connections/email/password",
+        {},
+      );
+      setKeys((old) => ({ ...old, email: password }));
+      setShowEmailPassword(true);
+    } catch {
+      setPasswordNotice({
+        state: "error",
+        message: "Could not reveal the saved password.",
+      });
+    } finally {
+      setRevealingEmailPassword(false);
+    }
+  };
+  const clearEmailPassword = async () => {
+    if (!data) return;
+    setPasswordNotice(undefined);
+    setEmailTestResult(undefined);
+    if (!data.email.hasPassword) {
+      setKeys((old) => ({ ...old, email: "" }));
+      setShowEmailPassword(false);
+      setPasswordNotice({ state: "success", message: "Password cleared." });
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const updated = await apiJSON<Connections>("/api/agent/connections", {
+        section: "email",
+        ...data.email,
+        password: "",
+        clearPassword: true,
+      });
+      setData((old) => (old ? { ...old, email: updated.email } : updated));
+      setKeys((old) => ({ ...old, email: "" }));
+      setShowEmailPassword(false);
+      setMessage("");
+      setPasswordNotice({
+        state: "success",
+        message: "Saved SMTP password cleared.",
+      });
+    } catch (e) {
+      setPasswordNotice({
+        state: "error",
+        message: `Could not clear password: ${(e as Error).message}`,
+      });
     } finally {
       setBusy(false);
     }
@@ -86,45 +168,165 @@ export function AgentConnections() {
       />
     </label>
   );
-  const credential = (section: keyof Connections) => (
-    <>
-      <label className="field-label">
-        {section === "whatsapp"
+  const credential = (section: keyof Connections) => {
+    const label =
+      section === "email"
+        ? "SMTP password / app password"
+        : section === "whatsapp"
           ? "WhatsApp access token"
-          : section === "email"
-            ? "SMTP password / app password"
-            : "Agent model API key"}
-        <input
-          disabled={busy}
-          type="password"
-          autoComplete="new-password"
-          value={keys[section]}
-          placeholder={
-            (
-              section === "email"
-                ? data.email.hasPassword
-                : data[section].hasApiKey
-            )
-              ? "Saved on this server"
-              : section === "model"
-                ? "Optional for local models"
-                : section === "email"
-                  ? "Enter your mailbox app password"
-                  : "Paste your Meta access token"
-          }
-          onChange={(e) => setKeys({ ...keys, [section]: e.target.value })}
-        />
-      </label>
-      <label className="check-field">
-        <input
-          type="checkbox"
-          checked={clear[section]}
-          onChange={(e) => setClear({ ...clear, [section]: e.target.checked })}
-        />
-        Remove saved {section === "email" ? "SMTP password" : section + " key"}
-      </label>
-    </>
-  );
+          : "Agent model API key";
+    const hasSecret =
+      section === "email" ? data.email.hasPassword : data[section].hasApiKey;
+    const placeholder = hasSecret
+      ? "••••••••••••"
+      : section === "model"
+        ? "Optional for local models"
+        : section === "email"
+          ? "Enter your mailbox app password"
+          : "Paste your Meta access token";
+    if (section === "email")
+      return (
+        <>
+          <label className="field-label">
+            {label}
+            <span className="agent-password-field">
+              <input
+                disabled={busy}
+                type={showEmailPassword ? "text" : "password"}
+                autoComplete="new-password"
+                value={keys.email}
+                placeholder={placeholder}
+                onChange={(e) => {
+                  setPasswordNotice(undefined);
+                  setKeys({ ...keys, email: e.target.value });
+                }}
+              />
+              <button
+                className="agent-password-toggle"
+                type="button"
+                aria-label={
+                  showEmailPassword
+                    ? "Hide password"
+                    : data.email.hasPassword && !keys.email
+                      ? "Reveal saved password"
+                      : "Show password"
+                }
+                aria-pressed={showEmailPassword}
+                title={
+                  showEmailPassword
+                    ? "Hide password"
+                    : data.email.hasPassword && !keys.email
+                      ? "Reveal saved password"
+                      : "Show password"
+                }
+                disabled={
+                  busy ||
+                  revealingEmailPassword ||
+                  (!keys.email && !data.email.hasPassword)
+                }
+                onClick={() => void toggleEmailPassword()}
+              >
+                {showEmailPassword ? (
+                  <EyeOff size={16} />
+                ) : revealingEmailPassword ? (
+                  "…"
+                ) : (
+                  <Eye size={16} />
+                )}
+              </button>
+            </span>
+          </label>
+          {(data.email.hasPassword || keys.email) && (
+            <div className="agent-password-actions">
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={busy || revealingEmailPassword}
+                onClick={() => void clearEmailPassword()}
+              >
+                Clear password
+              </button>
+            </div>
+          )}
+          {passwordNotice && (
+            <p
+              className={
+                passwordNotice.state === "error" ? "form-error" : "form-success"
+              }
+              role={passwordNotice.state === "error" ? "alert" : "status"}
+            >
+              {passwordNotice.message}
+            </p>
+          )}
+        </>
+      );
+    return (
+      <>
+        <label className="field-label">
+          {label}
+          <input
+            disabled={busy}
+            type="password"
+            autoComplete="new-password"
+            value={keys[section]}
+            placeholder={placeholder}
+            onChange={(e) => setKeys({ ...keys, [section]: e.target.value })}
+          />
+        </label>
+        <label className="check-field">
+          <input
+            type="checkbox"
+            checked={clear[section]}
+            onChange={(e) =>
+              setClear({ ...clear, [section]: e.target.checked })
+            }
+          />
+          Remove saved {section} key
+        </label>
+      </>
+    );
+  };
+  const gmailSettingsSelected =
+    data.email.smtpHost.trim().toLowerCase() === "smtp.gmail.com";
+  const toggleGmailSettings = () => {
+    if (gmailPresetBackup) {
+      setData({
+        ...data,
+        email: { ...data.email, ...gmailPresetBackup },
+      });
+      setGmailPresetBackup(null);
+      return;
+    }
+    if (gmailSettingsSelected) {
+      setData({
+        ...data,
+        email: {
+          ...data.email,
+          smtpHost: "",
+          smtpPort: 587,
+          smtpSecurity: "starttls",
+          smtpUser: "",
+        },
+      });
+      return;
+    }
+    setGmailPresetBackup({
+      smtpHost: data.email.smtpHost,
+      smtpPort: data.email.smtpPort,
+      smtpSecurity: data.email.smtpSecurity,
+      smtpUser: data.email.smtpUser,
+    });
+    setData({
+      ...data,
+      email: {
+        ...data.email,
+        smtpHost: "smtp.gmail.com",
+        smtpPort: 587,
+        smtpSecurity: "starttls",
+        smtpUser: data.email.smtpUser || data.email.from,
+      },
+    });
+  };
   return (
     <div>
       <h3>Model & delivery connections</h3>
@@ -152,8 +354,7 @@ export function AgentConnections() {
         <h4>Agent model</h4>
         {data.model.mode === "notebook" && (
           <p className="agent-fine">
-            Your agent uses the current NVIDIA model:{" "}
-            <strong>{data.model.model}</strong>, through {data.model.baseUrl}.
+            <strong>{data.model.model}</strong>
           </p>
         )}
         <label className="field-label">
@@ -265,20 +466,13 @@ export function AgentConnections() {
           className="secondary-button"
           type="button"
           disabled={busy}
-          onClick={() =>
-            setData({
-              ...data,
-              email: {
-                ...data.email,
-                smtpHost: "smtp.gmail.com",
-                smtpPort: 587,
-                smtpSecurity: "starttls",
-                smtpUser: data.email.smtpUser || data.email.from,
-              },
-            })
-          }
+          onClick={toggleGmailSettings}
         >
-          Use Gmail SMTP settings
+          {gmailPresetBackup
+            ? "Undo Gmail preset"
+            : gmailSettingsSelected
+              ? "Use custom SMTP settings"
+              : "Use Gmail SMTP settings"}
         </button>
         {field("email", "smtpHost", "SMTP host", data.email.smtpHost, {
           placeholder: "smtp.gmail.com",
@@ -342,13 +536,24 @@ export function AgentConnections() {
             setBusy(true);
             setError("");
             setMessage("");
+            setEmailTestResult({
+              state: "checking",
+              message: "Checking SMTP connection…",
+            });
             try {
-              await apiJSON("/api/agent/connections/email/test", {});
-              setMessage(
-                "SMTP connection and login verified. No email was sent.",
+              await apiJSON<{ ok: boolean }>(
+                "/api/agent/connections/email/test",
+                {},
               );
+              setEmailTestResult({
+                state: "success",
+                message: "SMTP connection verified.",
+              });
             } catch (e) {
-              setError((e as Error).message);
+              setEmailTestResult({
+                state: "error",
+                message: `Connection failed: ${(e as Error).message}`,
+              });
             } finally {
               setBusy(false);
             }
@@ -356,6 +561,20 @@ export function AgentConnections() {
         >
           Test saved SMTP connection
         </button>
+        {emailTestResult && (
+          <p
+            className={
+              emailTestResult.state === "error"
+                ? "form-error"
+                : emailTestResult.state === "success"
+                  ? "form-success"
+                  : "agent-fine"
+            }
+            role={emailTestResult.state === "error" ? "alert" : "status"}
+          >
+            {emailTestResult.message}
+          </p>
+        )}
       </form>
       <form
         className="agent-form"

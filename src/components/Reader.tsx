@@ -335,12 +335,14 @@ export function Reader({
     page,
   ]);
   const count = source?.pages.length ?? 0;
+  const usableWidth = available - 76 - (showNavigation ? 120 : 0);
+  // Show one readable Book page when a spread would make both pages tiny.
+  const compactBook = mode === "book" && usableWidth < 920;
+  const bookStep = mode === "book" && !compactBook ? 2 : 1;
   const pageWidth = Math.max(
     180,
     (Math.min(
-      mode === "book"
-        ? (available - 76 - (showNavigation ? 120 : 0)) / 2
-        : available - 76 - (showNavigation ? 120 : 0),
+      mode === "book" && !compactBook ? usableWidth / 2 : usableWidth,
       source?.kind === "pptx" ? 860 : 820,
     ) *
       zoom) /
@@ -445,9 +447,12 @@ export function Reader({
     };
   }, [source?.id]);
   useLayoutEffect(() => {
-    if (mode === "book") return;
-    const element = pagesRef.current.get(page);
     const root = scroller.current;
+    if (mode === "book") {
+      root?.scrollTo({ left: 0, top: 0 });
+      return;
+    }
+    const element = pagesRef.current.get(page);
     if (!element || !root) return;
     // Navigation preserves the active page across layout and zoom changes.
     if (mode === "horizontal")
@@ -539,11 +544,9 @@ export function Reader({
         else onUndo?.();
       }
       if (event.key === "ArrowRight")
-        navigate(
-          Math.min(count, currentPage.current + (mode === "book" ? 2 : 1)),
-        );
+        navigate(Math.min(count, currentPage.current + bookStep));
       if (event.key === "ArrowLeft")
-        navigate(Math.max(1, currentPage.current - (mode === "book" ? 2 : 1)));
+        navigate(Math.max(1, currentPage.current - bookStep));
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -661,10 +664,12 @@ export function Reader({
   };
   const visiblePages =
     mode === "book"
-      ? Array.from(
-          { length: Math.min(2, count - Math.floor((page - 1) / 2) * 2) },
-          (_, i) => Math.floor((page - 1) / 2) * 2 + i + 1,
-        )
+      ? compactBook
+        ? [page]
+        : Array.from(
+            { length: Math.min(2, count - Math.floor((page - 1) / 2) * 2) },
+            (_, i) => Math.floor((page - 1) / 2) * 2 + i + 1,
+          )
       : Array.from({ length: count }, (_, i) => i + 1);
   const matches =
     query.trim() && source
@@ -1357,9 +1362,7 @@ export function Reader({
             className="icon-button small"
             aria-label="Previous page"
             disabled={!source || Number(pageInput) <= 1}
-            onClick={() =>
-              navigate(currentPage.current - (mode === "book" ? 2 : 1))
-            }
+            onClick={() => navigate(currentPage.current - bookStep)}
           >
             <ChevronLeft size={16} />
           </button>
@@ -1384,9 +1387,7 @@ export function Reader({
             className="icon-button small"
             aria-label="Next page"
             disabled={!source || Number(pageInput) >= count}
-            onClick={() =>
-              navigate(currentPage.current + (mode === "book" ? 2 : 1))
-            }
+            onClick={() => navigate(currentPage.current + bookStep)}
           >
             <ChevronRight size={16} />
           </button>

@@ -163,6 +163,9 @@ export class AgentConnectionStore {
       whatsapp: redact(this.value.whatsapp),
     };
   }
+  emailPassword() {
+    return this.value.email.password;
+  }
   save(input: z.infer<typeof connectionInput>) {
     if (input.section === "email") {
       const { section: _section, password, clearPassword, ...fields } = input;

@@ -102,6 +102,42 @@
   color: var(--ink);
   box-sizing: border-box;
 }
+.agent-password-field {
+  position: relative;
+  display: block;
+}
+.agent-panel .agent-password-field input {
+  padding-right: 42px;
+}
+.agent-password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.agent-password-toggle:hover:not(:disabled) {
+  background: var(--surface-muted);
+  color: var(--ink);
+}
+.agent-password-toggle:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+.agent-password-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin: -4px 0 10px;
+}
 .agent-panel textarea {
   resize: vertical;
   line-height: 1.6;

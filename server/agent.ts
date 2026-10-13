@@ -693,6 +693,14 @@ export function registerAgent(
   app.get("/api/agent/connections", (_req, res) =>
     res.json(connections.public()),
   );
+  app.post("/api/agent/connections/email/password", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Pragma", "no-cache");
+    const password = connections.emailPassword();
+    if (!password)
+      return res.status(404).json({ error: "No saved SMTP password." });
+    res.json({ password });
+  });
   app.post("/api/agent/connections/email/test", async (_req, res) => {
     try {
       await connections.testEmail();

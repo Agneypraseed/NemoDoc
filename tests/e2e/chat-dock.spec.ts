@@ -106,6 +106,12 @@ test("mobile bottom chat and on-demand cards fit the viewport and the panel stay
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.route("**/api/chat", (route) =>
+    route.fulfill({
+      contentType: "text/event-stream",
+      body: 'event: sources\ndata: [{"id":1,"sourceId":"sample-paper","sourceName":"Designing for human attention.pdf","page":3,"text":"Vertical scrolling supports continuous reading."}]\n\nevent: delta\ndata: "Vertical scrolling supports continuous reading. [1]"\n\nevent: done\ndata: {}\n\n',
+    }),
+  );
   await page.goto("/");
   await expect(page.locator('[data-page="1"] canvas')).toBeVisible();
   const input = page.getByRole("textbox", { name: "Ask about your sources" });
@@ -122,6 +128,14 @@ test("mobile bottom chat and on-demand cards fit the viewport and the panel stay
   expect(close!.x + close!.width).toBeLessThanOrEqual(box!.x + box!.width);
   const dock = await page.locator(".workspace-chat").boundingBox();
   expect(box!.y + box!.height).toBeLessThanOrEqual(dock!.y);
+  await input.fill("What does this source say?");
+  await input.press("Enter");
+  await expect(assistant.locator(".message.assistant")).toContainText(
+    "Vertical scrolling",
+  );
+  const answeredBox = await assistant.boundingBox();
+  expect(Math.abs(answeredBox!.width - box!.width)).toBeLessThan(2);
+  expect(Math.abs(answeredBox!.height - box!.height)).toBeLessThan(2);
   await page
     .getByRole("button", { name: "Close assistant", exact: true })
     .click();

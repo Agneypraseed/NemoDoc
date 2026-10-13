@@ -7,6 +7,7 @@ test("open model reads approved notebook notes and previews email before deliver
   context,
 }) => {
   let sends = 0;
+  let smtpVerifyFails = false;
   const app = createApp(
     {
       apiKey: "fixture-key",
@@ -43,7 +44,10 @@ test("open model reads approved notebook notes and previews email before deliver
     }) as typeof fetch,
     {
       smtpTransportFactory: () => ({
-        verify: async () => true,
+        verify: async () => {
+          if (smtpVerifyFails) throw new Error("Authentication failed");
+          return true;
+        },
         sendMail: async (message) => {
           sends++;
           return {
@@ -83,6 +87,9 @@ test("open model reads approved notebook notes and previews email before deliver
     await page
       .getByRole("button", { name: "Connections", exact: true })
       .click();
+    await expect(
+      page.getByText("nvidia/test-nemotron", { exact: true }),
+    ).toBeVisible();
     await page.getByLabel("Model connection").selectOption("custom");
     await page
       .getByRole("button", { name: "Use local Gemma 4 / Ollama", exact: true })
@@ -106,21 +113,63 @@ test("open model reads approved notebook notes and previews email before deliver
       .getByLabel("Sender email address", { exact: true })
       .fill("sender@example.com");
     await page
+      .getByRole("button", { name: "Use Gmail SMTP settings", exact: true })
+      .click();
+    await expect(page.getByLabel("SMTP host", { exact: true })).toHaveValue(
+      "smtp.gmail.com",
+    );
+    await expect(page.getByLabel("SMTP username", { exact: true })).toHaveValue(
+      "sender@example.com",
+    );
+    await page
+      .getByRole("button", { name: "Undo Gmail preset", exact: true })
+      .click();
+    await expect(page.getByLabel("SMTP host", { exact: true })).toHaveValue(
+      "smtp.example.com",
+    );
+    await page
       .getByLabel("Email recipient", { exact: true })
       .fill("owner@example.com");
     await page
       .getByLabel("SMTP password / app password", { exact: true })
       .fill("email-fixture-key");
+    await page.getByRole("button", { name: "Show password" }).click();
+    await expect(
+      page.getByLabel("SMTP password / app password", { exact: true }),
+    ).toHaveAttribute("type", "text");
+    await page.getByRole("button", { name: "Hide password" }).click();
+    await expect(
+      page.getByLabel("SMTP password / app password", { exact: true }),
+    ).toHaveAttribute("type", "password");
     await page
       .getByRole("button", { name: "Save email connection", exact: true })
       .click();
     await expect(
       page.getByLabel("SMTP password / app password", { exact: true }),
     ).toHaveValue("");
+    await page.getByRole("button", { name: "Reveal saved password" }).click();
+    await expect(
+      page.getByLabel("SMTP password / app password", { exact: true }),
+    ).toHaveValue("email-fixture-key");
+    await expect(
+      page.getByLabel("SMTP password / app password", { exact: true }),
+    ).toHaveAttribute("type", "text");
+    await page.getByRole("button", { name: "Hide password" }).click();
+    await expect(
+      page.getByLabel("SMTP password / app password", { exact: true }),
+    ).toHaveAttribute("type", "password");
+    smtpVerifyFails = true;
     await page
       .getByRole("button", { name: "Test saved SMTP connection", exact: true })
       .click();
-    await expect(page.getByRole("status")).toContainText("No email was sent.");
+    await expect(page.getByRole("alert")).toContainText("Connection failed:");
+    smtpVerifyFails = false;
+    await page
+      .getByRole("button", { name: "Test saved SMTP connection", exact: true })
+      .click();
+    await expect(page.getByRole("status")).toContainText(
+      "SMTP connection verified.",
+    );
     expect(sends).toBe(0);
     await page.locator(".agent-panel").evaluate((el) => {
       el.scrollTop = 0;
@@ -197,9 +246,11 @@ test("open model reads approved notebook notes and previews email before deliver
     await page
       .getByRole("button", { name: "Save model connection", exact: true })
       .click();
-    await expect(page.locator(".agent-panel")).toContainText(
-      "current NVIDIA model: nvidia/test-nemotron",
-    );
+    await expect(
+      page.locator(".agent-panel").getByText("nvidia/test-nemotron", {
+        exact: true,
+      }),
+    ).toBeVisible();
     await page.getByRole("button", { name: "Tasks", exact: true }).click();
     await page.getByRole("button", { name: "New task", exact: true }).click();
     await page
@@ -232,6 +283,16 @@ test("open model reads approved notebook notes and previews email before deliver
     await page
       .getByRole("button", { name: "Connections", exact: true })
       .click();
+    await page
+      .getByRole("button", { name: "Clear password", exact: true })
+      .click();
+    await expect(
+      page.getByLabel("SMTP password / app password", { exact: true }),
+    ).toHaveValue("");
+    await expect(page.getByText("Saved SMTP password cleared.")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Clear password", exact: true }),
+    ).toHaveCount(0);
     await page.setViewportSize({ width: 390, height: 844 });
     await expect
       .poll(() =>

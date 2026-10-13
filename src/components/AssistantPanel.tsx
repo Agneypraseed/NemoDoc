@@ -54,6 +54,7 @@ export function AssistantPanel({
         pointer: Point;
         origin: Point;
         latest: Point;
+        size: { width: number; height: number };
         moved: boolean;
       }
     | undefined
@@ -64,9 +65,13 @@ export function AssistantPanel({
   >(undefined);
   const bound = (point: Point): Point => {
     const box = panel.current?.getBoundingClientRect();
+    const dockTop =
+      document
+        .querySelector<HTMLElement>(".workspace-chat")
+        ?.getBoundingClientRect().top ?? innerHeight;
     return {
       x: Math.max(8, Math.min(innerWidth - (box?.width ?? 312) - 8, point.x)),
-      y: Math.max(8, Math.min(innerHeight - (box?.height ?? 180) - 8, point.y)),
+      y: Math.max(8, Math.min(dockTop - (box?.height ?? 180) - 8, point.y)),
     };
   };
   const floating = movable && !!position;
@@ -115,6 +120,7 @@ export function AssistantPanel({
       pointer: { x: event.clientX, y: event.clientY },
       origin,
       latest: origin,
+      size: { width: box.width, height: box.height },
       moved: false,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -138,6 +144,7 @@ export function AssistantPanel({
     });
     if (!active.moved) {
       active.moved = true;
+      setSize(active.size);
       setPosition(active.latest);
       setDragging(true);
       return;
@@ -150,7 +157,7 @@ export function AssistantPanel({
     if (!active || event.pointerId !== active.id) return;
     if (active.moved) {
       setPosition(active.latest);
-      commitGeometry(active.latest);
+      commitGeometry(active.latest, active.size);
     }
     gesture.current = undefined;
     setDragging(false);
@@ -181,8 +188,10 @@ export function AssistantPanel({
       x: box.x + step.x * distance,
       y: box.y + step.y * distance,
     });
+    const nextSize = size ?? { width: box.width, height: box.height };
+    setSize(nextSize);
     setPosition(next);
-    commitGeometry(next);
+    commitGeometry(next, nextSize);
   };
   return (
     <aside
@@ -194,7 +203,7 @@ export function AssistantPanel({
           ...(floating
             ? { transform: `translate3d(${position.x}px, ${position.y}px, 0)` }
             : { "--margin-offset": `${offset}px` }),
-          ...(resizable && size
+          ...(floating && resizable && size
             ? { width: size.width, height: size.height }
             : {}),
         } as CSSProperties
@@ -249,129 +258,123 @@ export function AssistantPanel({
         </button>
       </div>
       {children}
-      {resizable && <button
-        type="button"
-        className="assistant-resize-handle"
-        aria-label="Resize answer card"
-        title="Drag to resize. Arrow keys resize; Home resets size."
-        onPointerDown={(event) => {
-          if (!event.isPrimary || event.button !== 0) return;
-          const target = event.currentTarget;
-          const box = panel.current!.getBoundingClientRect();
-          resizeGesture.current = {
-            id: event.pointerId,
-            x: event.clientX,
-            y: event.clientY,
-            width: box.width,
-            height: box.height,
-          };
-          target.setPointerCapture(event.pointerId);
-          event.preventDefault();
-          event.stopPropagation();
-        }}
-        onPointerMove={(event) => {
-          const start = resizeGesture.current;
-          if (!start || start.id !== event.pointerId) return;
-          const box = panel.current!.getBoundingClientRect();
-          const contextAnswer = panel.current?.hasAttribute(
-            "data-context-answer",
-          );
-          const minimumWidth = contextAnswer
-            ? Math.max(280, Math.min(560, innerWidth - 32))
-            : 280;
-          const minimumHeight = contextAnswer
-            ? Math.max(240, Math.min(600, innerHeight - box.top - 8))
-            : 240;
-          setSize({
-            width: Math.max(
-              minimumWidth,
-              Math.min(
-                innerWidth - box.left - 8,
-                start.width + event.clientX - start.x,
-              ),
-            ),
-            height: Math.max(
-              minimumHeight,
-              Math.min(
-                innerHeight - box.top - 8,
-                start.height + event.clientY - start.y,
-              ),
-            ),
-          });
-        }}
-        onPointerUp={(event) => {
-          if (resizeGesture.current?.id !== event.pointerId) return;
-          resizeGesture.current = undefined;
-          if (event.currentTarget.hasPointerCapture(event.pointerId))
-            event.currentTarget.releasePointerCapture(event.pointerId);
-          setSize((value) => {
-            commitGeometry(position, value);
-            return value;
-          });
-        }}
-        onPointerCancel={(event) => {
-          if (resizeGesture.current?.id === event.pointerId)
-            resizeGesture.current = undefined;
-        }}
-        onLostPointerCapture={() => {
-          resizeGesture.current = undefined;
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Home") {
-            setSize(undefined);
-            onGeometryChange?.({
-              ...position,
-              width: undefined,
-              height: undefined,
-            });
+      {resizable && floating && (
+        <button
+          type="button"
+          className="assistant-resize-handle"
+          aria-label="Resize answer card"
+          title="Drag to resize. Arrow keys resize; Home resets size."
+          onPointerDown={(event) => {
+            if (!event.isPrimary || event.button !== 0) return;
+            const target = event.currentTarget;
+            const box = panel.current!.getBoundingClientRect();
+            resizeGesture.current = {
+              id: event.pointerId,
+              x: event.clientX,
+              y: event.clientY,
+              width: box.width,
+              height: box.height,
+            };
+            target.setPointerCapture(event.pointerId);
             event.preventDefault();
             event.stopPropagation();
-            return;
-          }
-          const delta = event.shiftKey ? 40 : 16;
-          const box = panel.current!.getBoundingClientRect();
-          const contextAnswer = panel.current?.hasAttribute(
-            "data-context-answer",
-          );
-          const minimumWidth = contextAnswer
-            ? Math.max(280, Math.min(560, innerWidth - 32))
-            : 280;
-          const minimumHeight = contextAnswer
-            ? Math.max(240, Math.min(600, innerHeight - box.top - 16))
-            : 240;
-          const next = {
-            width: Math.max(
-              minimumWidth,
-              Math.min(
-                innerWidth - 16,
-                box.width +
-                  (event.key === "ArrowRight"
-                    ? delta
-                    : event.key === "ArrowLeft"
-                      ? -delta
-                      : 0),
+          }}
+          onPointerMove={(event) => {
+            const start = resizeGesture.current;
+            if (!start || start.id !== event.pointerId) return;
+            const box = panel.current!.getBoundingClientRect();
+            const dockTop =
+              document
+                .querySelector<HTMLElement>(".workspace-chat")
+                ?.getBoundingClientRect().top ?? innerHeight;
+            const maximumWidth = Math.max(160, innerWidth - box.left - 8);
+            const minimumWidth = Math.min(280, maximumWidth);
+            const maximumHeight = Math.max(160, dockTop - box.top - 8);
+            const minimumHeight = Math.min(240, maximumHeight);
+            setSize({
+              width: Math.max(
+                minimumWidth,
+                Math.min(maximumWidth, start.width + event.clientX - start.x),
               ),
-            ),
-            height: Math.max(
-              minimumHeight,
-              Math.min(
-                innerHeight - 16,
-                box.height +
-                  (event.key === "ArrowDown"
-                    ? delta
-                    : event.key === "ArrowUp"
-                      ? -delta
-                      : 0),
+              height: Math.max(
+                minimumHeight,
+                Math.min(maximumHeight, start.height + event.clientY - start.y),
               ),
-            ),
-          };
-          if (!event.key.startsWith("Arrow")) return;
-          setSize(next);
-          commitGeometry(position, next);
-          event.preventDefault();
-          event.stopPropagation();
-        }}
-      />}
+            });
+          }}
+          onPointerUp={(event) => {
+            if (resizeGesture.current?.id !== event.pointerId) return;
+            resizeGesture.current = undefined;
+            if (event.currentTarget.hasPointerCapture(event.pointerId))
+              event.currentTarget.releasePointerCapture(event.pointerId);
+            setSize((value) => {
+              commitGeometry(position, value);
+              return value;
+            });
+          }}
+          onPointerCancel={(event) => {
+            if (resizeGesture.current?.id === event.pointerId)
+              resizeGesture.current = undefined;
+          }}
+          onLostPointerCapture={() => {
+            resizeGesture.current = undefined;
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Home") {
+              setSize(undefined);
+              onGeometryChange?.({
+                ...position,
+                width: undefined,
+                height: undefined,
+              });
+              event.preventDefault();
+              event.stopPropagation();
+              return;
+            }
+            const delta = event.shiftKey ? 40 : 16;
+            const box = panel.current!.getBoundingClientRect();
+            const dockTop =
+              document
+                .querySelector<HTMLElement>(".workspace-chat")
+                ?.getBoundingClientRect().top ?? innerHeight;
+            const maximumWidth = Math.max(160, innerWidth - box.left - 8);
+            const minimumWidth = Math.min(280, maximumWidth);
+            const maximumHeight = Math.max(160, dockTop - box.top - 16);
+            const minimumHeight = Math.min(240, maximumHeight);
+            const next = {
+              width: Math.max(
+                minimumWidth,
+                Math.min(
+                  maximumWidth,
+                  box.width +
+                    (event.key === "ArrowRight"
+                      ? delta
+                      : event.key === "ArrowLeft"
+                        ? -delta
+                        : 0),
+                ),
+              ),
+              height: Math.max(
+                minimumHeight,
+                Math.min(
+                  maximumHeight,
+                  box.height +
+                    (event.key === "ArrowDown"
+                      ? delta
+                      : event.key === "ArrowUp"
+                        ? -delta
+                        : 0),
+                ),
+              ),
+            };
+            if (!event.key.startsWith("Arrow")) return;
+            setSize(next);
+            commitGeometry(position, next);
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+        />
+      )}
     </aside>
   );
 }

@@ -71,6 +71,12 @@ test("paper workspace gives space to the document and passage questions stay in 
   await expect(
     page.getByRole("toolbar", { name: "Annotation tools" }),
   ).toBeHidden();
+  await page.getByRole("button", { name: "Open chat", exact: true }).click();
+  await expect(assistant).toBeVisible();
+  const idleChat = await assistant.boundingBox();
+  const idleReader = await page.locator(".reader").boundingBox();
+  expect(idleReader!.width / idleChat!.width).toBeGreaterThan(1.9);
+  expect(idleReader!.width / idleChat!.width).toBeLessThan(2.1);
   const selection = await selectPassage(page);
   await selection.getByRole("button", { name: "Ask AI", exact: true }).click();
   const passageInput = selection.getByRole("textbox", {
@@ -88,7 +94,10 @@ test("paper workspace gives space to the document and passage questions stay in 
     "Good design protects",
   );
   const firstCard = await assistant.boundingBox();
-  expect(firstCard!.width).toBeGreaterThanOrEqual(560);
+  const answerReader = await page.locator(".reader").boundingBox();
+  expect(Math.abs(firstCard!.width - idleChat!.width)).toBeLessThan(2);
+  expect(Math.abs(firstCard!.height - idleChat!.height)).toBeLessThan(2);
+  expect(Math.abs(answerReader!.width - idleReader!.width)).toBeLessThan(2);
   expect(firstCard!.height).toBeGreaterThan(600);
   expect(firstCard!.y).toBeLessThan(100);
   expect(firstCard!.x + firstCard!.width).toBeLessThanOrEqual(1416);
@@ -132,12 +141,21 @@ test("paper workspace gives space to the document and passage questions stay in 
   await expect(page.locator(".message.user p")).toHaveText(
     "Why does this matter?",
   );
+  const move = page.getByRole("button", { name: "Move answer card" });
   const resize = page.getByRole("button", { name: "Resize answer card" });
+  await expect(resize).toHaveCount(0);
+  await move.focus();
+  await move.press("ArrowLeft");
+  await expect(assistant).toHaveClass(/floating/);
+  const floatingCard = await assistant.boundingBox();
+  expect(Math.abs(floatingCard!.width - firstCard!.width)).toBeLessThan(2);
+  expect(Math.abs(floatingCard!.height - firstCard!.height)).toBeLessThan(2);
   await resize.focus();
   await resize.press("Shift+ArrowRight");
   const resizedCard = await assistant.boundingBox();
-  const carriedWidth = resizedCard!.width;
-  expect(resizedCard!.x + resizedCard!.width).toBeLessThanOrEqual(1416);
+  expect(resizedCard!.width).toBeGreaterThan(firstCard!.width);
+  expect(resizedCard!.width).toBeLessThan(firstCard!.width + 50);
+  expect(resizedCard!.x + resizedCard!.width).toBeLessThanOrEqual(1432);
   await page.locator(".inline-citation").click();
   const citedPassage = page
     .locator('[data-page="2"] .evidence-highlight')
@@ -174,12 +192,12 @@ test("paper workspace gives space to the document and passage questions stay in 
   await expect(page.locator(".message.assistant")).toHaveCount(1);
   await expect(page.locator(".passage-message-actions")).toHaveCount(1);
   await expect(page.locator(".passage-note-inline-preview")).toHaveCount(0);
-  await expect
-    .poll(async () => (await assistant.boundingBox())!.width)
-    .toBeGreaterThanOrEqual(carriedWidth - 1);
   const nextCard = await assistant.boundingBox();
+  expect(Math.abs(nextCard!.width - idleChat!.width)).toBeLessThan(2);
   expect(nextCard!.x + nextCard!.width).toBeLessThanOrEqual(1416);
   await page.screenshot({ path: "test-results/passage-chat-history.png" });
+  await move.focus();
+  await move.press("ArrowLeft");
   await resize.focus();
   await resize.press("Shift+ArrowLeft");
   await resize.press("Shift+ArrowDown");
@@ -378,9 +396,12 @@ test("book-view passage answers stay beside the reader on medium screens", async
   // A new selection should return to the reader margin even if the previous
   // answer was moved. Keep its size, not stale screen coordinates.
   const moveHandle = page.getByRole("button", { name: "Move answer card" });
+  const dockedBox = await assistant.boundingBox();
   await moveHandle.focus();
   await moveHandle.press("ArrowLeft");
   await expect(assistant).toHaveClass(/floating/);
+  const movedBox = await assistant.boundingBox();
+  expect(Math.abs(movedBox!.width - dockedBox!.width)).toBeLessThan(2);
   const nextSelection = await selectPassage(
     page,
     "It is the careful arrangement of information",
@@ -442,6 +463,15 @@ test("bottom chat stays separate from selected-passage chats in Book view", asyn
   await expect(
     page.locator('[data-page="1"] .textLayer span').first(),
   ).toBeVisible();
+  const pageWidthBeforeChat = (await page
+    .locator('.document-page[data-page="1"]')
+    .boundingBox())!.width;
+  await page.getByRole("button", { name: "Open chat", exact: true }).click();
+  const assistant = page.getByRole("complementary", {
+    name: "Notebook assistant",
+  });
+  const idleBox = await assistant.boundingBox();
+  const idleReader = await page.locator(".reader").boundingBox();
   await page
     .getByRole("textbox", { name: "Ask about your sources" })
     .fill("Summarize this notebook.");
@@ -449,9 +479,6 @@ test("bottom chat stays separate from selected-passage chats in Book view", asyn
     .getByRole("textbox", { name: "Ask about your sources" })
     .press("Enter");
 
-  const assistant = page.getByRole("complementary", {
-    name: "Notebook assistant",
-  });
   await expect(assistant.locator(".message.assistant")).toContainText(
     "connects ideas across the source",
   );
@@ -462,6 +489,21 @@ test("bottom chat stays separate from selected-passage chats in Book view", asyn
   const conversationBox = await assistant.boundingBox();
   const readerBox = await page.locator(".reader").boundingBox();
   const dockBox = await page.locator(".workspace-chat").boundingBox();
+  expect(Math.abs(conversationBox!.width - idleBox!.width)).toBeLessThan(2);
+  expect(Math.abs(conversationBox!.height - idleBox!.height)).toBeLessThan(2);
+  expect(Math.abs(readerBox!.width - idleReader!.width)).toBeLessThan(2);
+  const pageWidthWithChat = (await page
+    .locator('.document-page[data-page="1"]')
+    .boundingBox())!.width;
+  expect(pageWidthBeforeChat).toBeGreaterThanOrEqual(450);
+  expect(pageWidthWithChat).toBeGreaterThanOrEqual(500);
+  await expect(page.locator(".page-scroller.book .document-page")).toHaveCount(
+    1,
+  );
+  await page.getByRole("button", { name: "Next page", exact: true }).click();
+  await expect(
+    page.getByRole("textbox", { name: "Page number", exact: true }),
+  ).toHaveValue("2");
   expect(conversationBox!.width).toBeLessThan(400);
   expect(conversationBox!.x).toBeGreaterThanOrEqual(
     readerBox!.x + readerBox!.width - 1,
@@ -479,6 +521,9 @@ test("bottom chat stays separate from selected-passage chats in Book view", asyn
     "its own explanation",
   );
   await expect(assistant).not.toContainText("connects ideas across the source");
+  const passageBox = await assistant.boundingBox();
+  expect(Math.abs(passageBox!.width - idleBox!.width)).toBeLessThan(2);
+  expect(Math.abs(passageBox!.height - idleBox!.height)).toBeLessThan(2);
   expect(requests[1].history).toEqual([]);
   await page.screenshot({ path: "test-results/book-passage-chat.png" });
 
