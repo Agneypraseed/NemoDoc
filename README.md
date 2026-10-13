@@ -2,57 +2,62 @@
 
 **Your PDFs and lectures, turned into a notebook you can think with.**
 
-NemoDoc is a local, NotebookLM-style workspace powered by **NVIDIA Nemotron**. Bring your sources, ask questions, and follow citations back to the original pages.
+NemoDoc is a local workspace for PDFs and lecture slides, powered by NVIDIA Nemotron by default. Read and annotate your sources, ask about a selected passage or your whole notebook, and keep useful, cited answers close at hand.
 
-![NemoDoc's reader in a two-page book layout](docs/screenshots/reader.png)
+![NemoDoc's reader with a passage answer beside the source](docs/screenshots/chat.png)
 
-## What can you do?
+## The NemoDoc MVP, in 30 seconds
 
-- **Read your way.** Open PDFs and PowerPoint slides in vertical, horizontal, or book views.
-- **Make it yours.** Highlight, underline, draw, and collect notes as you read.
-- **Ask with evidence.** Chat with your sources and click citations to check the original page.
-- **Keep useful answers.** Choose **Save to Notes** to keep the question, answer, and cited pages in your notebook.
-- **Save the relevant pages.** Preview supporting pages in chat and download individual pages or slides.
-- **Study smarter.** Create flashcards, quizzes, guides, and mind maps, with an agent that remembers your goals.
+[![Animated preview of NemoDoc's reading, notes, study, and agent workflows](docs/demo/nemodoc-mvp-tour.gif)](docs/demo/nemodoc-mvp-tour.mp4)
 
-## Start with a source. Follow your curiosity.
+[Watch or download the full product tour (MP4)](docs/demo/nemodoc-mvp-tour.mp4)
 
-1. **Add your sources** to a notebook, or explore the included sample.
-2. **Read and ask** using a selected passage or the bottom chat bar.
-3. **Keep learning** with notes, **Studio** practice, and **Agent** tasks using sources you approve.
+The tour uses the included sample notebook with deterministic demo responses. No model credentials or email/WhatsApp delivery are used. Live answers and agent runs use the connections configured in the app.
 
-## See it in action
+## What the MVP includes
 
-### Understand a topic
-
-> Explain principal component analysis and how it reduces dimensionality.
-
-Nemotron explains the topic from the book. A citation opens the evidence beside your answer.
-
-![Real Nemotron answer about PCA, beside the cited book page](docs/screenshots/mml-answer.png)
-
-### Get the pages behind the answer
-
-> Return the supporting pages about principal component analysis so I can download them.
-
-Preview the original pages, then choose **Open in reader** or **Download single page (PDF)**.
-
-![Supporting book pages in chat with individual PDF download controls](docs/screenshots/mml-supporting-pages.png)
-
-Real Nemotron responses through Nebius, using [Mathematics for Machine Learning](https://mml-book.github.io/) by Marc Peter Deisenroth, A. Aldo Faisal, and Cheng Soon Ong (Cambridge University Press).
+- **Read and annotate.** Bring PDFs or lecture slides into a notebook. Read in vertical, horizontal, or book layout; highlight, underline, add notes, draw, search, bookmark, and run OCR on scanned pages.
+- **Ask in context or across a notebook.** Explain, define, or ask about a selected passage in its own panel. Use the separate bottom chat for broader questions. Follow citations to source pages and inspect supporting excerpts.
+- **Keep your own notes.** Review saved answers, highlights, and notebook notes in Notes. Export those notes as Markdown, or back up and restore the full notebook as ZIP.
+- **Study from your sources.** Build flashcards, quizzes, study guides, and mind maps in Studio.
+- **Delegate with control.** Approve sources and notes for the personal agent, reuse skills and memory, schedule weekday tasks, and configure delivery through your existing SMTP mailbox or WhatsApp Business connection.
 
 <details>
-<summary><strong>Explore Studio and your personal agent</strong></summary>
+<summary><strong>Browse screenshots of the app</strong></summary>
 
-Turn a chapter into practice materials in Studio.
+### Reading, selection tools, and highlights
 
-![Studio with study tools and a sample flashcard deck](docs/screenshots/studio.png)
+![PDF reader with layout, annotation, OCR, and page controls](docs/screenshots/reader.png)
 
-Your agent remembers goals and learning progress, and runs approved study tasks. Keep the local server running for scheduled tasks.
+![Selected-passage toolbar with Ask, Explain, Define, and highlight tools](docs/screenshots/selection-tools.png)
 
-![Personal agent with reusable research and study skills](docs/screenshots/personal-agent.png)
+![Saved highlight linked to its page in Notes](docs/screenshots/highlights.png)
 
-These overview screenshots use the sample notebook; Studio shows demo content.
+### Contextual answers, notebook chat, and export
+
+![Passage-specific answer with a source citation](docs/screenshots/chat.png)
+
+![Saved answer in the Answers section of Notes](docs/screenshots/notes.png)
+
+![Markdown notes export and notebook backup menu](docs/screenshots/export-notes.png)
+
+### Study and agent workflows
+
+![Study Studio with a generated flashcard deck](docs/screenshots/studio.png)
+
+![Personal agent reusable skills](docs/screenshots/agent-skills.png)
+
+![Agent model and delivery connections](docs/screenshots/agent-connections.png)
+
+![Separate open-model connection with a local Gemma 4 and Ollama preset](docs/screenshots/agent-open-model.png)
+
+![SMTP email connection settings](docs/screenshots/agent-email-setup.png)
+
+![WhatsApp Business connection settings](docs/screenshots/agent-whatsapp.png)
+
+![Agent task scoped to an approved source](docs/screenshots/agent-task.png)
+
+![Weekday scheduling and delivery controls for an agent task](docs/screenshots/agent-schedule.png)
 
 </details>
 
@@ -61,18 +66,18 @@ These overview screenshots use the sample notebook; Studio shows demo content.
 Install **Node.js 22.13 or newer**, then run:
 
 ```sh
-npm install
+npm ci
 npm run dev
 ```
 
-Open [localhost:5173](http://127.0.0.1:5173). To enable AI, open **Settings → Nebius**, enter your **Nebius Token Factory API key**, and choose **Save & test**. You can read and annotate before connecting a model.
-
-### Open models, your choice of runtime
-
-NemoDoc agents use your current **NVIDIA Nemotron** connection by default, or a separate tool-capable open model such as local **Gemma 4 through Ollama**. Approve notebook notes as agent sources, then preview or schedule completed summaries for **standard SMTP email** through an existing mailbox or **WhatsApp Business** delivery. Weekday schedules follow a chosen local time and time zone. See the [agent connections setup guide](docs/AGENT_CONNECTIONS.md).
+Open [localhost:5173](http://127.0.0.1:5173). Reading and annotation work without model credentials. To enable live AI, open **Settings → Nebius**, enter your **Nebius Token Factory API key**, and choose **Save & test**.
 
 Notebooks stay on your device; hosted AI receives relevant text or selected page images. Export notes or back up notebooks as ZIP files.
 
----
+### Open models and agent delivery
+
+NemoDoc agents use the notebook's Nemotron connection by default, or a separate tool-capable open model such as Gemma through Ollama. Weekday schedules use a chosen local time and time zone. See the [agent connections setup guide](docs/AGENT_CONNECTIONS.md).
+
+## More
 
 [Personal agent guide](docs/PERSONAL_AGENT.md) · [Real book demo verification](docs/MML_VERIFICATION.md) · [MIT license](LICENSE)
