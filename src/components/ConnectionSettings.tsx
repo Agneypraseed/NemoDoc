@@ -14,6 +14,10 @@ export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
     [error, setError] = useState("");
   const [models, setModels] = useState<string[]>([]);
   const [visionModels, setVisionModels] = useState<string[]>([]);
+  const [visionTestStatus, setVisionTestStatus] = useState("");
+  const [visionCatalogStatus, setVisionCatalogStatus] = useState<
+    "idle" | "loading" | "loaded" | "unavailable"
+  >("idle");
   const [catalogStatus, setCatalogStatus] = useState<
     "idle" | "loading" | "loaded" | "unavailable"
   >("idle");
@@ -24,6 +28,7 @@ export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
         setSettings(loaded);
         if (!loaded.hasApiKey && !/^http:\/\//.test(loaded.baseUrl)) return;
         setCatalogStatus("loading");
+        setVisionCatalogStatus("loading");
         apiJSON<{ models: string[] }>(
           "/api/models",
           undefined,
@@ -41,9 +46,12 @@ export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
           undefined,
           controller.signal,
         )
-          .then((data) => setVisionModels(data.models))
-          .catch(() => {
-            // Manual vision model entry remains available if the catalog fails.
+          .then((data) => {
+            setVisionModels(data.models);
+            setVisionCatalogStatus("loaded");
+          })
+          .catch((e) => {
+            if (e.name !== "AbortError") setVisionCatalogStatus("unavailable");
           });
       })
       .catch((e) => {
@@ -51,11 +59,13 @@ export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
       });
     return () => controller.abort();
   }, []);
-  const save = async (test: boolean | "embeddings") => {
+  const save = async (test: boolean | "embeddings" | "vision") => {
     if (!settings) return;
     setBusy(true);
     setError("");
     setMessage("");
+    if (test === "vision")
+      setVisionTestStatus("Testing with a generated letter image…");
     try {
       const updated = await apiJSON<Settings>("/api/settings", {
         ...settings,
@@ -72,6 +82,31 @@ export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
           {},
         );
         setMessage(`Embeddings connected · ${result.model}`);
+      } else if (test === "vision") {
+        const canvas = document.createElement("canvas");
+        canvas.width = 96;
+        canvas.height = 96;
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("Could not prepare a test image.");
+        context.fillStyle = "#ffffff";
+        context.fillRect(0, 0, 96, 96);
+        context.fillStyle = "#111111";
+        context.font = "bold 64px Arial";
+        context.fillText("A", 23, 70);
+        const result = await apiJSON<{ content: string; model: string }>(
+          "/api/vision",
+          {
+            image: canvas.toDataURL("image/png"),
+            question: "What letter is shown in this image? Answer briefly.",
+          },
+        );
+        if (!/\bA\b/i.test(result.content))
+          throw new Error(
+            "The image model responded, but did not recognize the test letter A.",
+          );
+        setVisionTestStatus(
+          `Image model verified · ${modelName(result.model)} read the letter A.`,
+        );
       } else if (test) {
         const result = await apiJSON<{ latencyMs: number }>(
           "/api/settings/test",
@@ -81,6 +116,8 @@ export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
       } else setMessage("Connection saved.");
     } catch (e) {
       setError((e as Error).message);
+      if (test === "vision")
+        setVisionTestStatus(`Image model test failed: ${(e as Error).message}`);
     } finally {
       setBusy(false);
     }
@@ -98,9 +135,30 @@ export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
   );
   const local = /^http:\/\//.test(settings.baseUrl);
   const nebius = new URL(settings.baseUrl).hostname.includes("tokenfactory");
+  const visionProvider = nebius
+    ? "Nebius"
+    : local
+      ? "the local endpoint"
+      : "NVIDIA hosted";
+  const visionCatalogMessage =
+    visionCatalogStatus === "loading"
+      ? "Loading image models from the saved provider…"
+      : visionCatalogStatus === "unavailable"
+        ? "Could not load the image catalog. The selected model has not been verified."
+        : visionCatalogStatus === "idle"
+          ? "Save the provider connection, then refresh its image models."
+          : `${visionModels.length} image models returned by ${visionProvider}. ${
+              visionModels.includes(settings.visionModel)
+                ? nebius && settings.visionModel === "openbmb/MiniCPM-V-4_5"
+                  ? "MiniCPM is NemoDoc's Nebius preset and is listed by Nebius."
+                  : "The selected model is in this catalog."
+                : "The selected model is a preset or custom ID; test it before use."
+            }`;
   const preset = (kind: "nebius" | "nvidia" | "local") => {
     setModels([]);
     setVisionModels([]);
+    setVisionCatalogStatus("idle");
+    setVisionTestStatus("");
     setCatalogStatus("idle");
     setKey("");
     setMessage("");
@@ -233,6 +291,86 @@ export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
           Remove saved API key
         </label>
       )}
+      <section className="capability-settings" aria-label="OCR and images">
+        <h4>OCR & images</h4>
+        <p className="modal-description">
+          Uses the image model below for scanned-page text and questions about
+          diagrams. Chat keeps the model selected above.
+        </p>
+        <label className="field-label">
+          Image model
+          <select
+            value={settings.visionModel}
+            disabled={busy}
+            onChange={(e) => {
+              setVisionTestStatus("");
+              setSettings({ ...settings, visionModel: e.target.value });
+            }}
+          >
+            {[...new Set([settings.visionModel, ...visionModels])].map((id) => (
+              <option key={id} value={id}>
+                {id
+                  ? modelOptionLabel(id, modelName(id))
+                  : "Choose an image model"}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="model-role-hint" role="status">
+          {visionCatalogMessage}
+        </p>
+        <div className="capability-actions">
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={busy || visionCatalogStatus === "loading"}
+            onClick={async () => {
+              setError("");
+              setVisionCatalogStatus("loading");
+              try {
+                const data = await apiJSON<{ models: string[] }>(
+                  "/api/models?capability=vision",
+                );
+                setVisionModels(data.models);
+                setVisionCatalogStatus("loaded");
+              } catch (e) {
+                setVisionCatalogStatus("unavailable");
+                setError((e as Error).message);
+              }
+            }}
+          >
+            {visionCatalogStatus === "loading"
+              ? "Loading image models…"
+              : "Refresh image models"}
+          </button>
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={busy || !settings.visionModel}
+            onClick={() => void save("vision")}
+          >
+            {busy && <LoaderCircle size={15} className="spin" />}Save & test
+            image model
+          </button>
+        </div>
+        {visionTestStatus && (
+          <p
+            className={
+              visionTestStatus.startsWith("Image model test failed")
+                ? "form-error"
+                : "form-success"
+            }
+            role="status"
+          >
+            {visionTestStatus}
+          </p>
+        )}
+        <details className="capability-custom-model">
+          <summary>Custom image endpoint or model ID</summary>
+          {field("visionBaseUrl", "Vision API base URL")}
+          {field("visionModel", "Vision model ID")}
+        </details>
+      </section>
       <section
         className="capability-settings"
         aria-label="Search and embeddings"
@@ -273,78 +411,6 @@ export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
           {busy && <LoaderCircle size={15} className="spin" />}Save & test
           embeddings
         </button>
-      </section>
-      <section className="capability-settings" aria-label="OCR and images">
-        <h4>OCR & images</h4>
-        <p className="modal-description">
-          Recognize scanned text and ask about diagrams with an image-capable
-          model. This can be the same as chat when that model accepts images, or
-          a separate vision model.
-        </p>
-        <div className="capability-actions">
-          <button
-            type="button"
-            className="secondary-button"
-            disabled={busy || local}
-            onClick={() => {
-              setVisionModels([]);
-              setSettings({
-                ...settings,
-                visionBaseUrl: settings.baseUrl,
-                visionModel: nebius
-                  ? "openbmb/MiniCPM-V-4_5"
-                  : "nvidia/nemotron-nano-12b-v2-vl",
-              });
-            }}
-          >
-            Use provider vision model
-          </button>
-          <button
-            type="button"
-            className="secondary-button"
-            disabled={busy}
-            onClick={async () => {
-              setError("");
-              try {
-                const data = await apiJSON<{ models: string[] }>(
-                  "/api/models?capability=vision",
-                );
-                setVisionModels(data.models);
-                if (!data.models.length)
-                  setError(
-                    "No vision models were found in this provider's catalog. Enter a compatible model ID below.",
-                  );
-              } catch (e) {
-                setError((e as Error).message);
-              }
-            }}
-          >
-            Browse vision models
-          </button>
-        </div>
-        {field("visionBaseUrl", "Vision API base URL")}
-        <label className="field-label">
-          OCR & image model
-          <select
-            value={settings.visionModel}
-            disabled={busy}
-            onChange={(e) =>
-              setSettings({ ...settings, visionModel: e.target.value })
-            }
-          >
-            {[...new Set([settings.visionModel, ...visionModels])].map((id) => (
-              <option key={id} value={id}>
-                {id
-                  ? modelOptionLabel(id, modelName(id))
-                  : "Choose a vision model"}
-              </option>
-            ))}
-          </select>
-        </label>
-        <details className="capability-custom-model">
-          <summary>Enter a custom vision model ID</summary>
-          {field("visionModel", "Vision model ID")}
-        </details>
       </section>
       <details>
         <summary>Advanced capabilities</summary>

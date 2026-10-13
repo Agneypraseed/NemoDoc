@@ -228,9 +228,9 @@ test("connection presets and model catalog select exact model IDs", async ({
     "https://api.tokenfactory.nebius.com/v1",
   );
   await expect(page.getByLabel("Embedding model ID")).toHaveValue("");
-  await expect(
-    page.getByRole("combobox", { name: "OCR & image model" }),
-  ).toHaveValue("openbmb/MiniCPM-V-4_5");
+  await expect(page.getByRole("combobox", { name: "Image model" })).toHaveValue(
+    "openbmb/MiniCPM-V-4_5",
+  );
   await page
     .getByRole("button", {
       name: "Refresh models",
@@ -250,9 +250,9 @@ test("connection presets and model catalog select exact model IDs", async ({
         name: /Nemotron Nano 12B V2 VL · Vision/,
       }),
   ).toHaveCount(1);
-  await page.getByRole("button", { name: "Browse vision models" }).click();
+  await page.getByRole("button", { name: "Refresh image models" }).click();
   await page
-    .getByRole("combobox", { name: "OCR & image model" })
+    .getByRole("combobox", { name: "Image model" })
     .selectOption("nvidia/nemotron-nano-12b-v2-vl");
   await page
     .getByRole("button", { name: "NVIDIA hosted", exact: true })
