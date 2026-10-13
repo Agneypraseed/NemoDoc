@@ -194,13 +194,26 @@ test("Gemma tool test gates tasks; notes alone provide scoped evidence without c
   }
 });
 
-test("automatic email uses approved recipient; credentials and previews never enter inference or exports", async () => {
+test("automatic email corrects premature and internal citations before sending to the approved recipient", async () => {
   const sent: { url: string; init?: RequestInit }[] = [];
   const h = await harness((async (url, init) => {
     sent.push({ url: String(url), init });
     const body = JSON.parse(String(init?.body));
-    if (!body.messages.some((m: any) => m.role === "tool"))
+    if (!body.messages.some((m: any) => m.role === "tool")) {
+      if (!body.messages.some((m: any) => m.role === "assistant"))
+        return reply({ content: "Review spaced practice. [1]" });
+      assert.match(body.messages.at(-1).content, /Use search_sources/);
       return reply(tool("search_sources", { query: "recall" }));
+    }
+    if (
+      !body.messages.some(
+        (m: any) =>
+          m.role === "assistant" &&
+          m.content === "Review spaced practice. [notes:notebook]",
+      )
+    )
+      return reply({ content: "Review spaced practice. [notes:notebook]" });
+    assert.match(body.messages.at(-1).content, /numeric citation IDs/);
     return reply({ content: "Review spaced practice. [1]" });
   }) as typeof fetch);
   try {
@@ -231,8 +244,11 @@ test("automatic email uses approved recipient; credentials and previews never en
     await h.app.locals.agent.tick(1);
     const run = h.app.locals.agent.data.state.runs[0];
     assert.equal(run.status, "completed");
+    assert.equal(run.calls, 4);
+    assert.equal(run.citations[0].sourceId, "notes:notebook");
     assert.equal(run.deliveries[0].status, "accepted");
     const delivery = h.smtpMessages[0];
+    assert.equal(delivery.text, "Review spaced practice. [1]");
     assert.equal(delivery.from, "sender@example.com");
     assert.equal(delivery.to, "owner@example.com");
     assert.equal(h.smtpConnections[0].host, "smtp.example.com");
