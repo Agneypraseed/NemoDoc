@@ -231,6 +231,12 @@ export async function readBackup(file: Blob): Promise<LibraryBackup> {
   const sourceIds = new Map(
     data.sources.map((s) => [s.id, crypto.randomUUID()]),
   );
+  const messageIds = new Map<string, string>();
+  const remapMessageId = (notebookId: string, messageId: string) => {
+    const key = JSON.stringify([notebookId, messageId]);
+    if (!messageIds.has(key)) messageIds.set(key, crypto.randomUUID());
+    return messageIds.get(key)!;
+  };
   if (
     notebookIds.size !== data.notebooks.length ||
     sourceIds.size !== data.sources.length
@@ -297,7 +303,7 @@ export async function readBackup(file: Blob): Promise<LibraryBackup> {
       title: n.title + " (restored)",
       messages: n.messages.map((m) => ({
         ...m,
-        id: crypto.randomUUID(),
+        id: remapMessageId(n.id, m.id),
         citations: m.citations?.map(remapCitation),
       })),
       passageNotes: n.passageNotes?.map((note) => ({
@@ -306,7 +312,7 @@ export async function readBackup(file: Blob): Promise<LibraryBackup> {
         sourceId: sourceIds.get(note.sourceId)!,
         messages: note.messages.map((message) => ({
           ...message,
-          id: crypto.randomUUID(),
+          id: remapMessageId(n.id, message.id),
           citations: message.citations?.map(remapCitation),
         })),
       })),

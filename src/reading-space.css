@@ -250,14 +250,13 @@ body,
   position: absolute;
   display: grid;
   place-items: center;
-  width: 12px;
-  height: 12px;
-  min-width: 12px;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
   padding: 0;
-  border: 2px solid var(--surface);
+  border: 0;
   border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 72%, transparent);
+  background: transparent;
   transform: translate(-50%, -50%);
   pointer-events: auto;
   cursor: pointer;
@@ -265,6 +264,14 @@ body,
     transform 160ms ease,
     background-color 160ms ease,
     box-shadow 160ms ease;
+}
+.passage-marker-dot {
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 72%, transparent);
 }
 .passage-note-marker::before,
 .passage-note-marker::after {
@@ -324,7 +331,9 @@ body,
 .passage-note-marker:focus-visible,
 .passage-note-marker.active {
   transform: translate(-50%, -50%) scale(1.12);
-  background: var(--accent);
+  background: transparent;
+}
+.passage-note-marker:is(:hover, :focus-visible, .active) .passage-marker-dot {
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent);
 }
 .passage-note-marker:focus-visible {
@@ -461,11 +470,10 @@ body,
   display: grid;
   width: 100%;
   gap: 5px;
-  margin-top: 10px;
-  padding: 8px 10px;
+  margin: 0 0 12px;
+  padding: 12px 14px;
   border: 1px solid var(--line);
-  border-left: 2px solid var(--accent-line);
-  border-radius: 0 8px 8px 0;
+  border-radius: 10px;
   background: var(--surface-quiet);
   color: var(--muted);
   text-align: left;
@@ -473,6 +481,24 @@ body,
   transition:
     border-color 140ms ease,
     background-color 140ms ease;
+}
+.message-passage-label,
+.saved-answer-passage > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+.saved-answer-passage {
+  margin-bottom: 18px;
+}
+.saved-answer-passage blockquote {
+  margin: 8px 0 0;
+  padding-left: 12px;
+  border-left: 2px solid var(--accent-line);
+  color: var(--muted);
 }
 .message-passage-context:hover {
   border-color: var(--accent-line);
@@ -495,7 +521,7 @@ body,
   display: -webkit-box;
   overflow: hidden;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 400;
   line-height: 1.45;
   -webkit-box-orient: vertical;

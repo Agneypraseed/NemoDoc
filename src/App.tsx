@@ -57,6 +57,8 @@ import { WorkspaceTabs } from "./components/WorkspaceTabs";
 import { AssistantPanel } from "./components/AssistantPanel";
 import { modelName, useAppearance } from "./lib/appearance";
 import { NotebookSearch } from "./components/NotebookSearch";
+import { searchableNotes } from "./lib/search-notes";
+import { passageAction, passageTitle } from "./lib/passage-label";
 import { StudyStudio } from "./components/StudyStudio";
 import { AgentPanel } from "./components/AgentPanel";
 import type {
@@ -86,12 +88,14 @@ function SavedAnswerCard({
   question,
   answer,
   sources,
+  passage,
   onCitation,
 }: {
   number: number;
   question: Message;
   answer: Message;
   sources: Source[];
+  passage?: PassageNote;
   onCitation: (citation: Citation) => void;
 }) {
   const prompt =
@@ -110,14 +114,20 @@ function SavedAnswerCard({
   });
 
   return (
-    <details className="saved-answer-card">
+    <details className="saved-answer-card" id={`saved-answer-${answer.id}`}>
       <summary>
         <span className="saved-answer-index">
           {String(number).padStart(2, "0")}
         </span>
         <span className="saved-answer-summary">
-          <small>Saved answer {number}</small>
-          <strong>{prompt}</strong>
+          <small>
+            {passage
+              ? `${passageAction(prompt)} · ${sources.find((source) => source.id === passage.sourceId)?.kind === "pptx" ? "Slide" : "Page"} ${passage.page}`
+              : `Saved answer ${number}`}
+          </small>
+          <strong>
+            {passage ? passageTitle(prompt, passage.quote) : prompt}
+          </strong>
           <span>
             {citations.length
               ? `${citations.length} cited ${citations.length === 1 ? "page" : "pages"}`
@@ -127,6 +137,12 @@ function SavedAnswerCard({
         <ChevronDown size={16} aria-hidden="true" />
       </summary>
       <div className="saved-answer-detail">
+        {passage && (
+          <div className="saved-answer-passage">
+            <span>Cited a passage</span>
+            <blockquote>{passage.quote}</blockquote>
+          </div>
+        )}
         <div className="saved-answer-question">
           <span>Question</span>
           <p>{prompt}</p>
@@ -213,6 +229,7 @@ export default function App() {
   const [navigationKey, setNavigationKey] = useState(0);
   const [artifacts, setArtifacts] = useState<StudyArtifact[]>([]);
   const [searchNotebook, setSearchNotebook] = useState(false);
+  const [searchNoteTarget, setSearchNoteTarget] = useState<string>();
   const [evidence, setEvidence] = useState<{
     page: number;
     text: string;
@@ -341,6 +358,14 @@ export default function App() {
     (a) => a.id === selectedAnnotation,
   );
   const enabledSources = notebookSources.filter((s) => enabled.has(s.id));
+  useEffect(() => {
+    if (!searchNoteTarget || searchNotebook || tab !== "notes" || !panelOpen)
+      return;
+    const target = document.getElementById(searchNoteTarget);
+    if (target instanceof HTMLDetailsElement) target.open = true;
+    target?.scrollIntoView({ block: "nearest" });
+    setSearchNoteTarget(undefined);
+  }, [searchNoteTarget, searchNotebook, tab, panelOpen, notesView]);
   const sidebarVisible = compactLayout ? sidebarOpen : !sidebarCollapsed;
   const closeSidebar = () => {
     returnSidebarFocus.current = true;
@@ -919,6 +944,9 @@ export default function App() {
           current.messages,
           answerId,
           sources.filter((source) => source.notebookId === target),
+          current.passageNotes?.find((note) =>
+            note.messages.some((message) => message.id === answerId),
+          ),
         );
         if (!saved) return current;
         const updated = {
@@ -1332,7 +1360,7 @@ export default function App() {
         answer.content = `${requestedPage.sourceName} · ${selectedSources.find((s) => s.id === requestedPage.sourceId)?.kind === "pptx" ? "Slide" : "Page"} ${requestedPage.page} [1]`;
         refresh();
       } else if (imageQuestion) {
-        const result = await apiJSON<{ content: string }>(
+        const result = await apiJSON<{ content: string; model?: string }>(
           "/api/vision",
           {
             image: imageQuestion.image,
@@ -1344,6 +1372,8 @@ export default function App() {
           (s) => s.id === imageQuestion.sourceId,
         );
         answer.content = result.content + "\n\n[1]";
+        if (result.model)
+          setRetrievalInfo(`Image read with ${modelName(result.model)}`);
         answer.citations = [
           {
             id: 1,
@@ -1742,7 +1772,7 @@ export default function App() {
               className="icon-button"
               aria-label="Search ideas"
               title="Search ideas"
-              disabled={!enabledSources.length}
+              disabled={!notebook}
               onClick={() => setSearchNotebook(true)}
             >
               <Search size={16} />
@@ -1999,7 +2029,7 @@ export default function App() {
             title={
               tab === "chat"
                 ? activePassageNote
-                  ? `Ask · ${source?.kind === "pptx" ? "Slide" : "Page"} ${activePassageNote.page}`
+                  ? `${passageAction(activePassageNote.question)} · ${source?.kind === "pptx" ? "Slide" : "Page"} ${activePassageNote.page}`
                   : marginAnchor
                     ? `Ask · ${notebookSources.find((s) => s.id === marginAnchor.sourceId)?.kind === "pptx" ? "Slide" : "Page"} ${marginAnchor.page}`
                     : "Conversation"
@@ -2142,6 +2172,33 @@ export default function App() {
                             id={`chat-message-${m.id}`}
                             className={`message ${m.role}`}
                           >
+                            {m.role === "user" && passageNote && (
+                              <button
+                                type="button"
+                                className="message-passage-context"
+                                title="Show this passage in the document"
+                                onClick={() => openPassageNote(passageNote.id)}
+                              >
+                                <span className="message-passage-label">
+                                  <FileText size={13} />
+                                  Cited a passage
+                                </span>
+                                <span className="message-passage-quote">
+                                  {passageNote.quote}
+                                </span>
+                                <span className="message-passage-source">
+                                  {passageSource?.name.replace(
+                                    /\.(pdf|pptx)$/i,
+                                    "",
+                                  ) ?? "Source"}
+                                  <span aria-hidden="true">·</span>
+                                  {passageSource?.kind === "pptx"
+                                    ? "Slide"
+                                    : "Page"}{" "}
+                                  {passageNote.page}
+                                </span>
+                              </button>
+                            )}
                             {m.role === "assistant" && (
                               <div className="message-author">
                                 <Brand small />
@@ -2211,30 +2268,6 @@ export default function App() {
                                 <span />
                                 <small>Reading your sources</small>
                               </div>
-                            )}
-                            {m.role === "user" && passageNote && (
-                              <button
-                                type="button"
-                                className="message-passage-context"
-                                title="Show this passage in the document"
-                                onClick={() => openPassageNote(passageNote.id)}
-                              >
-                                <span className="message-passage-source">
-                                  <FileText size={13} />
-                                  {passageSource?.name.replace(
-                                    /\.(pdf|pptx)$/i,
-                                    "",
-                                  ) ?? "Source"}
-                                  <span aria-hidden="true">·</span>
-                                  {passageSource?.kind === "pptx"
-                                    ? "Slide"
-                                    : "Page"}{" "}
-                                  {passageNote.page}
-                                </span>
-                                <span className="message-passage-quote">
-                                  {passageNote.quote}
-                                </span>
-                              </button>
                             )}
                             {m.role === "assistant" &&
                               m.content &&
@@ -2402,6 +2435,11 @@ export default function App() {
                             question={question}
                             answer={answer}
                             sources={notebookSources}
+                            passage={notebook?.passageNotes?.find((note) =>
+                              note.messages.some(
+                                (message) => message.id === answer.id,
+                              ),
+                            )}
                             onCitation={showCitation}
                           />
                         ))}
@@ -2444,6 +2482,7 @@ export default function App() {
                     {filteredAnnotations.map((a, index) => (
                       <div
                         key={a.id}
+                        id={`annotation-${a.id}`}
                         className={`annotation-card ${a.color} ${a.id === selectedAnnotation ? "focused" : ""}`}
                       >
                         <div>
@@ -2949,7 +2988,31 @@ export default function App() {
       {searchNotebook && (
         <NotebookSearch
           sources={enabledSources}
+          notes={notebook ? searchableNotes(notebook, notebookAnnotations) : []}
           onCitation={showCitation}
+          onNote={(note) => {
+            if (note.kind === "passage") {
+              openPassageNote(note.id);
+              return;
+            }
+            setTab("notes");
+            setPanelOpen(true);
+            setNotesView(
+              note.kind === "answer"
+                ? "answers"
+                : note.kind === "highlight"
+                  ? "highlights"
+                  : "scratchpad",
+            );
+            setAnnotationFilter("");
+            setSearchNoteTarget(
+              note.kind === "answer"
+                ? `saved-answer-${note.id}`
+                : note.kind === "highlight"
+                  ? `annotation-${note.id}`
+                  : "notebook-note",
+            );
+          }}
           onClose={() => setSearchNotebook(false)}
         />
       )}

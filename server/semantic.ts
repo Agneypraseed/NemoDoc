@@ -35,6 +35,16 @@ export function cosine(a: number[], b: number[]) {
 export class SemanticRetriever {
   private vectors = new Map<string, number[]>();
   constructor(private fetcher: typeof fetch) {}
+  private embeddingInput(
+    text: string,
+    settings: RuntimeSettings,
+    title?: string,
+  ) {
+    if (!/embeddinggemma/i.test(settings.embeddingModel)) return text;
+    return title === undefined
+      ? `task: search result | query: ${text}`
+      : `title: ${title || "none"} | text: ${text}`;
+  }
   private hash(text: string, settings: RuntimeSettings) {
     return createHash("sha256")
       .update(
@@ -56,7 +66,13 @@ export class SemanticRetriever {
     const passages = chunks(sources);
     if (!passages.length) return { citations: [], mode: "semantic" };
     const missing = passages.filter(
-      (p) => !this.vectors.has(this.hash(p.text, settings)),
+      (p) =>
+        !this.vectors.has(
+          this.hash(
+            this.embeddingInput(p.text, settings, p.sourceName),
+            settings,
+          ),
+        ),
     );
     for (let start = 0; start < missing.length; start += 32) {
       const batch = missing.slice(start, start + 32);
@@ -65,7 +81,9 @@ export class SemanticRetriever {
         settings.embeddingBaseUrl.replace(/\/$/, "") + "/embeddings",
         {
           model: settings.embeddingModel,
-          input: batch.map((p) => p.text),
+          input: batch.map((p) =>
+            this.embeddingInput(p.text, settings, p.sourceName),
+          ),
           encoding_format: "float",
           ...(providerKind(settings.embeddingBaseUrl) === "nvidia"
             ? { input_type: "passage", truncate: "END" }
@@ -73,6 +91,7 @@ export class SemanticRetriever {
         },
         settings,
         signal,
+        "embedding",
       );
       if (!Array.isArray(data.data) || data.data.length !== batch.length)
         throw new Error("The embedding endpoint returned an incomplete index.");
@@ -95,7 +114,14 @@ export class SemanticRetriever {
         )
           throw new Error("The embedding endpoint returned invalid vectors.");
         this.vectors.set(
-          this.hash(batch[entry.index].text, settings),
+          this.hash(
+            this.embeddingInput(
+              batch[entry.index].text,
+              settings,
+              batch[entry.index].sourceName,
+            ),
+            settings,
+          ),
           entry.embedding,
         );
       }
@@ -105,7 +131,7 @@ export class SemanticRetriever {
       settings.embeddingBaseUrl.replace(/\/$/, "") + "/embeddings",
       {
         model: settings.embeddingModel,
-        input: [question],
+        input: [this.embeddingInput(question, settings)],
         encoding_format: "float",
         ...(providerKind(settings.embeddingBaseUrl) === "nvidia"
           ? { input_type: "query", truncate: "END" }
@@ -113,6 +139,7 @@ export class SemanticRetriever {
       },
       settings,
       signal,
+      "embedding",
     );
     const vector = query.data?.[0]?.embedding;
     if (
@@ -123,7 +150,12 @@ export class SemanticRetriever {
       throw new Error("The query embedding is invalid.");
     let selected = passages
       .map((p) => {
-        const embedded = this.vectors.get(this.hash(p.text, settings))!;
+        const embedded = this.vectors.get(
+          this.hash(
+            this.embeddingInput(p.text, settings, p.sourceName),
+            settings,
+          ),
+        )!;
         if (embedded.length !== vector.length)
           throw new Error("The embedding dimensions do not match.");
         return { ...p, score: cosine(vector, embedded) };
@@ -150,6 +182,7 @@ export class SemanticRetriever {
         },
         settings,
         signal,
+        "rerank",
       );
       const rankings = data.rankings ?? data.results;
       if (

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { providerJSON, parseJSON, type SettingsStore } from "./settings.ts";
 import type { SemanticRetriever } from "./semantic.ts";
 import { chatOptions, providerKind } from "./providers.ts";
+import { retrieve } from "./retrieval.ts";
 
 export const sourcesSchema = z
   .array(
@@ -120,6 +121,69 @@ export function registerFeatures(
       signal,
     );
   });
+  jsonRoute("/api/search/notes", async (body, signal) => {
+    const input = z
+      .object({
+        question: z.string().trim().min(1).max(8000),
+        notes: z
+          .array(
+            z.object({
+              id: z.string().min(1).max(100),
+              title: z.string().max(8000),
+              text: z.string().max(100000),
+              kind: z.enum(["answer", "passage", "highlight", "notebook"]),
+            }),
+          )
+          .max(500)
+          .refine(
+            (notes) =>
+              new Set(notes.map((note) => note.id)).size === notes.length,
+            "Note IDs must be unique.",
+          ),
+      })
+      .parse(body);
+    const sources = input.notes.map((note) => ({
+      id: note.id,
+      name: note.title,
+      pages: [note.text],
+    }));
+    const settings = { ...store.value, semantic: !!store.value.embeddingModel };
+    const found = settings.semantic
+      ? await retriever.search(sources, input.question, settings, signal)
+      : {
+          citations: retrieve(sources, input.question, 10, false),
+          mode: "keyword",
+        };
+    const seen = new Set<string>();
+    return {
+      mode: found.mode,
+      results: found.citations.flatMap((match) => {
+        const note = input.notes.find((item) => item.id === match.sourceId);
+        if (!note || seen.has(note.id)) return [];
+        seen.add(note.id);
+        return [{ ...note, text: match.text }];
+      }),
+    };
+  });
+  jsonRoute("/api/settings/test/embeddings", async (_body, signal) => {
+    if (!store.value.embeddingModel)
+      throw new Error("Choose an embedding model in Settings first.");
+    const result = await retriever.search(
+      [
+        {
+          id: "connection-test",
+          name: "Connection test",
+          pages: ["A notebook saves notes for studying."],
+        },
+      ],
+      "study notes",
+      { ...store.value, semantic: true, rerank: false },
+      signal,
+    );
+    if (!result.citations.length)
+      throw new Error("The embedding model returned no results.");
+    return { ok: true, model: store.value.embeddingModel };
+  });
   jsonRoute("/api/vision", async (body, signal) => {
     const input = vision.parse(body),
       settings = store.value;
@@ -148,11 +212,12 @@ export function registerFeatures(
       },
       settings,
       signal,
+      "vision",
     );
     const content = data.choices?.[0]?.message?.content;
     if (typeof content !== "string" || !content.trim())
       throw new Error("The vision model returned no answer.");
-    return { content };
+    return { content, model: settings.visionModel };
   });
   jsonRoute("/api/ocr", async (body, signal) => {
     const input = vision.pick({ image: true }).parse(body),
@@ -180,6 +245,7 @@ export function registerFeatures(
       },
       settings,
       signal,
+      "vision",
     );
     const parsed = z
       .object({

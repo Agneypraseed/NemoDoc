@@ -1,5 +1,5 @@
 import { usesCitation } from "./citations";
-import type { Message, Source } from "../types";
+import type { Message, Source, PassageNote } from "../types";
 
 export interface SavedAnswer {
   notes: string;
@@ -23,6 +23,7 @@ export function saveAnswerToNotes(
   messages: Message[],
   answerId: string,
   sources: Source[],
+  passage?: PassageNote,
 ): SavedAnswer | undefined {
   const answerIndex = messages.findIndex((message) => message.id === answerId);
   const answer = messages[answerIndex];
@@ -70,6 +71,17 @@ export function saveAnswerToNotes(
   const section = [
     "## Saved answer",
     "",
+    ...(passage
+      ? [
+          "### Cited passage",
+          "",
+          ...passage.quote
+            .trim()
+            .split(/\r?\n/)
+            .map((line) => `> ${line}`),
+          "",
+        ]
+      : []),
     "### Question",
     "",
     question.content.trim(),

@@ -46,12 +46,9 @@ const storedSettingsSchema = z.object({
 export const settingsSchema = storedSettingsSchema.refine(
   (s) =>
     isNemotron(s.model) &&
-    [s.embeddingModel, s.visionModel, s.rerankModel].every(
-      (m) => !m || isNemotron(m),
-    ) &&
     (!s.semantic || !!s.embeddingModel) &&
     (!s.rerank || !!s.rerankModel),
-  "Use Nemotron model IDs only; optional capabilities need a compatible model.",
+  "Use a Nemotron chat model; enabled search and reranking need their own model IDs.",
 );
 export type RuntimeSettings = Omit<ConnectionSettings, "hasApiKey"> & {
   apiKey: string;
@@ -70,7 +67,9 @@ export class SettingsStore {
       embeddingBaseUrl: config.baseUrl,
       visionBaseUrl: config.baseUrl,
       embeddingModel: nebius ? "" : "nvidia/llama-nemotron-embed-1b-v2",
-      visionModel: nebius ? "" : "nvidia/nemotron-nano-12b-v2-vl",
+      visionModel: nebius
+        ? "openbmb/MiniCPM-V-4_5"
+        : "nvidia/nemotron-nano-12b-v2-vl",
       semantic: false,
       rerank: false,
       rerankUrl: nebius
@@ -95,13 +94,18 @@ export class SettingsStore {
         );
       }
     }
-    // Preserve the saved provider/key while retiring non-Nemotron capabilities.
-    for (const field of [
-      "embeddingModel",
-      "visionModel",
-      "rerankModel",
-    ] as const)
-      if (!isNemotron(this.value[field])) this.value[field] = "";
+    // Capability models are independent of the Nemotron chat connection.
+    // Earlier builds erased non-Nemotron vision IDs. Restore a companion for
+    // the built-in hosted providers, while leaving custom/local choices alone.
+    if (!this.value.visionModel) {
+      const provider = providerKind(this.value.baseUrl);
+      if (provider === "nebius")
+        this.value.visionModel = "openbmb/MiniCPM-V-4_5";
+      if (provider === "nvidia")
+        this.value.visionModel = "nvidia/nemotron-nano-12b-v2-vl";
+      if (provider === "nebius" || provider === "nvidia")
+        this.value.visionBaseUrl = this.value.baseUrl;
+    }
     if (!this.value.embeddingModel) this.value.semantic = false;
     if (!this.value.rerankModel) this.value.rerank = false;
   }
@@ -147,12 +151,20 @@ export async function providerJSON(
   body: unknown,
   settings: RuntimeSettings,
   signal = AbortSignal.timeout(120000),
+  capability: "chat" | "embedding" | "vision" | "rerank" = "chat",
 ) {
   if ((!settings.apiKey || !credentialAllowed(url, settings)) && !isLocal(url))
     throw new Error(
       "Configure a key for this provider in Settings. Embedding and vision endpoints must use the same provider as chat.",
     );
-  requireNemotron((body as { model?: unknown })?.model);
+  const modelId = (body as { model?: unknown })?.model;
+  if (capability === "chat") requireNemotron(modelId);
+  else if (typeof modelId !== "string" || !modelId.trim())
+    throw new Error(
+      capability === "vision"
+        ? "Set an image-capable vision model in Settings → OCR & images. The chat model is text-only."
+        : "Set an embedding or reranking model in Settings before using semantic search.",
+    );
   const response = await fetcher(url, {
     method: "POST",
     headers: headers(settings, url),
@@ -165,7 +177,13 @@ export async function providerJSON(
         ? "The endpoint rejected the API key. Check your connection in Settings."
         : response.status === 429
           ? "The model is rate limiting requests. Try again shortly."
-          : `The configured model endpoint returned ${response.status}. Check its URL and model ID.`,
+          : response.status === 404 &&
+              capability === "embedding" &&
+              isLocal(url)
+            ? "The local embedding model is unavailable. Start Ollama and pull the model shown in Settings → Search & embeddings."
+            : capability === "vision"
+              ? `The vision endpoint returned ${response.status}. Choose an available image-capable model in Settings → OCR & images.`
+              : `The configured model endpoint returned ${response.status}. Check its URL and model ID.`,
     );
   return response.json();
 }

@@ -708,6 +708,7 @@ export function Reader({
         return markerRects.slice(-1).map((rect) => (
           <button
             key={note.id}
+            type="button"
             className={`passage-note-marker ${note.active ? "active" : ""}`}
             style={{
               left: `${(rect.x + rect.width) * 100}%`,
@@ -715,11 +716,18 @@ export function Reader({
             }}
             aria-label={`Open passage note: ${note.question}`}
             data-tooltip={note.question}
+            onPointerDown={(event) => {
+              event.stopPropagation();
+              event.preventDefault();
+            }}
+            onPointerUp={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
               onOpenPassageNote?.(note.id);
             }}
-          />
+          >
+            <span className="passage-marker-dot" aria-hidden="true" />
+          </button>
         ));
       });
   };
@@ -933,6 +941,8 @@ export function Reader({
                   const active = currentPage.current;
                   setPage(active);
                   setMode(value);
+                  setToolsOpen(false);
+                  toolsTrigger.current?.focus();
                   setSelection(undefined);
                 }}
               >

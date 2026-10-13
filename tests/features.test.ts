@@ -48,14 +48,169 @@ const post = (url: string, body: unknown) =>
     body: JSON.stringify(body),
   });
 
-test("Nebius defaults permit only Nemotron and leave unsupported capabilities unconfigured", () => {
+test("EmbeddingGemma 2 searches notes with retrieval prompts, no leaked chat key, and a cached document index", async () => {
+  const calls: any[] = [];
+  await withApp(
+    (async (url, init) => {
+      const body = JSON.parse(String(init?.body));
+      calls.push({ url, body });
+      assert.equal(new Headers(init?.headers).get("authorization"), null);
+      assert.equal(body.model, "embeddinggemma-2:270m");
+      return Response.json({
+        data: body.input.map((text: string, index: number) => ({
+          index,
+          embedding: /soil|roots/.test(text) ? [0, 1] : [1, 0],
+        })),
+      });
+    }) as typeof fetch,
+    async (url) => {
+      const current = await (await fetch(url + "/api/settings")).json();
+      assert.equal(
+        (
+          await post(url + "/api/settings", {
+            ...current,
+            embeddingBaseUrl: "http://127.0.0.1:11434/v1",
+            embeddingModel: "embeddinggemma-2:270m",
+          })
+        ).status,
+        200,
+      );
+      const notes = [
+        {
+          id: "focus",
+          title: "Protect attention",
+          text: "Concentration is a finite resource.",
+          kind: "answer",
+        },
+        {
+          id: "trees",
+          title: "Trees",
+          text: "Trees grow roots in the soil.",
+          kind: "highlight",
+        },
+      ];
+      const result = await post(url + "/api/search/notes", {
+        notes,
+        question: "How do I stay focused?",
+      });
+      assert.equal(result.status, 200);
+      const data = await result.json();
+      assert.equal(data.mode, "semantic");
+      assert.equal(data.results[0].id, "focus");
+      assert.equal(data.results[0].kind, "answer");
+      assert.equal(
+        data.results[0].citations,
+        undefined,
+        "Note matches are not document evidence",
+      );
+      assert.match(
+        calls[0].body.input[0],
+        /^title: Protect attention \| text:/,
+      );
+      assert.match(calls[1].body.input[0], /^task: search result \| query:/);
+      await post(url + "/api/search/notes", {
+        notes,
+        question: "Help me concentrate",
+      });
+      assert.equal(
+        calls.length,
+        3,
+        "Only the new query requires a new embedding",
+      );
+      assert.equal(
+        (await post(url + "/api/settings/test/embeddings", {})).status,
+        200,
+      );
+    },
+  );
+});
+
+test("notes keyword search returns no unrelated fallback and accepts empty notebooks", async () => {
+  await withApp(
+    (async () => {
+      throw new Error("No inference expected");
+    }) as typeof fetch,
+    async (url) => {
+      const current = await (await fetch(url + "/api/settings")).json();
+      await post(url + "/api/settings", {
+        ...current,
+        embeddingModel: "",
+        semantic: false,
+      });
+      const body = {
+        question: "astronomy",
+        notes: [
+          {
+            id: "a",
+            title: "Plants",
+            text: "Trees grow roots in soil.",
+            kind: "notebook",
+          },
+        ],
+      };
+      const result = await (await post(url + "/api/search/notes", body)).json();
+      assert.deepEqual(result, { mode: "keyword", results: [] });
+      assert.equal(
+        (await post(url + "/api/search/notes", { ...body, notes: [] })).status,
+        200,
+      );
+      assert.equal(
+        (
+          await post(url + "/api/search/notes", {
+            ...body,
+            notes: [body.notes[0], body.notes[0]],
+          })
+        ).status,
+        400,
+      );
+    },
+  );
+});
+
+test("Nebius OCR and image questions use the saved non-Nemotron vision companion", async () => {
+  let content = "A document diagram.",
+    request: any;
+  await withApp(
+    (async (_url, init) => {
+      request = JSON.parse(String(init?.body));
+      return reply(content);
+    }) as typeof fetch,
+    async (url) => {
+      const image = "data:image/png;base64,aGVsbG8=";
+      assert.equal(
+        (
+          await post(url + "/api/vision", {
+            image,
+            question: "Describe this diagram",
+          })
+        ).status,
+        200,
+      );
+      assert.equal(request.model, "openbmb/MiniCPM-V-4_5");
+      content = JSON.stringify({
+        text: "A heading",
+        regions: [
+          { text: "A heading", x: 0.1, y: 0.1, width: 0.5, height: 0.05 },
+        ],
+      });
+      const result = await post(url + "/api/ocr", { image });
+      assert.equal(result.status, 200);
+      assert.equal((await result.json()).text, "A heading");
+      assert.equal(request.messages[0].content[1].image_url.url, image);
+    },
+    undefined,
+    { ...config, baseUrl: "https://api.tokenfactory.nebius.com/v1" },
+  );
+});
+
+test("Nebius defaults use Nemotron for chat and a separate vision companion", () => {
   const store = new SettingsStore({
     apiKey: "test-secret",
     baseUrl: "https://api.tokenfactory.nebius.com/v1",
     model: "nvidia/Nemotron-3_5-Lightning",
   });
   assert.equal(store.value.embeddingModel, "");
-  assert.equal(store.value.visionModel, "");
+  assert.equal(store.value.visionModel, "openbmb/MiniCPM-V-4_5");
   assert.equal(store.value.visionBaseUrl, store.value.baseUrl);
   assert.equal(store.value.rerank, false);
   assert.equal(store.value.semantic, false);

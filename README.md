@@ -72,7 +72,21 @@ npm run dev
 
 Open [localhost:5173](http://127.0.0.1:5173). Reading and annotation work without model credentials. To enable live AI, open **Settings → Nebius**, enter your **Nebius Token Factory API key**, and choose **Save & test**.
 
+Settings loads the saved provider's model catalog into the **Chat & study model** dropdown and labels each option **Text** or **Vision**. The provider determines which model IDs are available; refresh after changing the connection. Chat, passage answers and study tools use that selection. OCR and image questions use the **OCR & image model** selection, and semantic search uses the embedding model. The agent can use the notebook connection or its own tested model connection.
+
 Notebooks stay on your device; hosted AI receives relevant text or selected page images. Export notes or back up notebooks as ZIP files.
+
+### OCR, image questions, and notes search
+
+Nemotron 3.5 Lightning is text-only. **Settings → OCR & images** configures a separate vision model for scanned-page recognition and image questions. Nebius presets MiniCPM-V-4.5; NVIDIA hosted presets Nemotron Nano VL. Check the saved provider's catalog and test the connection because hosted availability can change. OCR text stays in the local source and participates in selection and search.
+
+**Search ideas → Notes** searches saved answers, passage notes, highlights, and notebook notes. To use [EmbeddingGemma 2](https://ai.google.dev/gemma/docs/embeddinggemma) locally, install and start Ollama, then run:
+
+```sh
+ollama pull embeddinggemma-2:270m
+```
+
+Choose **Settings → Search & embeddings → Use EmbeddingGemma 2 locally**, then **Save & test embeddings**. The 270M text variant serves note and source search at `http://127.0.0.1:11434/v1`; Nemotron remains the chat model. Other OpenAI-compatible embedding endpoints and model IDs are editable. Search uses keywords if no embedding model is configured. Cached embeddings are regenerated when note text or model settings change.
 
 ### Open models and agent delivery
 

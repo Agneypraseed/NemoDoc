@@ -182,6 +182,55 @@
   font-size: 12px;
   background: var(--surface);
 }
+.capability-settings {
+  display: grid;
+  gap: 12px;
+  padding-top: 16px;
+  margin-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.connection-form .capability-settings .field-label {
+  margin: 0;
+  font-size: 12px;
+}
+.connection-form .capability-settings .modal-description {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.capability-settings h4 {
+  font-size: 13px;
+}
+.capability-settings .secondary-button {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-quiet);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.capability-settings .secondary-button:hover:not(:disabled) {
+  border-color: var(--accent-line);
+}
+.capability-settings h4,
+.capability-settings .modal-description {
+  margin: 0;
+}
+.capability-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.search-scopes {
+  margin-bottom: 14px;
+  width: fit-content;
+}
 .semantic-results > small {
   font-size: 11px;
   color: var(--muted);

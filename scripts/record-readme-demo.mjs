@@ -208,6 +208,12 @@ try {
   await page.getByRole("button", { name: "Reader tools" }).click();
   await page.waitForTimeout(900);
   for (const mode of ["Horizontal view", "Book view", "Vertical view"]) {
+    const tools = page.getByRole("button", {
+      name: "Reader tools",
+      exact: true,
+    });
+    if ((await tools.getAttribute("aria-expanded")) !== "true")
+      await tools.click();
     await page.getByRole("button", { name: mode, exact: true }).click();
     await page.waitForTimeout(1050);
   }
@@ -229,7 +235,9 @@ try {
   const toolbar = page.getByRole("toolbar", { name: "Selected text actions" });
   await expect(toolbar).toBeVisible();
   await page.waitForTimeout(650);
-  await page.screenshot({ path: path.join(screenshotDir, "selection-tools.png") });
+  await page.screenshot({
+    path: path.join(screenshotDir, "selection-tools.png"),
+  });
   await toolbar.getByRole("button", { name: "Highlight", exact: true }).click();
   await page.waitForTimeout(1000);
   await page.getByRole("button", { name: "Notes", exact: true }).click();
@@ -287,21 +295,29 @@ try {
   await page.waitForTimeout(1800);
 
   await page.getByRole("button", { name: "Notebook actions" }).click();
-  await expect(page.getByRole("button", { name: "Export notes" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Export notes" }),
+  ).toBeVisible();
   await page.waitForTimeout(1400);
   await page.screenshot({ path: path.join(screenshotDir, "export-notes.png") });
   await page.keyboard.press("Escape");
 
   await page.getByRole("button", { name: "Studio", exact: true }).click();
   await page.getByRole("button", { name: "Flashcards", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Attention, clarity & agency" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Attention, clarity & agency" }),
+  ).toBeVisible();
   await page.waitForTimeout(1900);
   await page.screenshot({ path: path.join(screenshotDir, "studio.png") });
 
   await page.getByRole("button", { name: "Agent", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Your personal agent" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Your personal agent" }),
+  ).toBeVisible();
   await page.waitForTimeout(1200);
-  await page.screenshot({ path: path.join(screenshotDir, "personal-agent.png") });
+  await page.screenshot({
+    path: path.join(screenshotDir, "personal-agent.png"),
+  });
   await page.getByRole("button", { name: "Skills", exact: true }).click();
   await expect(page.locator(".agent-skill").first()).toContainText(
     "Exam preparation",
@@ -318,7 +334,9 @@ try {
   });
   const modelConnection = page.getByLabel("Model connection");
   await modelConnection.selectOption("custom");
-  await page.getByRole("button", { name: "Use local Gemma 4 / Ollama" }).click();
+  await page
+    .getByRole("button", { name: "Use local Gemma 4 / Ollama" })
+    .click();
   await page.waitForTimeout(900);
   await page.screenshot({
     path: path.join(screenshotDir, "agent-open-model.png"),
@@ -346,13 +364,17 @@ try {
   await page.getByLabel("Repeat").selectOption("weekdays");
   await page.getByLabel("Schedule time zone").scrollIntoViewIfNeeded();
   await page.waitForTimeout(1300);
-  await page.screenshot({ path: path.join(screenshotDir, "agent-schedule.png") });
+  await page.screenshot({
+    path: path.join(screenshotDir, "agent-schedule.png"),
+  });
 
   capturing = false;
   await captureFrames;
   const captureSeconds = (Date.now() - captureStartedAt) / 1000;
   const captureFps = frameIndex / captureSeconds;
-  console.log(`Recorded ${frameIndex} frames over ${captureSeconds.toFixed(1)}s.`);
+  console.log(
+    `Recorded ${frameIndex} frames over ${captureSeconds.toFixed(1)}s.`,
+  );
   await context.close();
   execFileSync(
     "ffmpeg",

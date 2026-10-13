@@ -49,8 +49,9 @@ test("complete backup round-trip restores originals, reading preferences, annota
         description: "",
         notes: "Keep this.",
         messages: [
+          { id: "pq", role: "user", content: "What does this mean?" },
           {
-            id: "m",
+            id: "pa",
             role: "assistant",
             content: "Answer [1]",
             savedToNotes: true,
@@ -132,11 +133,13 @@ test("complete backup round-trip restores originals, reading preferences, annota
   assert.equal(restored.sources[0].notebookId, restored.notebooks[0].id);
   assert.equal(restored.annotations[0].sourceId, restored.sources[0].id);
   assert.equal(
-    restored.notebooks[0].messages[0].citations?.[0].sourceId,
+    restored.notebooks[0].messages[1].citations?.[0].sourceId,
     restored.sources[0].id,
   );
-  assert.equal(restored.notebooks[0].messages[0].savedToNotes, true);
+  assert.equal(restored.notebooks[0].messages[1].savedToNotes, true);
   const passage = restored.notebooks[0].passageNotes![0];
+  assert.equal(passage.messages[0].id, restored.notebooks[0].messages[0].id);
+  assert.equal(passage.messages[1].id, restored.notebooks[0].messages[1].id);
   assert.notEqual(passage.id, "passage");
   assert.equal(passage.sourceId, restored.sources[0].id);
   assert.equal(

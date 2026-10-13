@@ -1,4 +1,5 @@
 import { usesCitation } from "./citations";
+import { passageTitle } from "./passage-label";
 import type {
   Annotation,
   Message,
@@ -64,7 +65,9 @@ function appendPassageNote(
   sources: Map<string, ExportSource>,
 ) {
   const source = sources.get(note.sourceId);
-  const heading = note.topic ? note.question : note.question || "Passage note";
+  const heading = note.topic
+    ? note.question
+    : passageTitle(note.question, note.quote) || "Passage note";
   lines.push(`### ${heading.replace(/\r?\n/g, " ")}`);
   lines.push(`**${sourceLabel(source, note.page)}**`, "");
   if (note.quote.trim()) lines.push(blockquote(note.quote), "");

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Check, LoaderCircle } from "lucide-react";
 import { apiJSON } from "../lib/api";
 import { modelName } from "../lib/appearance";
+import { modelModality, modelOptionLabel } from "../lib/model-modality";
 import type { ConnectionSettings as Settings } from "../types";
 
 export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
@@ -12,16 +13,45 @@ export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
     [message, setMessage] = useState(""),
     [error, setError] = useState("");
   const [models, setModels] = useState<string[]>([]);
+  const [visionModels, setVisionModels] = useState<string[]>([]);
+  const [catalogStatus, setCatalogStatus] = useState<
+    "idle" | "loading" | "loaded" | "unavailable"
+  >("idle");
   useEffect(() => {
     const controller = new AbortController();
     apiJSON<Settings>("/api/settings", undefined, controller.signal)
-      .then(setSettings)
+      .then((loaded) => {
+        setSettings(loaded);
+        if (!loaded.hasApiKey && !/^http:\/\//.test(loaded.baseUrl)) return;
+        setCatalogStatus("loading");
+        apiJSON<{ models: string[] }>(
+          "/api/models",
+          undefined,
+          controller.signal,
+        )
+          .then((data) => {
+            setModels(data.models);
+            setCatalogStatus("loaded");
+          })
+          .catch((e) => {
+            if (e.name !== "AbortError") setCatalogStatus("unavailable");
+          });
+        apiJSON<{ models: string[] }>(
+          "/api/models?capability=vision",
+          undefined,
+          controller.signal,
+        )
+          .then((data) => setVisionModels(data.models))
+          .catch(() => {
+            // Manual vision model entry remains available if the catalog fails.
+          });
+      })
       .catch((e) => {
         if (e.name !== "AbortError") setError(e.message);
       });
     return () => controller.abort();
   }, []);
-  const save = async (test: boolean) => {
+  const save = async (test: boolean | "embeddings") => {
     if (!settings) return;
     setBusy(true);
     setError("");
@@ -36,7 +66,13 @@ export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
       setKey("");
       setClearKey(false);
       onSaved();
-      if (test) {
+      if (test === "embeddings") {
+        const result = await apiJSON<{ model: string }>(
+          "/api/settings/test/embeddings",
+          {},
+        );
+        setMessage(`Embeddings connected · ${result.model}`);
+      } else if (test) {
         const result = await apiJSON<{ latencyMs: number }>(
           "/api/settings/test",
           {},
@@ -64,6 +100,8 @@ export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
   const nebius = new URL(settings.baseUrl).hostname.includes("tokenfactory");
   const preset = (kind: "nebius" | "nvidia" | "local") => {
     setModels([]);
+    setVisionModels([]);
+    setCatalogStatus("idle");
     setKey("");
     setMessage("");
     const base =
@@ -83,7 +121,10 @@ export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
           : "nvidia/nemotron-3-nano-30b-a3b",
       embeddingModel:
         kind === "nebius" ? "" : "nvidia/llama-nemotron-embed-1b-v2",
-      visionModel: kind === "nebius" ? "" : "nvidia/nemotron-nano-12b-v2-vl",
+      visionModel:
+        kind === "nebius"
+          ? "openbmb/MiniCPM-V-4_5"
+          : "nvidia/nemotron-nano-12b-v2-vl",
       rerankUrl:
         kind === "nebius"
           ? base + "/rerank"
@@ -124,42 +165,47 @@ export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
           Local inference
         </button>
       </div>
-      {!models.length && field("model", "Model")}
+      <label className="field-label">
+        Chat & study model
+        <select
+          value={settings.model}
+          disabled={busy}
+          onChange={(e) => setSettings({ ...settings, model: e.target.value })}
+        >
+          {[...new Set([settings.model, ...models])].map((id) => (
+            <option key={id} value={id}>
+              {modelOptionLabel(id, modelName(id))}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="model-role-hint">
+        {modelModality(settings.model) === "Vision"
+          ? "Vision model selected for chat and study. Choose it separately for OCR & images below if this provider supports image input."
+          : "Text model selected for chat, passage answers, summaries and study tools."}
+      </p>
       <button
         className="secondary-button"
         disabled={busy}
         onClick={async () => {
           setError("");
+          setCatalogStatus("loading");
           try {
             const data = await apiJSON<{ models: string[] }>("/api/models");
             setModels(data.models);
+            setCatalogStatus("loaded");
           } catch (e) {
             setError((e as Error).message);
+            setCatalogStatus("unavailable");
           }
         }}
       >
-        Browse models
+        {catalogStatus === "loading" ? "Loading models…" : "Refresh models"}
       </button>
-      {!!models.length && (
-        <label className="field-label">
-          Model
-          <select
-            value={settings.model}
-            disabled={busy}
-            onChange={(e) =>
-              setSettings({ ...settings, model: e.target.value })
-            }
-          >
-            {[...new Set([settings.model, ...models])].map((id) => (
-              <option key={id} value={id}>
-                {modelName(id)}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
       <p className="modal-description">
-        Save your connection before browsing available models.
+        {catalogStatus === "loaded"
+          ? `${models.length} chat models available from this provider. Vision in the list means the model accepts images on a compatible endpoint.`
+          : "Save your provider key, then refresh to see its available models. The current selection stays visible."}
       </p>
       <label className="field-label">
         API key
@@ -187,6 +233,119 @@ export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
           Remove saved API key
         </label>
       )}
+      <section
+        className="capability-settings"
+        aria-label="Search and embeddings"
+      >
+        <h4>Search & embeddings</h4>
+        <p className="modal-description">
+          Search sources and your saved notes by meaning. Chat continues to use
+          the chat model above; embeddings use a separate model.
+        </p>
+        <button
+          type="button"
+          className="secondary-button"
+          disabled={busy}
+          onClick={() =>
+            setSettings({
+              ...settings,
+              embeddingBaseUrl: "http://127.0.0.1:11434/v1",
+              embeddingModel: "embeddinggemma-2:270m",
+            })
+          }
+        >
+          Use EmbeddingGemma 2 locally
+        </button>
+        {/embeddinggemma/i.test(settings.embeddingModel) && (
+          <p className="modal-description">
+            Start Ollama with <code>ollama pull {settings.embeddingModel}</code>
+            , then test the connection below.
+          </p>
+        )}
+        {field("embeddingBaseUrl", "Embedding API base URL")}
+        {field("embeddingModel", "Embedding model ID")}
+        <button
+          type="button"
+          className="secondary-button"
+          disabled={busy || !settings.embeddingModel}
+          onClick={() => void save("embeddings")}
+        >
+          {busy && <LoaderCircle size={15} className="spin" />}Save & test
+          embeddings
+        </button>
+      </section>
+      <section className="capability-settings" aria-label="OCR and images">
+        <h4>OCR & images</h4>
+        <p className="modal-description">
+          Recognize scanned text and ask about diagrams with an image-capable
+          model. This can be the same as chat when that model accepts images, or
+          a separate vision model.
+        </p>
+        <div className="capability-actions">
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={busy || local}
+            onClick={() => {
+              setVisionModels([]);
+              setSettings({
+                ...settings,
+                visionBaseUrl: settings.baseUrl,
+                visionModel: nebius
+                  ? "openbmb/MiniCPM-V-4_5"
+                  : "nvidia/nemotron-nano-12b-v2-vl",
+              });
+            }}
+          >
+            Use provider vision model
+          </button>
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={busy}
+            onClick={async () => {
+              setError("");
+              try {
+                const data = await apiJSON<{ models: string[] }>(
+                  "/api/models?capability=vision",
+                );
+                setVisionModels(data.models);
+                if (!data.models.length)
+                  setError(
+                    "No vision models were found in this provider's catalog. Enter a compatible model ID below.",
+                  );
+              } catch (e) {
+                setError((e as Error).message);
+              }
+            }}
+          >
+            Browse vision models
+          </button>
+        </div>
+        {field("visionBaseUrl", "Vision API base URL")}
+        <label className="field-label">
+          OCR & image model
+          <select
+            value={settings.visionModel}
+            disabled={busy}
+            onChange={(e) =>
+              setSettings({ ...settings, visionModel: e.target.value })
+            }
+          >
+            {[...new Set([settings.visionModel, ...visionModels])].map((id) => (
+              <option key={id} value={id}>
+                {id
+                  ? modelOptionLabel(id, modelName(id))
+                  : "Choose a vision model"}
+              </option>
+            ))}
+          </select>
+        </label>
+        <details className="capability-custom-model">
+          <summary>Enter a custom vision model ID</summary>
+          {field("visionModel", "Vision model ID")}
+        </details>
+      </section>
       <details>
         <summary>Advanced capabilities</summary>
         {field("baseUrl", "Chat API base URL")}
@@ -201,14 +360,6 @@ export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
           />
           Use semantic retrieval for chat and study tools
         </label>
-        <p className="modal-description">
-          Add compatible Nemotron models for semantic search and image
-          questions.
-        </p>
-        {field("embeddingBaseUrl", "Embedding API base URL")}
-        {field("embeddingModel", "Embedding model ID")}
-        {field("visionBaseUrl", "Vision API base URL")}
-        {field("visionModel", "Vision model ID")}
         <label className="check-field">
           <input
             type="checkbox"

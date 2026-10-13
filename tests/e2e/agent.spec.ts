@@ -207,11 +207,17 @@ test("personal agent remembers preferences, reuses skills, runs while browser is
 test("connection presets and model catalog select exact model IDs", async ({
   page,
 }) => {
-  await page.route("**/api/models", (route) =>
+  await page.route("**/api/models*", (route) =>
     route.fulfill({
       json: {
         provider: "nebius",
-        models: ["nvidia/Nemotron-3_5-Lightning", "nvidia/nemotron-test-super"],
+        models: route.request().url().includes("capability=vision")
+          ? ["nvidia/nemotron-nano-12b-v2-vl"]
+          : [
+              "nvidia/Nemotron-3_5-Lightning",
+              "nvidia/nemotron-test-super",
+              "nvidia/nemotron-nano-12b-v2-vl",
+            ],
       },
     }),
   );
@@ -222,19 +228,32 @@ test("connection presets and model catalog select exact model IDs", async ({
     "https://api.tokenfactory.nebius.com/v1",
   );
   await expect(page.getByLabel("Embedding model ID")).toHaveValue("");
-  await expect(page.getByLabel("Vision model ID")).toHaveValue("");
+  await expect(
+    page.getByRole("combobox", { name: "OCR & image model" }),
+  ).toHaveValue("openbmb/MiniCPM-V-4_5");
   await page
     .getByRole("button", {
-      name: "Browse models",
+      name: "Refresh models",
       exact: true,
     })
     .click();
   await page
-    .getByRole("combobox", { name: "Model", exact: true })
+    .getByRole("combobox", { name: "Chat & study model" })
     .selectOption("nvidia/nemotron-test-super");
   await expect(
-    page.getByRole("combobox", { name: "Model", exact: true }),
+    page.getByRole("combobox", { name: "Chat & study model" }),
   ).toHaveValue("nvidia/nemotron-test-super");
+  await expect(
+    page
+      .getByRole("combobox", { name: "Chat & study model" })
+      .getByRole("option", {
+        name: /Nemotron Nano 12B V2 VL · Vision/,
+      }),
+  ).toHaveCount(1);
+  await page.getByRole("button", { name: "Browse vision models" }).click();
+  await page
+    .getByRole("combobox", { name: "OCR & image model" })
+    .selectOption("nvidia/nemotron-nano-12b-v2-vl");
   await page
     .getByRole("button", { name: "NVIDIA hosted", exact: true })
     .click();

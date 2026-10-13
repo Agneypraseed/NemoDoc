@@ -14,7 +14,7 @@ import { SemanticRetriever } from "./semantic.ts";
 import { registerFeatures } from "./features.ts";
 import { registerAgent } from "./agent.ts";
 import type { SmtpTransportFactory } from "./smtp.ts";
-import { isNemotron, requireNemotron } from "../src/lib/model-policy.ts";
+import { isNemotron } from "../src/lib/model-policy.ts";
 
 export interface Config {
   apiKey: string;
@@ -61,12 +61,7 @@ export function createApp(
   } = {},
 ) {
   const providerFetch = fetcher;
-  // Covers notebook chat and optional notebook inference routes.
-  // Separate agent connections use the original fetcher and their own model policy.
-  fetcher = (async (url, init) => {
-    if (init?.body) requireNemotron(JSON.parse(String(init.body)).model);
-    return providerFetch(url, init);
-  }) as typeof fetch;
+  // Chat is restricted below; vision and embeddings use separate capability models.
   const app = express();
   const store = new SettingsStore(initialConfig, options.settingsFile);
   const retriever = new SemanticRetriever(fetcher);
@@ -94,7 +89,7 @@ export function createApp(
     options.smtpTransportFactory,
   );
   app.get("/api/settings", (_req, res) => res.json(store.public()));
-  app.get("/api/models", async (_req, res) => {
+  app.get("/api/models", async (req, res) => {
     try {
       if (!store.value.apiKey && !isLocal(store.value.baseUrl))
         throw new Error("Save a key before loading available models.");
@@ -116,7 +111,16 @@ export function createApp(
         .parse(data.data)
         .map((m) => m.id);
       res.json({
-        models: ids.filter(isNemotron).sort(),
+        models: ids
+          .filter((id) =>
+            req.query.capability === "vision"
+              ? !/(?:embed|rerank)/i.test(id) &&
+                /vision|\bvl\b|[-_]vl|MiniCPM|pixtral|gemma.*(?:3|4)/i.test(id)
+              : req.query.capability === "embedding"
+                ? /embed/i.test(id)
+                : isNemotron(id),
+          )
+          .sort(),
         provider: providerKind(store.value.baseUrl),
       });
     } catch {
@@ -131,7 +135,7 @@ export function createApp(
     if (!parsed.success)
       return res.status(400).json({
         error:
-          "Use Nemotron model IDs and HTTPS endpoints, or local HTTP endpoints. Enabled optional features need a compatible Nemotron model.",
+          "Use a Nemotron chat model and HTTPS or local HTTP endpoints. Enabled search and reranking need a model ID.",
       });
     try {
       store.save(parsed.data);
@@ -324,7 +328,7 @@ export function createApp(
               {
                 role: "user",
                 content: selection
-                  ? `${question}\n\nSelected text and its source page (use the surrounding source excerpt to interpret this selection):\n${JSON.stringify(selection)}\n\nAnswer the question directly using the supplied page context. End each source-based paragraph or bullet with the inline reference [1].`
+                  ? `${question}\n\nSelected text and its source page (use the surrounding source excerpt to interpret this selection):\n${JSON.stringify(selection)}\n\nFocus on the selected words, using the surrounding page to resolve their meaning. Start with the explanation or definition itself, rather than a generic introduction such as 'The passage introduces'. Use an example only when the page supports it, or clearly label it as an illustrative example. Answer the question directly using the supplied page context. End each source-based paragraph or bullet with the inline reference [1].`
                   : question,
               },
             ],

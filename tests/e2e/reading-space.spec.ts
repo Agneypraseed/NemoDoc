@@ -111,8 +111,8 @@ test("paper workspace gives space to the document and passage questions stay in 
   const passageMarker = page
     .locator('[data-page="2"] .passage-note-marker')
     .first();
-  await expect(passageMarker).toHaveCSS("width", "12px");
-  await expect(passageMarker).toHaveCSS("height", "12px");
+  await expect(passageMarker).toHaveCSS("width", "28px");
+  await expect(passageMarker).toHaveCSS("height", "28px");
   await expect(passageMarker).toHaveCSS("border-radius", "50%");
   await expect(passageMarker).not.toHaveAttribute("title");
   await expect(passageMarker).toHaveAttribute(
