@@ -16,6 +16,8 @@
     "test": "tsx --test tests/*.test.ts",
     "test:e2e": "playwright test",
     "test:postgres": "tsx --test tests/postgres.integration.ts",
+    "test:mml:stress": "tsx --test tests/mml-stress.integration.ts",
+    "eval:mml": "tsx scripts/evaluate-mml.ts",
     "db:migrate": "tsx scripts/workspace-db.ts",
     "db:import": "tsx scripts/workspace-db.ts import",
     "eval:live": "tsx scripts/evaluate-workflows.ts",

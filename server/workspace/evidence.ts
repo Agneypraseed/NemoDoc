@@ -54,7 +54,7 @@ export function validateActions(
         !run.citations.some((c) => usesCitation(a.content, c, run.citations))
       )
         throw new Error(
-          "A guide or research brief needs supporting document citations.",
+          `A guide or research brief needs inline supporting document citations in its content, not only evidenceIds. Use returned references: ${run.citations.map((c) => `[${c.id}] ${c.sourceName}, PDF page ${c.page}`).join("; ")}. Do not invent references.`,
         );
       if (a.materialKind !== "guide" && a.items.length < 3)
         throw new Error("Practice materials need at least three cited items.");

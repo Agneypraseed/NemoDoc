@@ -208,6 +208,11 @@ export class PostgresWorkspaceRepository implements WorkspaceRepository {
     });
   }
   async initialize() {
+    const encoding = await this.pool.query("SHOW server_encoding");
+    if (encoding.rows[0]?.server_encoding !== "UTF8")
+      throw new Error(
+        "The agent workspace requires a UTF8 PostgreSQL database for PDF text and mathematical symbols. Create a UTF8 database and migrate/import into it; preserve the original database.",
+      );
     await migrate(this.pool);
     const info = await this.reader.query(
       "SELECT rolsuper,rolname FROM pg_roles WHERE rolname=current_user",
