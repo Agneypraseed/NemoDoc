@@ -13,6 +13,7 @@ import {
   mmlPrompt,
   mmlSnapshot,
 } from "../tests/fixtures/mml-workspace.ts";
+import { auditMmlOutput } from "../tests/fixtures/mml-rubric.ts";
 
 if (process.env.NEMODOC_LIVE_EVAL !== "1")
   throw new Error("Set NEMODOC_LIVE_EVAL=1 to authorize paid NVIDIA calls.");
@@ -181,6 +182,7 @@ try {
       format: c.format,
       latencyMs: Date.now() - start,
       checks,
+      instructionIssues: auditMmlOutput(c.format, c.progress, result, p),
       approvalError,
       run: result,
       providerCalls,

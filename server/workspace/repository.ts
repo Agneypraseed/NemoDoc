@@ -23,6 +23,7 @@ export interface WorkspaceRepository {
   readonly kind: "json" | "postgres";
   initialize(): Promise<void>;
   ids(): Promise<string[]>;
+  runnableIds(now: number): Promise<string[]>;
   read(id: string): Promise<WorkspaceState>;
   transaction<T>(id: string, action: (state: WorkspaceState) => T): Promise<T>;
   queryNotes(
@@ -70,6 +71,20 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
   async ids() {
     await this.queue;
     return Object.keys(this.states);
+  }
+  async runnableIds(now: number) {
+    await this.queue;
+    return Object.values(this.states)
+      .filter(
+        (s) =>
+          s.runs.some((r) => r.status === "queued") ||
+          s.reviews.some(
+            (r) => r.status === "pending" && r.dueAt <= now && !r.resultRunId,
+          ) ||
+          s.outbox.some((o) => o.status === "pending"),
+      )
+      .map((s) => s.notebookId)
+      .sort();
   }
   async read(id: string) {
     await this.queue;
@@ -259,6 +274,21 @@ export class PostgresWorkspaceRepository implements WorkspaceRepository {
   async ids() {
     return (
       await this.pool.query("SELECT id FROM workspace_notebooks ORDER BY id")
+    ).rows.map((r) => String(r.id));
+  }
+  async runnableIds(now: number) {
+    // Select work using indexed lifecycle columns without loading every idle
+    // notebook's approved PDF pages on each scheduler tick.
+    return (
+      await this.pool.query(
+        `
+      SELECT notebook_id AS id FROM workspace_runs WHERE status='queued'
+      UNION SELECT notebook_id AS id FROM workspace_reviews
+        WHERE status='pending' AND due_at <= $1 AND payload->>'resultRunId' IS NULL
+      UNION SELECT notebook_id AS id FROM workspace_email_outbox WHERE status='pending'
+      ORDER BY id`,
+        [now],
+      )
     ).rows.map((r) => String(r.id));
   }
   private async load(client: PoolClient, id: string) {

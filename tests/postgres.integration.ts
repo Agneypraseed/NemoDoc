@@ -48,9 +48,15 @@ test("PostgreSQL 17: migrations, SQL filters/aggregates, role boundary, approval
       snapshot.notebookId,
     ]);
     await service.snapshot(snapshot);
-    const extracted=structuredClone(snapshot);extracted.sources[0].pages[0]+="\0";
+    assert.ok(!(await repo.runnableIds(Date.now())).includes("fixture"));
+    const extracted = structuredClone(snapshot);
+    extracted.sources[0].pages[0] += "\0";
     await service.snapshot(extracted);
-    assert.equal((await repo.read("fixture")).sources.find(s=>s.id==="book")?.pages[0],snapshot.sources[0].pages[0]);
+    assert.equal(
+      (await repo.read("fixture")).sources.find((s) => s.id === "book")
+        ?.pages[0],
+      snapshot.sources[0].pages[0],
+    );
     await service.recordAttempt(attempt);
     await service.recordAttempt(attempt);
     const multipleRefs = {
@@ -124,7 +130,9 @@ test("PostgreSQL 17: migrations, SQL filters/aggregates, role boundary, approval
       ...scope,
       includeProgress: true,
     });
+    assert.ok((await repo.runnableIds(Date.now())).includes("fixture"));
     await worker.tick();
+    assert.ok(!(await repo.runnableIds(Date.now())).includes("fixture"));
     let state = await repo.read("fixture");
     assert.equal(state.runs[0].status, "completed", state.runs[0].error);
     assert.equal(state.materials.length, 0);

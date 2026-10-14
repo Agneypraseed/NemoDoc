@@ -81,7 +81,7 @@ export class WorkspaceWorker {
     if (this.ticking) return;
     this.ticking = true;
     try {
-      for (const id of await this.service.repository.ids()) {
+      for (const id of await this.service.repository.runnableIds(now)) {
         let state = await this.service.repository.read(id);
         for (const review of state.reviews.filter(
           (r) => r.status === "pending" && r.dueAt <= now && !r.resultRunId,
@@ -144,6 +144,7 @@ export class WorkspaceWorker {
     const messages: any[] = [];
     const seen = new Set<string>();
     let actions = 0;
+    let unparsedToolResponses = 0;
     const check = async () => {
       // Timers can be delayed while a laptop sleeps; enforce elapsed wall time
       // again before consuming a response or executing any returned tool.
@@ -192,7 +193,7 @@ export class WorkspaceWorker {
         const proposed = current.proposals.some((p) => p.runId === run.id);
         const finishRetrieval =
           !proposed &&
-          turn >= 7 &&
+          (turn >= 7 || unparsedToolResponses > 0) &&
           run.citations.length > 0 &&
           run.evidence.some((e) => e.kind === "notes");
         if (finishRetrieval)
@@ -236,6 +237,21 @@ export class WorkspaceWorker {
         }
         const message = response.choices[0].message;
         if (!message.tool_calls?.length) {
+          if (/^\s*<tool_call>/i.test(message.content ?? "")) {
+            if (++unparsedToolResponses >= 2)
+              throw new Error(
+                "The provider repeatedly returned unparsed tool markup instead of structured function calls. No proposal was applied. Retry the task or check this model's tool-calling support.",
+              );
+            messages.push(
+              { role: "assistant", content: message.content },
+              {
+                role: "user",
+                content:
+                  "Your tool call arrived as XML text, which cannot be executed. Use the actual structured function tool-call interface, not <tool_call> markup or prose. Keep all evidence IDs unchanged.",
+              },
+            );
+            continue;
+          }
           const visible = new VisibleAnswerStream();
           const answer = visible.push(message.content ?? "") + visible.finish();
           const known = evidenceIds(run),
@@ -264,6 +280,7 @@ export class WorkspaceWorker {
           run.status = "completed";
           break;
         }
+        unparsedToolResponses = 0;
         messages.push({
           role: "assistant",
           content: message.content ?? null,
