@@ -52,7 +52,7 @@ test("paper workspace gives space to the document and passage questions stay in 
   await expect(assistant).toBeHidden();
   await expect(page.locator("body")).toHaveCSS(
     "background-color",
-    "rgb(242, 238, 232)",
+    "rgb(247, 246, 242)",
   );
   await expect(
     page.getByRole("toolbar", { name: "Annotation tools" }),
@@ -176,7 +176,9 @@ test("paper workspace gives space to the document and passage questions stay in 
     path: "test-results/reading-margin.png",
     fullPage: true,
   });
-  await page.getByRole("button", { name: "Quick", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Answer detail" })
+    .selectOption("quick");
   const nextSelection = await selectPassage(page, "Clarity is not");
   await nextSelection
     .getByRole("button", { name: "Define", exact: true })

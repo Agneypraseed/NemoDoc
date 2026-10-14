@@ -212,6 +212,7 @@ export function ConversationComposer({
             <Mic size={16} aria-hidden="true" />
           </button>
           <AnswerModeControl
+            compact
             value={answerMode}
             onChange={setAnswerMode}
             disabled={preparingPrompt}
