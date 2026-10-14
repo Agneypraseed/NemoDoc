@@ -71,6 +71,8 @@ For PostgreSQL 17 and the app together, set the two database passwords in `.env`
 
 See the [workflow and implementation guide](docs/EVIDENCE_AGENTS.md) for schema, SQL tools, approval transactions, outbox recovery, backups, CI and the 40-case evaluation set. [Verification status](docs/EVIDENCE_VERIFICATION.md) distinguishes credential-free tests from live model evaluation.
 
+[MML live evaluation and stress-test results](docs/MML_EVALUATION_RESULTS.md) report the actual 37/40 structural result, stricter instruction audit, mathematical/citation failures, and duplicate-approval/SMTP stress checks. [Reproduction instructions](docs/MML_WORKFLOW_TESTING.md) keep the book, credentials and raw traces local; structural passes are not model accuracy.
+
 [Watch the revision and research workflow walkthrough (WebM)](docs/demo/evidence-workflows.webm) — actual UI/API/PostgreSQL with scripted provider responses; no live model score or external delivery is implied.
 
 Install **Node.js 22.13 or newer**, then run:

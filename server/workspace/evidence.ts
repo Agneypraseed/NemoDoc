@@ -46,8 +46,15 @@ export function validateActions(
             ? a.text
             : a.prompt;
     const citations = textReferences(body, run);
-    if (citations.some((id) => !known.has(id) || !a.evidenceIds.includes(id)))
-      throw new Error("Action citations must match its declared evidence.");
+    const invalid = [
+      ...new Set(
+        citations.filter((id) => !known.has(id) || !a.evidenceIds.includes(id)),
+      ),
+    ];
+    if (invalid.length)
+      throw new Error(
+        `Action content references ${invalid.map((id) => `[${id}]`).join(", ")}, which are absent from its evidenceIds or were never retrieved. Declared evidenceIds: ${a.evidenceIds.join(", ")}. Include a returned ID in evidenceIds only if used; replace invented IDs with actual supporting document IDs. Available document IDs: ${[...documents].join(", ")}.`,
+      );
     if (a.kind === "save_material") {
       if (
         a.materialKind === "guide" &&
