@@ -22,6 +22,8 @@ $env:TEST_DATABASE_URL='postgresql://OWNER:PASSWORD@127.0.0.1:5432/mml_live_test
 $env:TEST_READ_DATABASE_URL='postgresql://agent_reader:PASSWORD@127.0.0.1:5432/mml_live_test'
 $env:NEMODOC_LIVE_EVAL='1'
 npm run eval:mml
+# Keep another report when comparing revisions:
+$env:MML_REPORT_NAME='mml-live-final.json'
 # Optional focused rerun:
 $env:EVAL_CASE='study-01,research-01'
 npm run eval:mml
@@ -34,7 +36,7 @@ The live browser acceptance test uses a fresh browser context and actual local P
 ```powershell
 # Select a third dedicated UTF8 test database first.
 $env:NEMODOC_MML_WORKFLOWS_LIVE='1'
-npx playwright test tests/e2e/mml-workflows-live.spec.ts
+npx playwright test tests/e2e/mml-workflows-live.spec.ts --output output/mml-live-browser-results
 ```
 
 It follows upload → synthetic notes → explicit snapshot sharing → both NVIDIA workflows → evidence inspection → proposal edit → approval → repeated Studio import → browser reload. It uses the saved notebook model key without loading SMTP credentials. A successful video is saved to ignored `output/mml-live-walkthrough.webm`; it is a real-model walkthrough. Ordinary CI skips this paid/private-fixture test and continues using the original distributable synthetic workspace.

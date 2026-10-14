@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { createHash, randomUUID } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { PostgresWorkspaceRepository } from "../server/workspace/repository.ts";
 import { WorkspaceService } from "../server/workspace/service.ts";
 import { WorkspaceWorker } from "../server/workspace/worker.ts";
@@ -46,7 +47,10 @@ const cases = process.env.EVAL_CASE
   : mmlCases;
 if (!cases.length) throw new Error("Unknown case selection.");
 const report: any = {
-  revision: "mml-v1",
+  revision: "mml-v2",
+  implementationCommit: execFileSync("git", ["rev-parse", "HEAD"], {
+    encoding: "utf8",
+  }).trim(),
   date: new Date().toISOString(),
   mode: "LIVE NVIDIA + real PostgreSQL; factual/support review remains manual",
   model: settings.value.model,
@@ -59,6 +63,9 @@ if (!/^[a-zA-Z0-9_-]+\.json$/.test(reportName))
 const reportPath = `output/evaluations/${reportName}`;
 try {
   await repo.initialize();
+  // This runner exclusively owns its disposable database. Interrupted earlier
+  // harness runs must be recorded as interrupted before another batch starts.
+  await new WorkspaceWorker(service).recover();
   for (const c of cases) {
     const notebookId = `mml-live-${randomUUID()}`;
     const snapshot = mmlSnapshot(notebookId);
