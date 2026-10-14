@@ -598,49 +598,81 @@ body,
   border-color: var(--line);
 }
 .workspace-chat {
-  width: min(780px, calc(100% - 48px));
-  max-width: 780px;
+  width: min(1180px, calc(100% - 48px));
+  max-width: 1180px;
   padding: 0 0 2px;
   margin: 2px auto 0;
   z-index: 30;
 }
 .workspace-chat .composer {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 8px;
-  border: 1px solid var(--line);
-  border-radius: 15px;
-  background: var(--surface);
-  box-shadow: 0 5px 22px #3829190c;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  flex-wrap: nowrap;
 }
-.workspace-chat .composer > textarea {
+.workspace-chat .composer:focus-within {
+  border-color: transparent;
+  box-shadow: none;
+}
+.workspace-chat .composer-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 62px;
+  padding: 8px 12px 8px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+.workspace-chat .composer-input-row:focus-within {
+  border-color: var(--accent-line);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.workspace-chat .composer-input-row > textarea {
   display: block;
-  flex: 1;
+  flex: 1 1 180px;
   width: auto;
   min-width: 0;
   height: auto;
-  min-height: 28px;
-  max-height: 120px;
+  min-height: 42px;
+  max-height: 140px;
   resize: none;
-  padding: 3px 1px;
-  font-size: 13px;
+  padding: 8px 2px;
+  font-size: 16px;
   line-height: 1.5;
-  color: var(--text);
+  color: var(--ink);
+}
+.workspace-chat .composer-input-row > textarea::placeholder {
+  color: var(--muted);
+}
+.workspace-chat .composer > .prompt-rewrite-status {
+  width: 100%;
+  margin: 2px 3px 0;
 }
 .workspace-chat .composer .composer-chat-toggle {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0;
-  width: 30px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
   padding: 0;
-  border: 1px solid var(--line);
+  border: 1px solid var(--accent-line);
   border-radius: 999px;
-  color: var(--text);
-  background: var(--surface);
+  color: var(--accent);
+  background: transparent;
   font-size: 12px;
 }
 .workspace-chat .composer .composer-chat-toggle[aria-expanded="true"] {
@@ -651,10 +683,13 @@ body,
 .workspace-chat .composer > div.composer-layout {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   flex: 0 0 auto;
-  gap: 8px;
+  width: 100%;
+  gap: 12px;
+  padding: 2px 4px 0;
   margin: 0;
+  flex-wrap: wrap;
 }
 .workspace-chat .composer-tools,
 .workspace-chat .composer-actions {
@@ -665,28 +700,75 @@ body,
 .workspace-chat .composer-tools {
   min-width: 0;
   flex-wrap: nowrap;
+  gap: 5px;
 }
 .workspace-chat .composer .composer-suggestions {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   padding: 0;
-  border-radius: 8px;
+  border-radius: 9px;
   color: var(--muted);
+  background: transparent;
   font-size: 12px;
+}
+.workspace-chat .composer .composer-suggestions:hover:not(:disabled),
+.workspace-chat .composer .composer-suggestions[aria-expanded="true"],
+.workspace-chat .composer .composer-suggestions.active {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.workspace-chat .composer .composer-suggestions:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 .workspace-chat .composer-actions {
   flex-shrink: 0;
 }
-.workspace-chat .send-button {
-  width: 30px;
-  height: 30px;
-  border-radius: 7px;
-  background: var(--accent);
-  color: var(--surface);
+.workspace-chat .composer-input-row .send-button {
+  display: grid;
+  flex: 0 0 38px;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  color: var(--muted);
+  background: transparent;
+  transition:
+    color 140ms ease,
+    background 140ms ease;
+}
+.workspace-chat .composer-input-row .send-button:not(:disabled) {
+  color: var(--accent);
+}
+.workspace-chat .composer-input-row .send-button:not(:disabled):hover {
+  background: var(--accent-soft);
+}
+.workspace-chat .composer-input-row .send-button:disabled {
+  color: var(--muted);
+  background: transparent;
+  opacity: 0.62;
+}
+.workspace-chat .composer-input-row .send-button.stop,
+.workspace-chat .composer-input-row .send-button.prompt-preparing {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.workspace-chat .composer-model {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 1 auto;
+  max-width: 48%;
+  margin-left: auto;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .answer-mode {
   display: flex;
@@ -708,6 +790,15 @@ body,
   background: var(--surface);
   color: var(--ink);
   box-shadow: 0 1px 3px #30241812;
+}
+.workspace-chat .answer-mode {
+  padding: 3px;
+  border-radius: 9px;
+  gap: 2px;
+}
+.workspace-chat .answer-mode button {
+  padding: 4px 8px;
+  border-radius: 6px;
 }
 .workspace-footer {
   padding: 4px 12px 7px;
@@ -977,20 +1068,29 @@ body,
     margin-top: 0;
   }
   .workspace-chat .composer {
-    padding: 5px 8px;
-    border-radius: 14px;
+    min-height: 0;
+    padding: 0;
+    border-radius: 0;
+    gap: 4px;
   }
-  .workspace-chat .composer > textarea {
+  .workspace-chat .composer-input-row {
+    min-height: 60px;
+    padding: 7px 10px 7px 13px;
+  }
+  .workspace-chat .composer-input-row > textarea {
     font-size: 16px;
     height: auto;
-    min-height: 30px;
+    min-height: 40px;
     line-height: 1.45;
-    padding: 2px 1px;
+    padding: 5px 1px;
   }
   .workspace-chat .composer > div.composer-layout {
+    width: 100%;
     align-items: center;
+    justify-content: space-between;
     flex-direction: row;
-    gap: 6px;
+    gap: 8px;
+    padding: 2px 4px 0;
   }
   .workspace-chat .composer-tools {
     justify-content: flex-start;
@@ -1001,18 +1101,18 @@ body,
     justify-content: flex-end;
     gap: 4px;
   }
-  .answer-mode button {
-    padding: 3px 5px;
-    font-size: 10px;
+  .workspace-chat .answer-mode button {
+    padding: 4px 7px;
+    font-size: 11px;
   }
   .workspace-chat .composer .composer-chat-toggle {
-    height: 28px;
-    width: 28px;
+    height: 36px;
+    width: 36px;
     padding: 0;
   }
-  .workspace-chat .send-button {
-    width: 28px;
-    height: 28px;
+  .workspace-chat .composer-input-row .send-button {
+    width: 36px;
+    height: 36px;
   }
   .workspace-footer {
     padding-bottom: calc(7px + env(safe-area-inset-bottom));
@@ -1034,6 +1134,15 @@ body,
     gap: 3px;
   }
   .selection-toolbar .passage-prompts button {
+    font-size: 10px;
+  }
+}
+@media (max-width: 440px) {
+  .workspace-chat .composer > div.composer-layout {
+    align-items: flex-start;
+  }
+  .workspace-chat .composer-model {
+    max-width: 100%;
     font-size: 10px;
   }
 }

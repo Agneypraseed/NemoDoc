@@ -7,7 +7,6 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
-  ArrowUp,
   BookOpen,
   Check,
   Copy,
@@ -20,6 +19,7 @@ import {
   Layers,
   LoaderCircle,
   MessageSquare,
+  Mic,
   NotebookPen,
   Plus,
   Search,
@@ -72,6 +72,32 @@ import type {
   PassageNote,
   Rect,
 } from "./types";
+
+type VoiceRecognitionAlternative = { transcript: string };
+type VoiceRecognitionResult = ArrayLike<VoiceRecognitionAlternative>;
+type VoiceRecognitionEvent = { results: ArrayLike<VoiceRecognitionResult> };
+type VoiceRecognitionError = { error: string };
+type VoiceRecognitionLike = {
+  lang: string;
+  interimResults: boolean;
+  maxAlternatives: number;
+  onresult: ((event: VoiceRecognitionEvent) => void) | null;
+  onerror: ((event: VoiceRecognitionError) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+type VoiceRecognitionConstructor = new () => VoiceRecognitionLike;
+
+function getVoiceRecognitionConstructor():
+  VoiceRecognitionConstructor | undefined {
+  if (typeof window === "undefined") return undefined;
+  const speechWindow = window as Window & {
+    SpeechRecognition?: VoiceRecognitionConstructor;
+    webkitSpeechRecognition?: VoiceRecognitionConstructor;
+  };
+  return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+}
 
 function Brand({ small = false }: { small?: boolean }) {
   return (
@@ -277,6 +303,8 @@ export default function App() {
     [chatError, setChatError] = useState(""),
     [busy, setBusy] = useState(false),
     [preparingPrompt, setPreparingPrompt] = useState(false);
+  const [voiceActive, setVoiceActive] = useState(false);
+  const voiceRecognition = useRef<VoiceRecognitionLike | null>(null);
   const [streamingMessageId, setStreamingMessageId] = useState("");
   const [context, setContext] = useState<{
       quote: string;
@@ -360,6 +388,13 @@ export default function App() {
     (a) => a.id === selectedAnnotation,
   );
   const enabledSources = notebookSources.filter((s) => enabled.has(s.id));
+  const voiceInputAvailable = Boolean(getVoiceRecognitionConstructor());
+  useEffect(
+    () => () => {
+      voiceRecognition.current?.stop();
+    },
+    [],
+  );
   useEffect(() => {
     if (!searchNoteTarget || searchNotebook || tab !== "notes" || !panelOpen)
       return;
@@ -1276,6 +1311,54 @@ export default function App() {
         originalPrompt: question.originalPrompt,
       },
     );
+  };
+  const toggleVoiceInput = () => {
+    const activeRecognition = voiceRecognition.current;
+    if (activeRecognition) {
+      activeRecognition.stop();
+      return;
+    }
+    const Recognition = getVoiceRecognitionConstructor();
+    if (!Recognition) {
+      setChatError("Voice input is not available in this browser.");
+      return;
+    }
+    const recognition = new Recognition();
+    recognition.lang = navigator.language || "en-US";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onresult = (event) => {
+      const transcript = event.results[0]?.[0]?.transcript?.trim();
+      if (transcript)
+        setDraft((current) =>
+          current.trim() ? `${current.trimEnd()} ${transcript}` : transcript,
+        );
+    };
+    recognition.onerror = ({ error }) => {
+      if (voiceRecognition.current !== recognition) return;
+      setChatError(
+        error === "not-allowed" || error === "service-not-allowed"
+          ? "Allow microphone access in your browser to use voice input."
+          : "Voice input could not start. Please try again.",
+      );
+      voiceRecognition.current = null;
+      setVoiceActive(false);
+    };
+    recognition.onend = () => {
+      if (voiceRecognition.current === recognition)
+        voiceRecognition.current = null;
+      setVoiceActive(false);
+    };
+    setChatError("");
+    voiceRecognition.current = recognition;
+    setVoiceActive(true);
+    try {
+      recognition.start();
+    } catch {
+      voiceRecognition.current = null;
+      setVoiceActive(false);
+      setChatError("Voice input could not start. Please try again.");
+    }
   };
   const send = async (
     question = draft,
@@ -2797,29 +2880,62 @@ export default function App() {
                 request with {modelName(status.model)}…
               </div>
             )}
-            <textarea
-              ref={composer}
-              aria-label="Ask about your sources"
-              placeholder="Ask about your sources…"
-              value={draft}
-              maxLength={8000}
-              disabled={preparingPrompt}
-              onFocus={() => {
-                if (activePassageNote) openConversation();
-              }}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (
-                  e.key === "Enter" &&
-                  !e.shiftKey &&
-                  !e.nativeEvent.isComposing
-                ) {
-                  e.preventDefault();
-                  void send();
-                }
-              }}
-              rows={1}
-            />
+            <div className="composer-input-row">
+              <textarea
+                ref={composer}
+                aria-label="Ask about your sources"
+                placeholder="Ask about your sources…"
+                value={draft}
+                maxLength={8000}
+                disabled={preparingPrompt}
+                onFocus={() => {
+                  if (activePassageNote) openConversation();
+                }}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (
+                    e.key === "Enter" &&
+                    !e.shiftKey &&
+                    !e.nativeEvent.isComposing
+                  ) {
+                    e.preventDefault();
+                    void send();
+                  }
+                }}
+                rows={1}
+              />
+              {busy ? (
+                <button
+                  type="button"
+                  className="send-button stop"
+                  aria-label="Stop answer"
+                  title="Stop answer"
+                  onClick={() => abort.current?.abort()}
+                >
+                  <Square size={14} fill="currentColor" />
+                </button>
+              ) : preparingPrompt ? (
+                <button
+                  type="button"
+                  className="send-button prompt-preparing"
+                  aria-label="Refining prompt"
+                  title="Refining your prompt with Nemotron"
+                  disabled
+                >
+                  <Sparkles size={16} />
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  className="send-button"
+                  aria-label="Send question"
+                  title="Send question"
+                  disabled={!draft.trim() || !notebookSources.length}
+                >
+                  <MessageSquare size={18} />
+                </button>
+              )}
+            </div>
             <div className="composer-layout">
               <div className="composer-tools">
                 <button
@@ -2876,6 +2992,26 @@ export default function App() {
                   <Grid2X2 size={15} />
                   <span className="sr-only">Suggested prompts</span>
                 </button>
+                <button
+                  type="button"
+                  className={`composer-suggestions composer-voice ${voiceActive ? "active" : ""}`}
+                  aria-label={voiceActive ? "Stop voice input" : "Voice input"}
+                  aria-pressed={voiceActive}
+                  title={
+                    voiceInputAvailable
+                      ? "Dictate with browser speech recognition; audio may be processed online"
+                      : "Voice input is not available in this browser"
+                  }
+                  disabled={!voiceInputAvailable}
+                  onClick={toggleVoiceInput}
+                >
+                  <Mic size={16} aria-hidden="true" />
+                </button>
+                <AnswerModeControl
+                  value={answerMode}
+                  onChange={setAnswerMode}
+                  disabled={preparingPrompt}
+                />
                 <span className="composer-source-count sr-only">
                   <Layers size={13} />
                   {context
@@ -2883,57 +3019,21 @@ export default function App() {
                     : `${enabledSources.length} ${enabledSources.length === 1 ? "source" : "sources"}`}
                 </span>
               </div>
-              <div className="composer-actions">
-                <AnswerModeControl
-                  value={answerMode}
-                  onChange={setAnswerMode}
-                  disabled={preparingPrompt}
+              <span
+                className="composer-model"
+                title={status.configured ? status.model : undefined}
+              >
+                <span
+                  className={`status-dot ${status.configured ? "" : "offline"}`}
+                  aria-hidden="true"
                 />
-                {busy ? (
-                  <button
-                    type="button"
-                    className="send-button stop"
-                    aria-label="Stop answer"
-                    onClick={() => abort.current?.abort()}
-                  >
-                    <Square size={13} fill="currentColor" />
-                  </button>
-                ) : preparingPrompt ? (
-                  <button
-                    type="button"
-                    className="send-button prompt-preparing"
-                    aria-label="Refining prompt"
-                    title="Refining your prompt with Nemotron"
-                    disabled
-                  >
-                    <Sparkles size={15} />
-                  </button>
-                ) : (
-                  <button
-                    className="send-button"
-                    aria-label="Send question"
-                    disabled={!draft.trim() || !notebookSources.length}
-                  >
-                    <ArrowUp size={18} />
-                  </button>
-                )}
-              </div>
+                {status.configured
+                  ? modelName(status.model)
+                  : "Choose a model in Settings"}
+              </span>
             </div>
           </form>
         </div>
-        <footer className="workspace-footer">
-          <span
-            className="model-attribution"
-            title={status.configured ? status.model : undefined}
-          >
-            <span
-              className={`status-dot ${status.configured ? "" : "offline"}`}
-            />
-            {status.configured
-              ? `Powered by ${modelName(status.model)}`
-              : "Choose a model in Settings"}
-          </span>
-        </footer>
       </main>
       {toast && (
         <div className="toast" role="status">
