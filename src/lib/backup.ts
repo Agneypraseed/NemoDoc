@@ -29,6 +29,7 @@ const message = z.object({
   citations: z.array(citation).optional(),
   showPages: z.boolean().optional(),
   savedToNotes: z.boolean().optional(),
+  savedAt: z.number().nonnegative().optional(),
   incomplete: z.boolean().optional(),
   error: z.string().optional(),
   cancelled: z.boolean().optional(),
@@ -44,6 +45,7 @@ const manifest = z.object({
         description: z.string(),
         createdAt: z.number(),
         notes: z.string(),
+        notesUpdatedAt: z.number().nonnegative().optional(),
         messages: z.array(message),
         passageNotes: z
           .array(

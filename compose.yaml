@@ -1,0 +1,36 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: nemodoc
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: nemodoc
+      AGENT_READ_PASSWORD: ${AGENT_READ_PASSWORD:?Set AGENT_READ_PASSWORD in .env}
+    volumes:
+      - postgres:/var/lib/postgresql/data
+      - ./scripts/init-database.sh:/docker-entrypoint-initdb.d/10-reader.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nemodoc -d nemodoc"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    ports: ["127.0.0.1:3001:3001"]
+    environment:
+      DATABASE_URL: postgresql://nemodoc:${POSTGRES_PASSWORD}@db:5432/nemodoc
+      AGENT_READ_DATABASE_URL: postgresql://agent_reader:${AGENT_READ_PASSWORD}@db:5432/nemodoc
+      NEBIUS_API_KEY: ${NEBIUS_API_KEY:-}
+      NEBIUS_MODEL: ${NEBIUS_MODEL:-nvidia/Nemotron-3_5-Lightning}
+    volumes: ["agent-data:/app/data"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/agent/workspace/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+volumes:
+  postgres:
+  agent-data:

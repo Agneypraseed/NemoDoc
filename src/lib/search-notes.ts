@@ -1,14 +1,19 @@
 import type { Annotation, Notebook } from "../types";
 import { passageTitle } from "./passage-label";
+import { usesCitation } from "./citations";
 
 export interface SearchNote {
   id: string;
   title: string;
   text: string;
   kind: "answer" | "passage" | "highlight" | "notebook";
+  references?: {sourceId:string;page:number}[];
+  tags?: string[];
+  savedAt?: number;
+  updatedAt?: number;
 }
 
-/** Search a fresh snapshot of local notes; never store private notes on the server. */
+/** Build fresh local note records for ephemeral search or explicitly approved sharing. */
 export function searchableNotes(
   notebook: Notebook,
   annotations: Annotation[],
@@ -20,6 +25,7 @@ export function searchableNotes(
       title: "Notebook notes",
       text: notebook.notes,
       kind: "notebook",
+      updatedAt: notebook.notesUpdatedAt,
     });
   const passageIds = new Set<string>();
   for (const note of notebook.passageNotes ?? []) {
@@ -41,6 +47,8 @@ export function searchableNotes(
           ...answers.map((answer) => answer.content),
         ].join("\n\n"),
         kind: "passage",
+        references: [{sourceId:note.sourceId,page:note.page}],
+        savedAt: note.createdAt,
       });
   }
   notebook.messages.forEach((message, index) => {
@@ -63,6 +71,8 @@ export function searchableNotes(
       title: question,
       text: `${question}\n\n${message.content}`,
       kind: "answer",
+      savedAt: message.savedAt,
+      references: (message.citations??[]).filter(c=>usesCitation(message.content,c,message.citations??[])).map(c=>({sourceId:c.sourceId,page:c.page})),
     });
   });
   for (const annotation of annotations) {
@@ -75,6 +85,9 @@ export function searchableNotes(
         title: annotation.quote || "Annotation",
         text,
         kind: "highlight",
+        references: [{sourceId:annotation.sourceId,page:annotation.page}],
+        tags: annotation.tags,
+        savedAt: annotation.createdAt,
       });
   }
   return result;

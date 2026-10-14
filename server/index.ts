@@ -3,6 +3,7 @@ import express from "express";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { createApp } from "./app.ts";
+const dataDirectory = process.env.NEMODOC_DATA_DIR || "data";
 
 const app = createApp(
   {
@@ -16,8 +17,12 @@ const app = createApp(
   },
   fetch,
   {
-    settingsFile: path.resolve("data/settings.json"),
-    agentFile: path.resolve("data/agent.json"),
+    settingsFile: path.resolve(dataDirectory, "settings.json"),
+    agentFile: path.resolve(dataDirectory, "agent.json"),
+    workspaceFile: path.resolve(dataDirectory, "workspace.json"),
+    databaseUrl: process.env.DATABASE_URL,
+    readDatabaseUrl: process.env.AGENT_READ_DATABASE_URL,
+    startWorkspaceWorker: true,
   },
 );
 if (existsSync("dist/index.html")) {
@@ -27,6 +32,7 @@ if (existsSync("dist/index.html")) {
   );
 }
 const port = Number(process.env.PORT ?? 3001);
-app.listen(port, "127.0.0.1", () =>
+await app.locals.workspace.ready;
+app.listen(port, process.env.HOST || "127.0.0.1", () =>
   console.log(`NemoDoc API ready at http://127.0.0.1:${port}`),
 );

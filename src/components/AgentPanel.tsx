@@ -19,6 +19,8 @@ import { apiJSON } from "../lib/api";
 import { download } from "../lib/storage";
 import { AgentConnections } from "./AgentConnections";
 import { AgentDelivery } from "./AgentDelivery";
+import { EvidenceWorkflows } from "./EvidenceWorkflows";
+import type { SearchNote } from "../lib/search-notes";
 import type {
   AgentChannel,
   AgentConnections as ConnectionSummary,
@@ -45,6 +47,8 @@ const at = (n: number) =>
   });
 export function AgentPanel({
   notebookId,
+  notebookTitle,
+  workspaceNotes,
   sources,
   notes,
   onCitation,
@@ -52,6 +56,8 @@ export function AgentPanel({
   onSettings,
 }: {
   notebookId: string;
+  notebookTitle: string;
+  workspaceNotes: SearchNote[];
   sources: Source[];
   notes: string;
   onCitation: (c: Citation) => void;
@@ -234,6 +240,14 @@ export function AgentPanel({
       {view === "connections" && <AgentConnections />}
       {view === "tasks" && (
         <>
+          <EvidenceWorkflows
+            notebookId={notebookId}
+            title={notebookTitle}
+            sources={sources}
+            notes={workspaceNotes}
+            onCitation={onCitation}
+            onSave={onSave}
+          />
           <div className="agent-section-title">
             <h3>Tasks & reviews</h3>
             <button

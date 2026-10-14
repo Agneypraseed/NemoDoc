@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { config as loadEnv } from "dotenv";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";

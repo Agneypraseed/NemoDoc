@@ -1,9 +1,14 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 
 test("chat can close without losing a draft; bottom input sends and suggestions appear only on demand", async ({
   page,
 }) => {
   let calls = 0;
+  await page.route("**/api/prompt/rewrite", (route) =>
+    route.fulfill({
+      json: { prompt: route.request().postDataJSON().question },
+    }),
+  );
   await page.route("**/api/chat", (route) => {
     calls++;
     return route.fulfill({

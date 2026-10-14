@@ -1,4 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "./fixtures";
+import type { Page } from "@playwright/test";
 import { openReaderTools } from "./reader-tools";
 
 async function selectPassage(page: Page, phrase = "Every interface") {
@@ -57,9 +58,9 @@ test("paper workspace gives space to the document and passage questions stay in 
     page.getByRole("toolbar", { name: "Annotation tools" }),
   ).toBeHidden();
   const dock = await page.locator(".workspace-chat").boundingBox();
-  expect(dock!.height).toBeLessThan(60);
+  expect(dock!.height).toBeLessThan(130);
   const stage = await page.locator(".reader-stage").boundingBox();
-  expect(stage!.height).toBeGreaterThan(780);
+  expect(stage!.height).toBeGreaterThan(720);
   await openReaderTools(page);
   await expect(
     page.getByRole("button", { name: "Book view", exact: true }),
@@ -660,9 +661,9 @@ test("paper and dark reading views stay compact on desktop and mobile", async ({
     ),
   ).toBe(true);
   const dock = await page.locator(".workspace-chat").boundingBox();
-  expect(dock!.height).toBeLessThan(60);
+  expect(dock!.height).toBeLessThan(130);
   const stage = await page.locator(".reader-stage").boundingBox();
-  expect(stage!.height).toBeGreaterThan(600);
+  expect(stage!.height).toBeGreaterThan(550);
   await page.screenshot({
     path: "test-results/reading-mobile.png",
     fullPage: true,

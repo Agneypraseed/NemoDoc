@@ -1,0 +1,48 @@
+name: NemoDoc checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: nemodoc
+          POSTGRES_PASSWORD: fixture-password
+          POSTGRES_DB: nemodoc_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U nemodoc -d nemodoc_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - name: Create isolated read role
+        run: psql "$TEST_DATABASE_URL" -c "CREATE ROLE agent_reader LOGIN PASSWORD 'fixture-reader' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT; REVOKE CREATE ON SCHEMA public FROM PUBLIC;"
+        env:
+          TEST_DATABASE_URL: postgresql://nemodoc:fixture-password@localhost:5432/nemodoc_test
+      - run: npm run test:postgres
+        env:
+          TEST_DATABASE_URL: postgresql://nemodoc:fixture-password@localhost:5432/nemodoc_test
+          TEST_READ_DATABASE_URL: postgresql://agent_reader:fixture-reader@localhost:5432/nemodoc_test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+        env:
+          TEST_DATABASE_URL: postgresql://nemodoc:fixture-password@localhost:5432/nemodoc_test
+          TEST_READ_DATABASE_URL: postgresql://agent_reader:fixture-reader@localhost:5432/nemodoc_test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-diagnostics
+          path: |
+            test-results
+            playwright-report

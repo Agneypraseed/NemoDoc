@@ -1,3 +1,4 @@
+import { agentResponseSchema as responseSchema } from "./agent-response.ts";
 import type express from "express";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -58,31 +59,6 @@ const descriptions: Record<keyof typeof toolSchemas, string> = {
   schedule_review:
     "Create a one-time review with the same sources, provider and skill. Only one follow-up per run. Do not imply an external notification will be sent.",
 };
-const responseSchema = z.object({
-  id: z.string().max(200).optional(),
-  choices: z
-    .array(
-      z.object({
-        message: z.object({
-          content: z.string().max(50000).nullable().optional(),
-          tool_calls: z
-            .array(
-              z.object({
-                id: z.string().min(1).max(200),
-                type: z.literal("function"),
-                function: z.object({
-                  name: z.string().max(100),
-                  arguments: z.string().max(70000),
-                }),
-              }),
-            )
-            .max(6)
-            .nullish(),
-        }),
-      }),
-    )
-    .min(1),
-});
 
 export class AgentWorker {
   private active?: { taskId: string; controller: AbortController };

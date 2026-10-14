@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { PDFDocument } from "pdf-lib";
 import { readFile } from "node:fs/promises";
 test("numbered-page Q&A calls chat with only that page; PDF slide returns stay local", async ({

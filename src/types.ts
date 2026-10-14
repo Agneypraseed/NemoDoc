@@ -70,6 +70,7 @@ export interface Message {
   citations?: Citation[];
   showPages?: boolean;
   savedToNotes?: boolean;
+  savedAt?: number;
   incomplete?: boolean;
   error?: string;
   cancelled?: boolean;
@@ -99,6 +100,7 @@ export interface Notebook {
   description: string;
   createdAt: number;
   notes: string;
+  notesUpdatedAt?: number;
   messages: Message[];
   passageNotes?: PassageNote[];
 }

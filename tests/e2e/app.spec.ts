@@ -1,5 +1,5 @@
 import { openReaderTools } from "./reader-tools";
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import JSZip from "jszip";
 import { readFile } from "node:fs/promises";

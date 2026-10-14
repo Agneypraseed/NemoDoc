@@ -63,6 +63,16 @@ The tour uses the included sample notebook with deterministic demo responses. No
 
 ## Try it locally
 
+### Evidence-based agents with PostgreSQL
+
+**Agent → Tasks** now includes **Plan revision** and **Synthesize research**. Explicitly share selected note/document snapshots, inspect scoped relational queries and original passages, edit the proposal, then approve selected materials, plan changes, reviews and optional previewed email. Nothing in these workflows is applied before approval.
+
+For PostgreSQL 17 and the app together, set the two database passwords in `.env` and run `docker compose up --build`. The app is available at [127.0.0.1:3001](http://127.0.0.1:3001); the database has no public host port. Existing `npm run dev` continues supporting local JSON mode.
+
+See the [workflow and implementation guide](docs/EVIDENCE_AGENTS.md) for schema, SQL tools, approval transactions, outbox recovery, backups, CI and the 40-case evaluation set. [Verification status](docs/EVIDENCE_VERIFICATION.md) distinguishes credential-free tests from live model evaluation.
+
+[Watch the revision and research workflow walkthrough (WebM)](docs/demo/evidence-workflows.webm) — actual UI/API/PostgreSQL with scripted provider responses; no live model score or external delivery is implied.
+
 Install **Node.js 22.13 or newer**, then run:
 
 ```sh

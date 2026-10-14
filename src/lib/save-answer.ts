@@ -14,6 +14,7 @@ export function mergeStreamMessages(current: Message[], streamed: Message[]) {
       ...message,
       savedToNotes: existing?.savedToNotes ?? message.savedToNotes,
       originalPrompt: existing?.originalPrompt ?? message.originalPrompt,
+      savedAt: existing?.savedAt ?? message.savedAt,
     };
   });
 }
@@ -99,7 +100,7 @@ export function saveAnswerToNotes(
       ? `${notes.trimEnd()}\n\n${section}\n`
       : `${section}\n`,
     messages: messages.map((message) =>
-      message.id === answerId ? { ...message, savedToNotes: true } : message,
+      message.id === answerId ? { ...message, savedToNotes: true, savedAt: Date.now() } : message,
     ),
   };
 }

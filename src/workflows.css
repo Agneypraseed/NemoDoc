@@ -1,0 +1,64 @@
+.evidence-workflows {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 32px;
+  min-width: 0;
+}
+.workflow-templates,
+.workflow-buttons {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.evidence-workflows .agent-form {
+  margin: 0;
+  min-width: 0;
+}
+.evidence-workflows fieldset {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 14px;
+  border: 1px solid var(--border, #7775);
+  border-radius: 10px;
+  min-width: 0;
+}
+.evidence-workflows fieldset label:not(.field-label) {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow-wrap: anywhere;
+}
+.evidence-workflows input[type="checkbox"] {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+.evidence-workflows textarea,
+.evidence-workflows input:not([type="checkbox"]) {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.evidence-workflows pre {
+  max-height: 320px;
+  overflow: auto;
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.evidence-workflows summary {
+  cursor: pointer;
+  padding: 6px 0;
+}
+.workflow-answer {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+}
+.workflow-proposal {
+  border-top: 1px solid var(--border, #7775);
+  margin-top: 18px;
+  padding-top: 12px;
+}

@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { openReaderTools } from "./reader-tools";
 
 for (const mobile of [false, true]) {
@@ -173,9 +173,9 @@ for (const mobile of [false, true]) {
     await page
       .getByRole("button", { name: "Save & test embeddings", exact: true })
       .click();
-    await expect(page.getByRole("status")).toContainText(
-      "Embeddings connected",
-    );
+    await expect(
+      page.getByRole("status").filter({ hasText: "Embeddings connected" }),
+    ).toContainText("Embeddings connected");
     expect(settings.model).toBe("nvidia/Nemotron-3_5-Lightning");
     expect(
       await page.evaluate(

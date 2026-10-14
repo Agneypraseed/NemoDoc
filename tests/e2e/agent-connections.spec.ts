@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import type { AddressInfo } from "node:net";
 import { createApp } from "../../server/app.ts";
 

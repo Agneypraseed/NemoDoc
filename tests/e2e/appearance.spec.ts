@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 
 async function waitForCover(page: import("@playwright/test").Page) {
   // The selectable text layer can finish before PDF.js paints the canvas.
@@ -36,6 +36,14 @@ test("clean workspace, persistent sidebar, theme and saved model attribution", a
   page,
 }) => {
   let model = "nvidia/Nemotron-3_5-Lightning";
+  await page.route("**/api/models*", (route) =>
+    route.fulfill({
+      json: {
+        provider: "nebius",
+        models: [model, "nvidia/nemotron-test-super"],
+      },
+    }),
+  );
   let saves = 0;
   await page.route("**/api/status", (route) =>
     route.fulfill({ json: { configured: true, local: false, model } }),
@@ -77,8 +85,8 @@ test("clean workspace, persistent sidebar, theme and saved model attribution", a
   await expect(
     page.getByRole("button", { name: "Settings", exact: true }),
   ).toHaveCount(1);
-  await expect(page.locator(".model-attribution")).toHaveText(
-    "Powered by Nemotron 3.5 Lightning",
+  await expect(page.locator(".composer-model")).toHaveText(
+    "Nemotron 3.5 Lightning",
   );
   const sidebar = page.getByRole("complementary", { name: "Notebook sidebar" });
   await page
@@ -99,7 +107,7 @@ test("clean workspace, persistent sidebar, theme and saved model attribution", a
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await expect(page.locator(".modal")).toHaveCSS(
     "background-color",
-    "rgb(29, 32, 40)",
+    "rgb(23, 23, 23)",
   );
   await page.getByRole("button", { name: "Close dialog", exact: true }).click();
   await expect(
@@ -112,8 +120,8 @@ test("clean workspace, persistent sidebar, theme and saved model attribution", a
   });
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page
-    .getByLabel("Model", { exact: true })
-    .fill("nvidia/nemotron-test-super");
+    .getByRole("combobox", { name: "Chat & study model" })
+    .selectOption("nvidia/nemotron-test-super");
   await page
     .getByRole("button", { name: "Save connection", exact: true })
     .click();
@@ -121,8 +129,8 @@ test("clean workspace, persistent sidebar, theme and saved model attribution", a
     page.getByText("Connection saved.", { exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Close dialog", exact: true }).click();
-  await expect(page.locator(".model-attribution")).toHaveText(
-    "Powered by Nemotron Test Super",
+  await expect(page.locator(".composer-model")).toHaveText(
+    "Nemotron Test Super",
   );
   await expect(page.locator(".document-page").first()).toHaveCSS(
     "background-color",

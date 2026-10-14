@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --set=reader_password="$AGENT_READ_PASSWORD" <<'SQL'
+CREATE ROLE agent_reader LOGIN PASSWORD :'reader_password' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+SQL

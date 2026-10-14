@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 
 test("interrupted answer stays unsaveable after reload and backup restore", async ({
   page,

@@ -13,6 +13,7 @@ import { chatOptions, providerKind } from "./providers.ts";
 import { SemanticRetriever } from "./semantic.ts";
 import { registerFeatures } from "./features.ts";
 import { registerAgent } from "./agent.ts";
+import { registerWorkspace } from "./workspace/routes.ts";
 import type { SmtpTransportFactory } from "./smtp.ts";
 import { isNemotron } from "../src/lib/model-policy.ts";
 
@@ -62,6 +63,10 @@ export function createApp(
     settingsFile?: string;
     agentFile?: string;
     smtpTransportFactory?: SmtpTransportFactory;
+    workspaceFile?: string;
+    databaseUrl?: string;
+    readDatabaseUrl?: string;
+    startWorkspaceWorker?: boolean;
   } = {},
 ) {
   const providerFetch = fetcher;
@@ -92,6 +97,12 @@ export function createApp(
     options.agentFile,
     options.smtpTransportFactory,
   );
+  registerWorkspace(app, agent.worker.connections, providerFetch, {
+    workspaceFile: options.workspaceFile,
+    databaseUrl: options.databaseUrl,
+    readDatabaseUrl: options.readDatabaseUrl,
+    startWorker: options.startWorkspaceWorker,
+  });
   app.get("/api/settings", (_req, res) => res.json(store.public()));
   app.get("/api/models", async (req, res) => {
     try {

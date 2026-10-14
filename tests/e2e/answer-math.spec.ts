@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 
 test("lecture answers render equations without breaking citations or saved notes", async ({
   page,

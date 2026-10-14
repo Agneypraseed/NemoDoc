@@ -13,6 +13,11 @@ export default defineConfig({
     command: "npm run dev",
     url: "http://127.0.0.1:5173",
     reuseExistingServer: !process.env.CI,
+    env: {
+      NEMODOC_DATA_DIR: "output/e2e-server",
+      NEBIUS_API_KEY: "",
+      NVIDIA_API_KEY: "",
+    },
     timeout: 120000,
   },
 });

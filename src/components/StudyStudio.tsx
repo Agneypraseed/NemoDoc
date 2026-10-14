@@ -17,6 +17,7 @@ import remarkGfm from "remark-gfm";
 import { apiJSON } from "../lib/api";
 import { download } from "../lib/storage";
 import type { Citation, Source, StudyArtifact } from "../types";
+import type { QuizAttempt, WorkspaceState } from "../workspace-types";
 
 const kinds = [
   ["flashcards", Layers, "Flashcards"],
@@ -50,6 +51,7 @@ export function StudyStudio({
   const [progressSaved, setProgressSaved] = useState(false),
     [progressBusy, setProgressBusy] = useState(false);
   const abort = useRef<AbortController>(null);
+  const attempt = useRef<QuizAttempt | null>(null);
   useEffect(() => () => abort.current?.abort(), []);
   useEffect(() => {
     setActiveId("");
@@ -438,6 +440,27 @@ export function StudyStudio({
                   !checked && Object.keys(answers).length < active.items.length
                 }
                 onClick={() => {
+                  if (!checked)
+                    attempt.current = {
+                      id: crypto.randomUUID(),
+                      notebookId,
+                      artifactId: active.id,
+                      title: active.title,
+                      completedAt: Date.now(),
+                      answers: active.items.map((item, i) => ({
+                        question: item.question,
+                        choices: [...(item.choices ?? [])],
+                        selected: answers[i],
+                        correct: item.correct!,
+                        references: item.citationIds.flatMap((id) => {
+                          const c = active.citations.find((c) => c.id === id);
+                          return c
+                            ? [{ sourceId: c.sourceId, page: c.page }]
+                            : [];
+                        }),
+                      })),
+                    };
+                  else attempt.current = null;
                   if (checked) setAnswers({});
                   setChecked(!checked);
                   setProgressSaved(false);
@@ -449,10 +472,26 @@ export function StudyStudio({
                 <button
                   className="secondary-button"
                   disabled={progressBusy || progressSaved}
+                  title="Share the scored question and answer snapshots with your approved agent workspace."
                   onClick={async () => {
                     setProgressBusy(true);
                     setError("");
                     try {
+                      const workspace = await apiJSON<WorkspaceState>(
+                        `/api/agent/workspace/${encodeURIComponent(notebookId)}`,
+                      );
+                      if (workspace.revision) {
+                        if (!attempt.current)
+                          throw new Error(
+                            "Check your answers again before sharing progress.",
+                          );
+                        await apiJSON("/api/agent/workspace/progress", {
+                          ...attempt.current,
+                          consent: true,
+                        });
+                        setProgressSaved(true);
+                        return;
+                      }
                       const weak = active.items
                         .filter((item, i) => answers[i] !== item.correct)
                         .map((i) => i.question);
