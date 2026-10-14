@@ -5,6 +5,7 @@ import path from "node:path";
 import { createApp } from "../../server/app.ts";
 import { SettingsStore } from "../../server/settings.ts";
 import { mmlCases, mmlPrompt } from "../fixtures/mml-workspace.ts";
+import { createEvidenceProposal } from "./workspace-helpers";
 
 test("real Nemotron MML evidence workflows: upload, share, run, inspect, edit, approve and import twice", async ({
   browser,
@@ -121,14 +122,11 @@ test("real Nemotron MML evidence workflows: upload, share, run, inspect, edit, a
           Date.now() + 86400000,
         ),
       );
-      await flow
-        .getByRole("button", { name: "Create proposal", exact: true })
-        .click();
-      await app.locals.workspace.worker.tick();
-      const article = flow.locator("article").first();
-      await expect(article.getByRole("heading").first()).toContainText(
-        "completed",
-        { timeout: 20000 },
+      const { run, article } = await createEvidenceProposal(
+        page,
+        flow,
+        app.locals.workspace.worker,
+        20000,
       );
       await article.getByText(/Queries, evidence/).click();
       await expect(article).toContainText("postgres");
@@ -140,7 +138,9 @@ test("real Nemotron MML evidence workflows: upload, share, run, inspect, edit, a
         if (s.title === title) state = s;
       }
       expect(state).toBeTruthy();
-      const cite = state.runs[0].citations.find((c: any) => c.page === 50);
+      const cite = state.runs
+        .find((r: any) => r.id === run.id)
+        .citations.find((c: any) => c.page === 50);
       expect(cite).toBeTruthy();
       await article
         .getByLabel("Content", { exact: true })

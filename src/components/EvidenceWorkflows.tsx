@@ -299,7 +299,7 @@ export function EvidenceWorkflows({
         </div>
       )}
       {state?.runs.map((run) => (
-        <article key={run.id} className="agent-form">
+        <article key={run.id} data-run-id={run.id} className="agent-form">
           <h4>
             {run.workflow === "study_revision"
               ? "Revision plan"

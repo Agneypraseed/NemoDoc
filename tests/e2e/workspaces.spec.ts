@@ -3,6 +3,7 @@ import { createApp } from "../../server/app.ts";
 import type { AddressInfo } from "node:net";
 import { mkdirSync, copyFileSync } from "node:fs";
 import path from "node:path";
+import { createEvidenceProposal } from "./workspace-helpers";
 
 test("both evidence workflows: explicit snapshot, inspect queries, edit, approve and import into Studio", async ({
   browser,
@@ -89,12 +90,15 @@ test("both evidence workflows: explicit snapshot, inspect queries, edit, approve
   await new Promise<void>((r) => server.once("listening", r));
   const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   await context.route("**/api/agent**", async (route) => {
-    const request = route.request(),
-      response = await fetch(url + new URL(request.url()).pathname, {
-        method: request.method(),
-        headers: { "Content-Type": "application/json" },
-        body: request.postData() || undefined,
-      });
+    const request = route.request();
+    // Deliberately exercise a slower queue commit, as on PostgreSQL CI.
+    if (new URL(request.url()).pathname === "/api/agent/workspace/run")
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    const response = await fetch(url + new URL(request.url()).pathname, {
+      method: request.method(),
+      headers: { "Content-Type": "application/json" },
+      body: request.postData() || undefined,
+    });
     await route.fulfill({
       status: response.status,
       contentType: "application/json",
@@ -135,13 +139,10 @@ test("both evidence workflows: explicit snapshot, inspect queries, edit, approve
     ).toBeVisible();
     for (const name of ["Plan revision", "Synthesize research"]) {
       await flow.getByRole("button", { name, exact: true }).click();
-      await flow
-        .getByRole("button", { name: "Create proposal", exact: true })
-        .click();
-      await app.locals.workspace.worker.tick();
-      const article = flow.locator("article").first();
-      await expect(article.getByRole("heading").first()).toContainText(
-        "completed",
+      const { article } = await createEvidenceProposal(
+        page,
+        flow,
+        app.locals.workspace.worker,
       );
       await article.getByText(/Queries, evidence/).click();
       await expect(article).toContainText("query_notes");
