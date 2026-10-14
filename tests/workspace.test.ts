@@ -16,72 +16,64 @@ import {
   fixedDate,
 } from "./fixtures/evidence-workspace.ts";
 
-test("retrieval budget reserves proposal and final-answer calls without applying actions", async () => {
-  const { repo, service } = await workspaceSetup();
-  let calls = 0;
-  const scripted = scriptedModel();
-  const fetcher: typeof fetch = async (url, init) => {
-    const body = JSON.parse(String(init?.body));
-    calls++;
-    if (calls >= 3 && calls <= 7)
-      return Response.json({
-        choices: [
-          {
-            message: {
-              content: null,
-              tool_calls: [
-                {
-                  id: `read-${calls}`,
-                  type: "function",
-                  function: { name: "query_review_tasks", arguments: "{}" },
-                },
-              ],
+for (const finishAt of [8, 12])
+  test(`valid proposal on call ${finishAt} completes without an extra model call or applied actions`, async () => {
+    const { repo, service } = await workspaceSetup();
+    let calls = 0;
+    const scripted = scriptedModel();
+    const fetcher: typeof fetch = async (url, init) => {
+      const body = JSON.parse(String(init?.body));
+      calls++;
+      if (calls >= 3 && calls < finishAt)
+        return Response.json({
+          choices: [
+            {
+              message: {
+                content: null,
+                tool_calls: [
+                  {
+                    id: `read-${calls}`,
+                    type: "function",
+                    function: { name: "query_review_tasks", arguments: "{}" },
+                  },
+                ],
+              },
             },
-          },
-        ],
-      });
-    if (calls === 8) {
-      assert.deepEqual(
-        body.tools.map((t: any) => t.function.name),
-        ["propose_actions"],
-      );
-      assert.equal(body.tool_choice.function.name, "propose_actions");
-      const toolMessages = body.messages.filter((m: any) => m.role === "tool");
-      body.messages = [
-        ...body.messages.filter((m: any) => m.role !== "tool"),
-        ...toolMessages.slice(0, 2),
-      ];
-      return scripted(url, { ...init, body: JSON.stringify(body) });
-    }
-    if (calls === 9) {
-      assert.deepEqual(body.tools, []);
-      assert.equal(body.tool_choice, "none");
-      const result = JSON.parse(
-        body.messages.filter((m: any) => m.role === "tool").at(-1).content,
-      );
-      assert.deepEqual(
-        result.actions.map((a: any) => a.kind),
-        ["save_material", "update_plan"],
-      );
-      assert.equal(result.actions[0].title, "Evidence brief");
-      assert.equal(result.status, "pending human approval");
-    }
-    return scripted(url, init);
-  };
-  await service.queue({
-    notebookId: "fixture",
-    workflow: "study_revision",
-    prompt: "Prepare a cited proposal",
-    ...selected(await repo.read("fixture")),
+          ],
+        });
+      if (calls === finishAt) {
+        assert.deepEqual(
+          body.tools.map((t: any) => t.function.name),
+          ["propose_actions"],
+        );
+        assert.equal(body.tool_choice.function.name, "propose_actions");
+        const toolMessages = body.messages.filter(
+          (m: any) => m.role === "tool",
+        );
+        body.messages = [
+          ...body.messages.filter((m: any) => m.role !== "tool"),
+          ...toolMessages.slice(0, 2),
+        ];
+        return scripted(url, { ...init, body: JSON.stringify(body) });
+      }
+      return scripted(url, init);
+    };
+    await service.queue({
+      notebookId: "fixture",
+      workflow: "study_revision",
+      prompt: "Prepare a cited proposal",
+      ...selected(await repo.read("fixture")),
+    });
+    await new WorkspaceWorker(service, fetcher).tick();
+    const state = await repo.read("fixture");
+    assert.equal(state.runs[0].status, "completed", state.runs[0].error);
+    assert.equal(calls, finishAt);
+    assert.match(state.runs[0].answer, /Review 2 proposed actions/);
+    assert.match(state.runs[0].answer, /Nothing has been applied or sent/);
+    assert.equal(state.proposals.length, 1);
+    assert.equal(state.materials.length, 0);
+    await repo.close();
   });
-  await new WorkspaceWorker(service, fetcher).tick();
-  const state = await repo.read("fixture");
-  assert.equal(state.runs[0].status, "completed", state.runs[0].error);
-  assert.equal(calls, 9);
-  assert.equal(state.proposals.length, 1);
-  assert.equal(state.materials.length, 0);
-  await repo.close();
-});
 
 export async function workspaceSetup(repo = new JsonWorkspaceRepository()) {
   await repo.initialize();
@@ -97,6 +89,29 @@ export async function workspaceSetup(repo = new JsonWorkspaceRepository()) {
   await service.snapshot(snapshot);
   return { repo, connections, service, worker };
 }
+test("a provider response after a suspended-machine deadline cannot execute tools", async (t) => {
+  const { repo, service } = await workspaceSetup();
+  await service.queue({
+    notebookId: "fixture",
+    workflow: "study_revision",
+    prompt: "Prepare cited work",
+    ...selected(await repo.read("fixture")),
+  });
+  let now = Date.now();
+  t.mock.method(Date, "now", () => now);
+  const scripted = scriptedModel();
+  const fetcher: typeof fetch = async (url, init) => {
+    now += 181000;
+    return scripted(url, init);
+  };
+  await new WorkspaceWorker(service, fetcher).tick();
+  const state = await repo.read("fixture");
+  assert.equal(state.runs[0].status, "failed");
+  assert.match(state.runs[0].error!, /timed out/);
+  assert.equal(state.runs[0].steps.length, 0);
+  assert.equal(state.proposals.length, 0);
+  await repo.close();
+});
 for (const workflow of ["study_revision", "research_synthesis"] as const)
   test(`${workflow}: read → propose → edit → approve is transactional and idempotent`, async () => {
     const { repo, service, worker } = await workspaceSetup();

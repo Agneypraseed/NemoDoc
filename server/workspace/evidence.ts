@@ -65,7 +65,7 @@ export function validateActions(
           )
         )
           throw new Error(
-            "Practice items require document citations returned by this run.",
+            `Practice item citationIds must be document references, not SQL query IDs, and also appear in the action's evidenceIds. Available document IDs: ${[...documents].join(", ")}.`,
           );
         if (
           a.materialKind === "quiz" &&

@@ -142,14 +142,19 @@ function PdfPage({
         "--total-scale-factor",
         String(viewport.scale),
       );
-      const content = await page.getTextContent();
-      if (disposed) return;
-      layer = new pdfjs.TextLayer({
-        textContentSource: content,
-        container: text.current,
-        viewport,
-      });
-      await Promise.all([render.promise, layer.render()]);
+      // Observe the raster promise before waiting for text extraction. A panel
+      // resize can cancel rasterization while getTextContent is still pending.
+      const textRendering = (async () => {
+        const content = await page.getTextContent();
+        if (disposed || !text.current) return;
+        layer = new pdfjs.TextLayer({
+          textContentSource: content,
+          container: text.current,
+          viewport,
+        });
+        await layer.render();
+      })();
+      await Promise.all([render.promise, textRendering]);
     })().catch((error) => {
       if (
         !disposed &&

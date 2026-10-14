@@ -53,6 +53,10 @@ const report: any = {
   cases: [],
 };
 mkdirSync("output/evaluations", { recursive: true });
+const reportName = process.env.MML_REPORT_NAME || "mml-live.json";
+if (!/^[a-zA-Z0-9_-]+\.json$/.test(reportName))
+  throw new Error("Use a simple JSON filename for MML_REPORT_NAME.");
+const reportPath = `output/evaluations/${reportName}`;
 try {
   await repo.initialize();
   for (const c of cases) {
@@ -181,10 +185,7 @@ try {
           "Inspect generated claims/items against cited MML page text. Structural pass is not factual accuracy.",
       },
     });
-    writeFileSync(
-      "output/evaluations/mml-live.json",
-      JSON.stringify(report, null, 2),
-    );
+    writeFileSync(reportPath, JSON.stringify(report, null, 2));
     console.log(
       `${c.id}: ${result.status}; structure ${Object.values(checks).every(Boolean) ? "PASS" : "FAIL"}; calls ${result.calls}; ${Date.now() - start}ms${result.error ? `; ${result.error}` : ""}`,
     );
@@ -196,6 +197,6 @@ const passed = report.cases.filter((c: any) =>
   Object.values(c.checks).every(Boolean),
 ).length;
 console.log(
-  `MML live structural checks: ${passed}/${report.cases.length}. Factual accuracy is unscored until reviewed. Full report remains in ignored output/evaluations/mml-live.json.`,
+  `MML live structural checks: ${passed}/${report.cases.length}. Factual accuracy is unscored until reviewed. Full report remains in ignored ${reportPath}.`,
 );
 process.exitCode = passed === report.cases.length ? 0 : 1;
