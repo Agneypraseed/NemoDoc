@@ -56,6 +56,15 @@ test("retrieval budget reserves proposal and final-answer calls without applying
     if (calls === 9) {
       assert.deepEqual(body.tools, []);
       assert.equal(body.tool_choice, "none");
+      const result = JSON.parse(
+        body.messages.filter((m: any) => m.role === "tool").at(-1).content,
+      );
+      assert.deepEqual(
+        result.actions.map((a: any) => a.kind),
+        ["save_material", "update_plan"],
+      );
+      assert.equal(result.actions[0].title, "Evidence brief");
+      assert.equal(result.status, "pending human approval");
     }
     return scripted(url, init);
   };
