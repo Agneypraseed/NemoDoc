@@ -47,3 +47,22 @@ The generated concept is a layout reference; document/answer contents in it
 are illustrative, never app data or verified model output. Necessary
 differences: retain all existing actions and do not add generated suggestions
 or model-selection controls without real behavior.
+
+## Library and supporting panels checkpoint
+
+The library is now a separate React component with a searchable list, title/newest
+sorting, current-notebook indication, source counts and notebook creation.
+The generated library reference uses sample notebook content; the implementation
+always renders real persisted records. Its book motif uses the existing Lucide
+icon set rather than introducing decorative raster assets.
+
+Notes answer text and Agent fields are larger; Studio creation controls and
+primary actions now use the shared accent and flat surfaces. The nine existing
+Notes/Studio/workspace regression scenarios passed. The new library browser
+scenario passed search, sorting, empty results, clearing, mobile overflow,
+switching and reload persistence. TypeScript passed.
+
+Visual review of desktop/mobile library captures caught a CSS specificity
+collision with old card rules; scoped library selectors now preserve the serif
+titles and quiet row separators. Mobile workspace still hides the notebook
+title; addressing that remains part of responsive verification.

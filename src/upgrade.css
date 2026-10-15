@@ -313,7 +313,7 @@
   margin: 12px 0 8px;
 }
 .studio-intro p {
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.8;
   color: var(--muted);
 }
@@ -331,7 +331,7 @@
   padding: 16px 10px;
   border: 1px solid var(--line);
   border-radius: 9px;
-  background: linear-gradient(130deg, var(--surface), var(--surface-quiet));
+  background: var(--surface);
   color: var(--muted);
 }
 .studio-create strong {
@@ -343,8 +343,8 @@
   opacity: 0.6;
 }
 .studio-create > button:hover {
-  background: var(--surface-muted);
-  border-color: var(--line);
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
 }
 .studio-progress {
   display: flex;
@@ -877,7 +877,7 @@
   white-space: nowrap;
 }
 .studio-create strong {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--text);
 }
 .studio-intro p,

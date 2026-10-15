@@ -51,6 +51,7 @@ import { apiJSON } from "./lib/api";
 import { ConnectionSettings } from "./components/ConnectionSettings";
 import { AppearanceSettings } from "./components/AppearanceSettings";
 import { NotebookActions } from "./components/NotebookActions";
+import { NotebookLibrary } from "./components/NotebookLibrary";
 import type { AnswerMode } from "./components/AnswerMode";
 import { WorkspaceTabs } from "./components/WorkspaceTabs";
 import { AssistantPanel } from "./components/AssistantPanel";
@@ -2981,37 +2982,14 @@ export default function App() {
       )}
       {modal === "library" && (
         <Modal title="Your notebooks" onClose={() => setModal(null)}>
-          <p className="modal-description">
-            A collection of things worth understanding.
-          </p>
-          <div className="library-grid">
-            {notebooks.map((n) => (
-              <button
-                key={n.id}
-                className={`notebook-card ${activeId === n.id ? "active" : ""}`}
-                onClick={() => openNotebook(n.id)}
-              >
-                <span className="notebook-cover">
-                  <BookOpen size={28} strokeWidth={1.3} />
-                </span>
-                <strong>{n.title}</strong>
-                <p>{n.description || "Room for your ideas"}</p>
-                <span>
-                  {sources.filter((s) => s.notebookId === n.id).length} sources
-                  <ArrowRight size={14} />
-                </span>
-              </button>
-            ))}
-            <button
-              className="notebook-card new-card"
-              disabled={busy}
-              onClick={() => setModal("new")}
-            >
-              <Plus size={26} />
-              <strong>New notebook</strong>
-              <p>Start with a little curiosity.</p>
-            </button>
-          </div>
+          <NotebookLibrary
+            notebooks={notebooks}
+            sources={sources}
+            activeId={activeId}
+            busy={busy}
+            onOpen={openNotebook}
+            onCreate={() => setModal("new")}
+          />
         </Modal>
       )}
       {modal === "settings" && (

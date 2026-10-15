@@ -893,8 +893,8 @@ h1 {
   align-items: center;
   padding: 11px 15px;
   border-radius: 7px;
-  background: #6c67d1;
-  color: white;
+  background: var(--accent);
+  color: var(--surface);
   font-size: 12px;
   font-weight: 500;
 }
@@ -1572,7 +1572,7 @@ h1 {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px;
+  padding: 16px;
   list-style: none;
   cursor: pointer;
 }
@@ -1615,12 +1615,12 @@ h1 {
 .saved-answer-label,
 .saved-answer-question > span {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 .saved-answer-summary strong {
   overflow: hidden;
   color: var(--text);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 550;
   line-height: 1.5;
   display: -webkit-box;
@@ -1629,10 +1629,10 @@ h1 {
 }
 .saved-answer-summary > span {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 .saved-answer-detail {
-  padding: 14px;
+  padding: 16px;
 }
 .saved-answer-question {
   padding: 0 0 10px;
@@ -1642,14 +1642,14 @@ h1 {
 .saved-answer-question p {
   margin: 5px 0 0;
   color: var(--text);
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.6;
 }
 .saved-answer-response.message {
   margin: 0;
   color: var(--text);
-  font-size: 12px;
-  line-height: 1.65;
+  font-size: 14px;
+  line-height: 1.8;
 }
 .saved-answer-response.message h1,
 .saved-answer-response.message h2,
@@ -2114,7 +2114,7 @@ h1 {
     background: var(--surface-quiet);
   }
   .primary-button:hover {
-    background: #7870d6;
+    background: color-mix(in srgb, var(--accent) 88%, var(--ink));
   }
   .notebook-card:hover {
     background: var(--surface);
