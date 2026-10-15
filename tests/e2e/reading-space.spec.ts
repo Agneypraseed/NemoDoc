@@ -665,7 +665,12 @@ test("paper and dark reading views stay compact on desktop and mobile", async ({
   const dock = await page.locator(".workspace-chat").boundingBox();
   expect(dock!.height).toBeLessThan(130);
   const stage = await page.locator(".reader-stage").boundingBox();
-  expect(stage!.height).toBeGreaterThan(550);
+  // The labeled two-row mobile navigation remains visible while the reader
+  // retains at least 65% of the viewport below the toolbar.
+  expect(stage!.height).toBeGreaterThan(786 * 0.65);
+  await expect(
+    page.getByRole("heading", { name: "The thoughtful interface" }),
+  ).toBeVisible();
   await page.screenshot({
     path: "test-results/reading-mobile.png",
     fullPage: true,

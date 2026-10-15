@@ -140,9 +140,11 @@ export function StudyStudio({
   return (
     <div className="study-studio">
       <div className="studio-intro">
-        <span className="eyebrow">TURN READING INTO UNDERSTANDING</span>
         <h2>Your study studio</h2>
-        <p>Build something useful from {sources.length} selected sources.</p>
+        <p>
+          Build something useful from {sources.length} selected{" "}
+          {sources.length === 1 ? "source" : "sources"}.
+        </p>
       </div>
       <div className="studio-create">
         {kinds.map(([kind, Icon, label]) => (

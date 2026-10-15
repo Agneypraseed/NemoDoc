@@ -108,7 +108,7 @@ body,
   grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
 }
 @media (min-width: 701px) {
-  .work-area .assistant-panel[data-view="chat"]:not(.floating) {
+  .work-area .assistant-panel:not(.floating) {
     align-self: stretch;
     justify-self: stretch;
     width: 100%;
@@ -987,21 +987,33 @@ body,
 @media (max-width: 700px) {
   .notebook-actions-popover {
     position: fixed;
-    top: 44px;
+    top: 48px;
     right: 12px;
   }
   .workspace-header {
-    padding: 0 10px;
-    height: 44px;
-    gap: 8px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: 44px 40px;
+    padding: 0 10px 5px;
+    height: 90px;
+    min-height: 90px;
+    gap: 0 6px;
   }
   .workspace-tabs {
-    gap: 0;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-content: space-between;
+    gap: 4px;
   }
   .workspace-tabs button {
-    width: 28px;
-    height: 30px;
-    padding: 5px;
+    flex: 1;
+    width: auto;
+    height: 36px;
+    padding: 7px 5px;
+    font-size: 12px;
+  }
+  .workspace-tabs button span {
+    display: inline;
   }
   .breadcrumbs {
     gap: 3px;
@@ -1009,14 +1021,21 @@ body,
     flex: 1;
   }
   .notebook-title {
-    display: none;
+    display: block;
+    flex: 1;
+  }
+  .notebook-title h1 {
+    font-size: 13px;
   }
   .header-actions {
+    grid-column: 2;
+    grid-row: 1;
     gap: 0;
   }
   .header-actions .icon-button,
   .settings-launcher {
-    width: 28px;
+    width: 30px;
+    min-height: 36px;
     padding: 0;
   }
   .header-actions .settings-launcher {
