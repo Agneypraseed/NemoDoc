@@ -2,7 +2,10 @@ import "dotenv/config";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { createHash, randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { PostgresWorkspaceRepository } from "../server/workspace/repository.ts";
+import {
+  JsonWorkspaceRepository,
+  PostgresWorkspaceRepository,
+} from "../server/workspace/repository.ts";
 import { WorkspaceService } from "../server/workspace/service.ts";
 import { WorkspaceWorker } from "../server/workspace/worker.ts";
 import { SettingsStore } from "../server/settings.ts";
@@ -17,16 +20,18 @@ import { auditMmlOutput } from "../tests/fixtures/mml-rubric.ts";
 
 if (process.env.NEMODOC_LIVE_EVAL !== "1")
   throw new Error("Set NEMODOC_LIVE_EVAL=1 to authorize paid NVIDIA calls.");
-for (const name of ["TEST_DATABASE_URL", "TEST_READ_DATABASE_URL"]) {
-  const u = new URL(process.env[name] || "postgresql://invalid/invalid");
-  if (
-    !["localhost", "127.0.0.1", "[::1]"].includes(u.hostname) ||
-    !u.pathname.endsWith("_test")
-  )
-    throw new Error(
-      "Use a separate loopback database ending in _test, never the personal workspace database.",
-    );
-}
+const backend = process.env.MML_BACKEND === "json" ? "json" : "postgres";
+if (backend === "postgres")
+  for (const name of ["TEST_DATABASE_URL", "TEST_READ_DATABASE_URL"]) {
+    const u = new URL(process.env[name] || "postgresql://invalid/invalid");
+    if (
+      !["localhost", "127.0.0.1", "[::1]"].includes(u.hostname) ||
+      !u.pathname.endsWith("_test")
+    )
+      throw new Error(
+        "Use a separate loopback database ending in _test, never the personal workspace database. Set MML_BACKEND=json to use an isolated local JSON fixture instead.",
+      );
+  }
 const settings = new SettingsStore(
   {
     apiKey: "",
@@ -38,10 +43,15 @@ const settings = new SettingsStore(
 if (!settings.value.apiKey)
   throw new Error("Configure the NVIDIA connection first.");
 const connections = new AgentConnectionStore(settings); // No saved SMTP settings are loaded.
-const repo = new PostgresWorkspaceRepository(
-  process.env.TEST_DATABASE_URL!,
-  process.env.TEST_READ_DATABASE_URL!,
-);
+const repo =
+  backend === "json"
+    ? new JsonWorkspaceRepository(
+        `output/evaluations/mml-live-workspace-${Date.now()}.json`,
+      )
+    : new PostgresWorkspaceRepository(
+        process.env.TEST_DATABASE_URL!,
+        process.env.TEST_READ_DATABASE_URL!,
+      );
 const service = new WorkspaceService(repo, connections);
 const cases = process.env.EVAL_CASE
   ? mmlCases.filter((c) => process.env.EVAL_CASE!.split(",").includes(c.id))
@@ -53,7 +63,7 @@ const report: any = {
     encoding: "utf8",
   }).trim(),
   date: new Date().toISOString(),
-  mode: "LIVE NVIDIA + real PostgreSQL; factual/support review remains manual",
+  mode: `LIVE NVIDIA + isolated ${backend} workspace; factual/support review remains manual`,
   model: settings.value.model,
   cases: [],
 };
@@ -136,9 +146,9 @@ try {
         !state.reviews.length &&
         !state.outbox.length &&
         !state.receipts.length,
-      sqlAndPassages:
+      notesQueryAndPassages:
         result.evidence.some(
-          (e) => e.kind === "notes" && e.backend === "postgres",
+          (e) => e.kind === "notes" && e.backend === backend,
         ) &&
         result.citations.some((c) => c.page === 50) &&
         result.citations.some((c) => c.page === 77),

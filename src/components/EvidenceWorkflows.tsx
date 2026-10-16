@@ -8,15 +8,16 @@ import type {
   ActionProposal,
   EvidenceWorkflow,
   ProposalAction,
+  WorkflowReport,
   WorkspaceState,
 } from "../workspace-types";
 
 const root = "/api/agent/workspace";
 const prompts = {
   study_revision:
-    "Prepare a revision plan using my selected notes and recorded quiz mistakes. Propose cited practice materials and review sessions. Report missing progress as unknown.",
+    "Prepare a targeted revision plan from my selected notes and recorded quiz mistakes. Connect each focus to the relevant note, mistake and cited book page. Propose editable practice materials and a review session. If no quiz history is shared or recorded, say the learning gaps are unknown.",
   research_synthesis:
-    "Compare my selected research notes across these papers. Find supporting passages, distinguish disagreements and unsupported conclusions, and propose a cited research brief and follow-up reading tasks.",
+    "Compare my selected papers in an evidence table. For each paper, report its finding, method or population, and cited page. Explain where findings support, qualify or conflict with one another; distinguish differences in study settings from direct disagreements. Flag conclusions these sources cannot establish, then propose an editable cited brief and follow-up reading tasks.",
 };
 export function EvidenceWorkflows({
   notebookId,
@@ -276,6 +277,8 @@ export function EvidenceWorkflows({
             disabled={
               busy ||
               !sourceIds.length ||
+              (workflow === "research_synthesis" && sourceIds.length < 2) ||
+              (workflow === "study_revision" && !noteIds.length) ||
               !prompt.trim() ||
               state.runs.some(
                 (r) => r.status === "queued" || r.status === "running",
@@ -296,6 +299,15 @@ export function EvidenceWorkflows({
           >
             Create proposal
           </button>
+          {workflow === "research_synthesis" && sourceIds.length < 2 ? (
+            <p className="agent-fine" role="status">
+              Select at least two sources to compare papers.
+            </p>
+          ) : workflow === "study_revision" && !noteIds.length ? (
+            <p className="agent-fine" role="status">
+              Select one or more notes to build a targeted revision plan.
+            </p>
+          ) : null}
         </div>
       )}
       {state?.runs.map((run) => (
@@ -400,16 +412,25 @@ export function EvidenceWorkflows({
           {state.proposals
             .filter((p) => p.runId === run.id)
             .map((p) => (
-              <ProposalEditor
-                key={`${p.id}:${p.revision}`}
-                proposal={p}
-                approvedIds={
-                  state.receipts.find((r) => r.proposalId === p.id)
-                    ?.actionIds ?? []
-                }
-                disabled={busy || run.status !== "completed"}
-                act={act}
-              />
+              <div key={`${p.id}:${p.revision}`}>
+                {p.report && (
+                  <WorkflowReportView
+                    report={p.report}
+                    run={run}
+                    state={state}
+                    onCitation={onCitation}
+                  />
+                )}
+                <ProposalEditor
+                  proposal={p}
+                  approvedIds={
+                    state.receipts.find((r) => r.proposalId === p.id)
+                      ?.actionIds ?? []
+                  }
+                  disabled={busy || run.status !== "completed"}
+                  act={act}
+                />
+              </div>
             ))}
         </article>
       ))}
@@ -499,6 +520,160 @@ export function EvidenceWorkflows({
     </section>
   );
 }
+
+function WorkflowReportView({
+  report,
+  run,
+  state,
+  onCitation,
+}: {
+  report: WorkflowReport;
+  run: WorkspaceState["runs"][number];
+  state: WorkspaceState;
+  onCitation: (citation: Citation) => void;
+}) {
+  const citationButton = (id: number, key: string) => {
+    const citation = run.citations.find((candidate) => candidate.id === id);
+    if (!citation) return null;
+    return (
+      <button
+        key={`${key}:${id}`}
+        className="secondary-button workflow-citation"
+        title={citation.text}
+        onClick={() => onCitation(citation)}
+      >
+        [{id}] {citation.sourceName} · p. {citation.page}
+      </button>
+    );
+  };
+  if (report.kind === "study_revision") {
+    const progressLabel =
+      report.progressStatus === "not_shared"
+        ? "Quiz history was not shared. Learning gaps are unknown."
+        : report.progressStatus === "no_recorded_attempts"
+          ? "No quiz attempts were recorded. Learning gaps are unknown."
+          : "Based on the quiz attempts shared for this notebook.";
+    return (
+      <section className="workflow-report" aria-label="Study evidence summary">
+        <h4>Study focus</h4>
+        <p className="workflow-report-status">{progressLabel}</p>
+        <div className="workflow-focus-list">
+          {report.focusAreas.map((focus, index) => (
+            <article className="workflow-focus" key={`${focus.topic}:${index}`}>
+              <h5>{focus.topic}</h5>
+              <p>{focus.observation}</p>
+              <p className="workflow-report-meta">
+                Notes:{" "}
+                {focus.noteIds
+                  .map(
+                    (id) =>
+                      state.notes.find((note) => note.id === id)?.title ?? id,
+                  )
+                  .join(", ")}
+                {focus.attemptIds.length > 0 && (
+                  <>
+                    {" "}
+                    · Quiz attempts:{" "}
+                    {focus.attemptIds
+                      .map(
+                        (id) =>
+                          state.attempts.find((attempt) => attempt.id === id)
+                            ?.title ?? id,
+                      )
+                      .join(", ")}
+                  </>
+                )}
+              </p>
+              <div className="workflow-citations">
+                {focus.citationIds.map((id) => citationButton(id, focus.topic))}
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    );
+  }
+  const relationLabel: Record<
+    (typeof report.comparisons)[number]["relation"],
+    string
+  > = {
+    supports: "Supports",
+    qualifies: "Qualifies",
+    conflicts: "Conflicts",
+    insufficient_evidence: "Insufficient evidence",
+  };
+  return (
+    <section className="workflow-report" aria-label="Research evidence report">
+      <h4>Evidence by paper</h4>
+      <div className="workflow-table-scroll">
+        <table className="workflow-evidence-table">
+          <thead>
+            <tr>
+              <th scope="col">Paper</th>
+              <th scope="col">Finding</th>
+              <th scope="col">Method / population</th>
+              <th scope="col">Evidence</th>
+            </tr>
+          </thead>
+          <tbody>
+            {report.papers.map((paper) => (
+              <tr key={paper.sourceId}>
+                <th scope="row">
+                  {state.sources.find((source) => source.id === paper.sourceId)
+                    ?.name ?? paper.sourceId}
+                </th>
+                <td>{paper.finding}</td>
+                <td>{paper.methodPopulation}</td>
+                <td>
+                  <div className="workflow-citations">
+                    {paper.citationIds.map((id) =>
+                      citationButton(id, paper.sourceId),
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <h4>Cross-paper comparison</h4>
+      <div className="workflow-comparisons">
+        {report.comparisons.map((comparison, index) => (
+          <article
+            className="workflow-focus"
+            key={`${comparison.question}:${index}`}
+          >
+            <div className="workflow-comparison-heading">
+              <strong>{comparison.question}</strong>
+              <span
+                className={`workflow-relation workflow-relation-${comparison.relation}`}
+              >
+                {relationLabel[comparison.relation]}
+              </span>
+            </div>
+            <p>{comparison.explanation}</p>
+            <div className="workflow-citations">
+              {comparison.citationIds.map((id) =>
+                citationButton(id, `comparison-${index}`),
+              )}
+            </div>
+          </article>
+        ))}
+      </div>
+      {report.unsupportedClaims.length > 0 && (
+        <div className="workflow-unsupported">
+          <h4>Not established by these papers</h4>
+          {report.unsupportedClaims.map((item, index) => (
+            <p key={`${item.claim}:${index}`}>
+              <strong>{item.claim}</strong> — {item.reason}
+            </p>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function ProposalEditor({
   proposal: p,
   approvedIds,

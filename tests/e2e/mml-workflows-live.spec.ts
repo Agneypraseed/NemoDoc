@@ -7,7 +7,7 @@ import { SettingsStore } from "../../server/settings.ts";
 import { mmlCases, mmlPrompt } from "../fixtures/mml-workspace.ts";
 import { createEvidenceProposal } from "./workspace-helpers";
 
-test("real Nemotron MML evidence workflows: upload, share, run, inspect, edit, approve and import twice", async ({
+test("real Nemotron MML study workflow: upload, share, run, inspect, edit, approve and import twice", async ({
   browser,
 }) => {
   test.skip(
@@ -111,10 +111,7 @@ test("real Nemotron MML evidence workflows: upload, share, run, inspect, edit, a
     await expect(
       flow.getByRole("button", { name: "Create proposal", exact: true }),
     ).toBeVisible();
-    for (const [name, caseId] of [
-      ["Plan revision", "study-01"],
-      ["Synthesize research", "research-01"],
-    ]) {
+    for (const [name, caseId] of [["Plan revision", "study-01"]]) {
       await flow.getByRole("button", { name, exact: true }).click();
       await flow.getByRole("textbox", { name: "Request", exact: true }).fill(
         mmlPrompt(
@@ -162,19 +159,18 @@ test("real Nemotron MML evidence workflows: upload, share, run, inspect, edit, a
       });
     }
     const imports = flow.getByRole("button", { name: "Import into Studio" });
-    await expect(imports).toHaveCount(2);
+    await expect(imports).toHaveCount(1);
     await imports.first().click();
     await imports.first().click();
-    await imports.last().click();
     await page.getByRole("button", { name: "Studio", exact: true }).click();
     await expect(
       page.getByLabel("Saved study material").locator("option"),
-    ).toHaveCount(3);
+    ).toHaveCount(2);
     await page.reload();
     await page.getByRole("button", { name: "Studio", exact: true }).click();
     await expect(
       page.getByLabel("Saved study material").locator("option"),
-    ).toHaveCount(3);
+    ).toHaveCount(2);
     expect(errors).toEqual([]);
     success = true;
   } finally {

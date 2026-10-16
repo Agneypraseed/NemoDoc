@@ -1,9 +1,34 @@
 import { test, expect } from "./fixtures";
 import { createApp } from "../../server/app.ts";
 import type { AddressInfo } from "node:net";
-import { mkdirSync, copyFileSync } from "node:fs";
+import { mkdirSync, copyFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { PDFDocument, StandardFonts } from "pdf-lib";
+import { scriptedModel } from "../fixtures/evidence-workspace.ts";
 import { createEvidenceProposal } from "./workspace-helpers";
+
+async function createResearchSources() {
+  mkdirSync("output/workflow-fixtures", { recursive: true });
+  const create = async (name: string, text: string) => {
+    const pdf = await PDFDocument.create(),
+      page = pdf.addPage(),
+      font = await pdf.embedFont(StandardFonts.Helvetica);
+    page.drawText(text, { x: 50, y: 720, size: 12, font });
+    const file = path.resolve(`output/workflow-fixtures/${name}.pdf`);
+    writeFileSync(file, await pdf.save());
+    return file;
+  };
+  return Promise.all([
+    create(
+      "ritchie-primary-school",
+      "Synthetic Ritchie et al. paper excerpt. Retrieval practice and mind mapping were studied with primary-school children. Retrieval practice improved factual learning after delayed testing. This classroom result does not establish an effect in workplace training.",
+    ),
+    create(
+      "okano-workplace-learning",
+      "Synthetic Okano et al. paper excerpt. Digital learning among workplace employees. Interspersed testing with structured discussion improved next-day retention; spontaneous discussion alone did not show the same significant effect. This setting is not a head-to-head comparison with a primary-school study.",
+    ),
+  ]);
+}
 
 test("both evidence workflows: explicit snapshot, inspect queries, edit, approve and import into Studio", async ({
   browser,
@@ -25,56 +50,7 @@ test("both evidence workflows: explicit snapshot, inspect queries, edit, approve
       baseUrl: "https://api.tokenfactory.nebius.com/v1",
       model: "nvidia/test-nemotron",
     },
-    (async (_url, init) => {
-      const body = JSON.parse(String(init?.body)),
-        results = body.messages.filter((m: any) => m.role === "tool");
-      const docs = JSON.parse(
-        body.messages[0].content
-          .split("Selected documents: ")[1]
-          .split("\n")[0],
-      );
-      const tool = (name: string, args: unknown) => ({
-        content: null,
-        tool_calls: [
-          {
-            id: `call-${results.length}`,
-            type: "function",
-            function: { name, arguments: JSON.stringify(args) },
-          },
-        ],
-      });
-      const research = body.messages[0].content.includes("research_synthesis");
-      const message = !results.length
-        ? tool("query_notes", {})
-        : results.length === 1
-          ? tool("read_passage", { sourceId: docs[0].id, page: 2 })
-          : results.length === 2
-            ? tool("propose_actions", {
-                actions: [
-                  {
-                    kind: "save_material",
-                    materialKind: "guide",
-                    title: research
-                      ? "Research evidence brief"
-                      : "Revision practice guide",
-                    content:
-                      "Keep the reader’s attention on their work; make evidence easy to revisit. [2]",
-                    items: [],
-                    evidenceIds: [1, 2],
-                  },
-                  {
-                    kind: "update_plan",
-                    text: "Revisit the original passage and compare it with your notes. [2]",
-                    evidenceIds: [1, 2],
-                  },
-                ],
-              })
-            : {
-                content:
-                  "Your approved notes [1] and original passage [2] support this proposal. Review the proposed changes before approving.",
-              };
-      return Response.json({ choices: [{ message }] });
-    }) as typeof fetch,
+    scriptedModel(),
     {
       databaseUrl: process.env.TEST_DATABASE_URL,
       readDatabaseUrl: process.env.TEST_READ_DATABASE_URL,
@@ -108,6 +84,9 @@ test("both evidence workflows: explicit snapshot, inspect queries, edit, approve
   try {
     await page.goto("http://127.0.0.1:5173");
     await expect(page.locator('[data-page="1"] canvas')).toBeVisible();
+    await page
+      .getByLabel("Upload sources", { exact: true })
+      .setInputFiles(await createResearchSources());
     await page.getByRole("button", { name: "Notes", exact: true }).click();
     await page.getByRole("button", { name: "Notebook", exact: true }).click();
     await page
@@ -118,11 +97,12 @@ test("both evidence workflows: explicit snapshot, inspect queries, edit, approve
     await page.getByRole("button", { name: "Agent", exact: true }).click();
     const flow = page.getByRole("region", { name: "Evidence workflows" });
     await expect(flow).toBeVisible();
-    await flow
+    const sourceChoices = flow
       .getByRole("group", { name: "Documents", exact: true })
-      .getByRole("checkbox")
-      .first()
-      .check();
+      .getByRole("checkbox");
+    await expect(sourceChoices).toHaveCount(3);
+    await sourceChoices.nth(1).check();
+    await sourceChoices.nth(2).check();
     await flow
       .getByRole("group", { name: "Notes", exact: true })
       .getByRole("checkbox")
@@ -146,6 +126,17 @@ test("both evidence workflows: explicit snapshot, inspect queries, edit, approve
       );
       await article.getByText(/Queries, evidence/).click();
       await expect(article).toContainText("query_notes");
+      if (name === "Synthesize research") {
+        await expect(
+          article.getByRole("region", { name: "Research evidence report" }),
+        ).toBeVisible();
+        await expect(article.getByRole("table").getByRole("row")).toHaveCount(
+          3,
+        );
+        await expect(article).toContainText("Ritchie");
+        await expect(article).toContainText("Okano");
+        await expect(article).toContainText("Qualifies");
+      }
       await article.getByText(/\[1\] notes/).click();
       await page.screenshot({
         path: `output/${name === "Plan revision" ? "study" : "research"}-evidence.png`,

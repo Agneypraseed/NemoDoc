@@ -11,6 +11,8 @@ NemoDoc's **Agent → Tasks → Evidence workflows** offers **Plan revision** an
 5. Import approved materials into Studio. Stable IDs make repeated imports update the same local artifact. Review tasks execute server-side while the server is running; an overdue task starts after restart. Its result is another proposal requiring approval.
 6. To share immutable quiz attempts, check answers in Studio, then use **Remember quiz result** with an approved workspace. The complete question, choices, chosen answer, correct answer, original citations and time are snapshotted. Later quiz edits cannot rewrite them. Without an approved workspace the previous textual progress-memory behavior remains available.
 
+The two templates now return different typed reports as part of the saved proposal. **Plan revision** links each focus to selected note IDs, any recorded quiz-attempt IDs, and cited source pages; quiz history is labeled not shared, no attempts, or recorded. **Synthesize research** requires two or more selected sources and includes one evidence-table row for every selected source, followed by cross-source comparisons and explicit unsupported claims. A comparison labeled supports, qualifies, or conflicts must cite at least two distinct selected sources. The UI opens those citations at their original pages. These checks prevent mismatched or invented reference IDs; they do not replace reading the cited passages to judge factual support. For the two-paper example and import steps, see [Research synthesis](RESEARCH_WORKFLOW.md).
+
 For optional email, configure SMTP in Connections and explicitly ask for an email in your workflow request. The proposal shows the fixed recipient, subject, exact body and evidence footer. Select that action only after reviewing it. An SMTP acceptance is submission to the mail server, not proof of inbox delivery. **Check delivery** means an interrupted/ambiguous submission; inspect the destination mailbox before creating a new proposal. There is deliberately no automatic retry of an uncertain send.
 
 ## Local Docker setup
@@ -59,7 +61,7 @@ SMTP runs outside the database transaction. A durable pending → sending claim 
 
 ## Evaluations and verification
 
-`tests/fixtures/evidence-workspace.ts` is original synthetic material, with fixed dates and no user documents. `evidence-cases.ts` defines 40 versioned cases: 16 study, 16 research, eight adversarial. Each has an expected behavior/support rubric. Standard tests validate deterministic orchestration, fixtures, permissions, approvals, SQL and SMTP; scripted provider output is explicitly **not model accuracy**.
+`tests/fixtures/evidence-workspace.ts` is original synthetic material, with fixed dates and no user documents. It includes one MML study fixture and two synthetic research-paper extracts marked as test data. `evidence-cases.ts` defines 40 versioned cases: 16 study, 16 research, eight adversarial. Tests cover selected-source citation integrity, cross-paper comparison rules, missing quiz evidence, edits/approvals, JSON and PostgreSQL persistence, and duplicate-safe imports. Each case has an expected behavior/support rubric. Standard tests validate deterministic orchestration, permissions, SQL and SMTP; scripted provider output is explicitly **not model accuracy**. The separate live MML batch has 24 study/security cases. It no longer treats pages of one book as a multi-paper research comparison.
 
 ```sh
 npm run check

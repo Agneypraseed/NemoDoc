@@ -156,9 +156,6 @@ export const proposalActionSchema = z.discriminatedUnion("kind", [
 ]);
 export type ProposalActionInput = z.infer<typeof proposalActionSchema>;
 export type ProposalAction = ProposalActionInput & { id: string };
-export const proposeSchema = z
-  .object({ actions: z.array(proposalActionSchema).min(1).max(8) })
-  .strict();
 export const workflowTaskSchema = z
   .object({
     notebookId: id,
@@ -170,6 +167,70 @@ export const workflowTaskSchema = z
   })
   .strict();
 export type WorkflowTask = z.infer<typeof workflowTaskSchema>;
+const evidenceRefs = z.array(z.number().int().positive()).min(1).max(100);
+const studyFocusSchema = z
+  .object({
+    topic: z.string().trim().min(1).max(180),
+    observation: z.string().trim().min(1).max(1200),
+    noteIds: z.array(id).min(1).max(20),
+    attemptIds: z.array(id).max(100).default([]),
+    citationIds: evidenceRefs,
+  })
+  .strict();
+const studyReportSchema = z
+  .object({
+    kind: z.literal("study_revision"),
+    progressStatus: z.enum(["recorded", "no_recorded_attempts", "not_shared"]),
+    progressEvidenceIds: z.array(z.number().int().positive()).max(20),
+    focusAreas: z.array(studyFocusSchema).min(1).max(12),
+  })
+  .strict();
+const researchPaperSchema = z
+  .object({
+    sourceId: id,
+    finding: z.string().trim().min(1).max(1600),
+    methodPopulation: z.string().trim().min(1).max(1000),
+    citationIds: evidenceRefs,
+  })
+  .strict();
+const researchComparisonSchema = z
+  .object({
+    question: z.string().trim().min(1).max(300),
+    relation: z.enum([
+      "supports",
+      "qualifies",
+      "conflicts",
+      "insufficient_evidence",
+    ]),
+    explanation: z.string().trim().min(1).max(1600),
+    citationIds: evidenceRefs,
+  })
+  .strict();
+const unsupportedClaimSchema = z
+  .object({
+    claim: z.string().trim().min(1).max(500),
+    reason: z.string().trim().min(1).max(800),
+  })
+  .strict();
+const researchReportSchema = z
+  .object({
+    kind: z.literal("research_synthesis"),
+    papers: z.array(researchPaperSchema).min(2).max(30),
+    comparisons: z.array(researchComparisonSchema).min(1).max(30),
+    unsupportedClaims: z.array(unsupportedClaimSchema).max(20).default([]),
+  })
+  .strict();
+export const workflowReportSchema = z.discriminatedUnion("kind", [
+  studyReportSchema,
+  researchReportSchema,
+]);
+export type WorkflowReport = z.infer<typeof workflowReportSchema>;
+export const proposeSchema = z
+  .object({
+    report: workflowReportSchema,
+    actions: z.array(proposalActionSchema).min(1).max(8),
+  })
+  .strict();
 export interface QueryEvidence {
   id: number;
   kind: "notes" | "progress" | "reviews";
@@ -209,6 +270,8 @@ export interface ActionProposal {
   snapshotRevision: string;
   connection: WorkflowRun["connection"];
   emailTarget?: DeliveryTarget;
+  /** Optional to keep proposals saved before structured reports backward compatible. */
+  report?: WorkflowReport;
   actions: ProposalAction[];
   createdAt: number;
 }

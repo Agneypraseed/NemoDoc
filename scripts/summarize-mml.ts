@@ -4,8 +4,10 @@ import { auditMmlOutput } from "../tests/fixtures/mml-rubric.ts";
 
 const read = (file: string) => JSON.parse(readFileSync(file, "utf8"));
 const live = read("output/evaluations/mml-live-final.json");
-if (live.cases.length !== 40)
-  throw new Error("Wait for all 40 final cases before publishing a summary.");
+if (live.cases.length !== mmlCases.length)
+  throw new Error(
+    `Wait for all ${mmlCases.length} current MML study/security cases before publishing a summary.`,
+  );
 const stress = read("output/evaluations/mml-stress.json");
 const baseline = read("output/evaluations/mml-live-baseline.json");
 const reviewed = existsSync("output/evaluations/mml-quality-review.json")
@@ -16,6 +18,8 @@ const passes = (r: any) =>
 const latencies = live.cases
   .map((c: any) => c.latencyMs)
   .sort((a: number, b: number) => a - b);
+const percentile = (fraction: number) =>
+  latencies[Math.max(0, Math.ceil(latencies.length * fraction) - 1)];
 const calls = live.cases.reduce((n: number, c: any) => n + c.run.calls, 0);
 for (const c of live.cases) {
   const fixture = mmlCases.find((f) => f.id === c.id)!;
@@ -30,6 +34,7 @@ const adherence = live.cases.filter(
   (c: any) => !c.instructionIssues.length,
 ).length;
 const reviewRows = Object.entries(reviewed)
+  .filter(([id]) => mmlCases.some((item) => item.id === id))
   .map(
     ([id, value]: [string, any]) =>
       `- **${id} (${value.citationSupport})**: ${value.finding}`,
@@ -42,20 +47,24 @@ const rows = live.cases.map(
   (c: any) =>
     `| ${c.id} | ${Object.values(c.checks).every(Boolean) ? "Pass" : "Fail"} | ${c.run.calls} | ${(c.latencyMs / 1000).toFixed(1)} | ${reviewed[c.id]?.citationSupport ?? "Unscored"} |`,
 );
+const baselineSummary =
+  baseline.cases.length === live.cases.length
+    ? `The matching baseline batch passed **${passes(baseline)}/${baseline.cases.length}** structural checks.`
+    : `The archived ${baseline.cases.length}-case baseline used an older workflow matrix and is not directly comparable to the current MML study/security batch.`;
 const text = `# MML workflow verification results
 
 Model: **${live.model}**, through the saved Nebius connection. Fixture revision: **${live.revision}**. Run started: ${live.date}. Core implementation commit at start: ${live.implementationCommit}. Full inputs, provider response IDs/messages, token usage, tool steps, proposals and failures are retained locally in ignored \`output/evaluations/\`; no PDF, credentials or private notes are published here.
 
 ## Live NVIDIA batch
 
-- **${passes(live)}/40 structural passes**, using **${calls} real model calls** and real PostgreSQL 17.9.
-- Per-case latency: median **${(latencies[20] / 1000).toFixed(1)} s**, p95 **${(latencies[38] / 1000).toFixed(1)} s** on this machine/provider connection.
+- **${passes(live)}/${live.cases.length} structural passes**, using **${calls} real model calls** and real PostgreSQL 17.9.
+- Per-case latency: median **${(percentile(0.5) / 1000).toFixed(1)} s**, p95 **${(percentile(0.95) / 1000).toFixed(1)} s** on this machine/provider connection.
 - Each successful case included proposal editing and eight concurrent duplicate approvals, checked for one receipt and the expected material/review count. No saved SMTP connection was loaded.
-- The matrix has 16 study runs (eight format/progress combinations repeated twice), 16 comparisons within one book (four repeated topics), and eight adversarial/missing-evidence cases. This is regression coverage, not 40 independent research tasks or a comprehensive security certification.
+- The current MML batch has 16 study runs (eight format/progress combinations repeated twice) and eight adversarial/missing-evidence cases. Multi-paper research is exercised separately with a two-paper test fixture; the user imports the real PLOS PDFs manually before asking Nemotron to synthesize them. This batch is regression coverage, not an independent research benchmark or comprehensive security certification.
 - Structural pass means completion, requested material/review type, valid reference IDs, PostgreSQL notes evidence and both requested pages, absence of premature actions, and an idempotent approval round trip. It is **not factual accuracy or semantic citation support**.
-- A stricter post-run instruction audit passed **${adherence}/40**: exactly the requested action, exactly three practice items when requested, and the requested progress/review SQL queries. Extra proposed actions remain unapplied until approval; they are still instruction-following failures. This audit is reported separately from the original structural checks.
+- A stricter post-run instruction audit passed **${adherence}/${live.cases.length}**: exactly the requested action, exactly three practice items when requested, and the requested progress/review SQL queries. Extra proposed actions remain unapplied until approval; they are still instruction-following failures. This audit is reported separately from the original structural checks.
 
-The original batch passed **${passes(baseline)}/40** structural checks. Its report is preserved. Citation-invalid proposals, a last-call completion bug and later network interruptions were observed. The final batch uses corrected code **and clearer versioned prompts**, so this is a before/after regression record, not a controlled model benchmark. Never replace those baseline failures with final outputs.
+${baselineSummary} Its report is preserved. Citation-invalid proposals, a last-call completion bug and later network interruptions were observed in earlier runs. This is a regression record, not a controlled model benchmark. Never replace those baseline failures with current outputs.
 
 ${retry ? `A separate targeted rerun of the three remaining failures passed **${passes(retry)}/${retry.cases.length}**. The original final-batch failures remain counted above; retry successes do not turn the batch into 40/40.` : ""}
 
@@ -95,5 +104,5 @@ Reproduce using [MML workflow testing](MML_WORKFLOW_TESTING.md). Full-book text 
 `;
 writeFileSync("docs/MML_EVALUATION_RESULTS.md", text);
 console.log(
-  `Published redacted MML summary: ${passes(live)}/40 structural passes. No factual accuracy score claimed.`,
+  `Published redacted MML summary: ${passes(live)}/${live.cases.length} structural passes. No factual accuracy score claimed.`,
 );

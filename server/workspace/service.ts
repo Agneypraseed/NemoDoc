@@ -12,7 +12,7 @@ import {
   type QuizAttempt,
 } from "../../src/workspace-types.ts";
 import type { WorkspaceRepository } from "./repository.ts";
-import { validateActions } from "./evidence.ts";
+import { validateActions, validateWorkflowReport } from "./evidence.ts";
 import { usesCitation } from "../../src/lib/citations.ts";
 import { canonical } from "./canonical.ts";
 const orderedRefs = (refs: { sourceId: string; page: number }[]) =>
@@ -194,6 +194,14 @@ export class WorkspaceService {
         throw new WorkspaceConflict("Approve the workspace first.");
       if (!input.sourceIds.length)
         throw new WorkspaceConflict("Select at least one approved document.");
+      if (input.workflow === "research_synthesis" && input.sourceIds.length < 2)
+        throw new WorkspaceConflict(
+          "Research synthesis requires at least two selected papers.",
+        );
+      if (input.workflow === "study_revision" && !input.noteIds.length)
+        throw new WorkspaceConflict(
+          "Select at least one approved note to build a revision plan.",
+        );
       if (
         new Set(input.sourceIds).size !== input.sourceIds.length ||
         new Set(input.noteIds).size !== input.noteIds.length
@@ -227,7 +235,8 @@ export class WorkspaceService {
     });
   }
   async createProposal(run: WorkflowRun, body: unknown) {
-    const { actions } = proposeSchema.parse(body);
+    const { actions, report } = proposeSchema.parse(body);
+    validateWorkflowReport(report, run);
     validateActions(actions, run, Date.now());
     for (const action of actions)
       if (action.kind === "send_email") {
@@ -268,6 +277,7 @@ export class WorkspaceService {
         snapshotRevision: s.revision,
         connection: run.connection,
         emailTarget,
+        report,
         actions: actions.map((a) => ({ ...a, id: randomUUID() })),
         createdAt: Date.now(),
       };

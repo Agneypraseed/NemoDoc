@@ -69,9 +69,9 @@ The tour uses the included sample notebook with deterministic demo responses. No
 
 For PostgreSQL 17 and the app together, set the two database passwords in `.env` and run `docker compose up --build`. The app is available at [127.0.0.1:3001](http://127.0.0.1:3001); the database has no public host port. Existing `npm run dev` continues supporting local JSON mode.
 
-See the [workflow and implementation guide](docs/EVIDENCE_AGENTS.md) for schema, SQL tools, approval transactions, outbox recovery, backups, CI and the 40-case evaluation set. [Verification status](docs/EVIDENCE_VERIFICATION.md) distinguishes credential-free tests from live model evaluation.
+See the [workflow and implementation guide](docs/EVIDENCE_AGENTS.md) for schema, SQL tools, approval transactions, outbox recovery, backups, CI and the credential-free 40-case evaluation set. [Try research synthesis with two open papers](docs/RESEARCH_WORKFLOW.md), or use the [MML live workflow instructions](docs/MML_WORKFLOW_TESTING.md) for the study workflow. [Verification status](docs/EVIDENCE_VERIFICATION.md) distinguishes credential-free tests from live model evaluation.
 
-[MML live evaluation and stress-test results](docs/MML_EVALUATION_RESULTS.md) report the actual 37/40 structural result, stricter instruction audit, mathematical/citation failures, and duplicate-approval/SMTP stress checks. [Reproduction instructions](docs/MML_WORKFLOW_TESTING.md) keep the book, credentials and raw traces local; structural passes are not model accuracy.
+[Recorded evaluation results](docs/MML_EVALUATION_RESULTS.md) preserve the earlier live-model batch and stress checks; they are historical and do not score the new structured reports. [Reproduction instructions](docs/MML_WORKFLOW_TESTING.md) keep the book, credentials and raw traces local; structural passes are not model accuracy.
 
 [Watch the revision and research workflow walkthrough (WebM)](docs/demo/evidence-workflows.webm) — actual UI/API/PostgreSQL with scripted provider responses; no live model score or external delivery is implied.
 

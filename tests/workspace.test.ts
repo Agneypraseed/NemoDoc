@@ -171,6 +171,36 @@ for (const workflow of ["study_revision", "research_synthesis"] as const)
     assert.equal(pending.materials.length, 0);
     assert.equal(pending.plan, "");
     const p = pending.proposals[0];
+    assert.equal(p.report?.kind, workflow);
+    if (p.report?.kind === "research_synthesis") {
+      assert.deepEqual(
+        p.report.papers.map((paper) => paper.sourceId).sort(),
+        selected(state).sourceIds.sort(),
+      );
+      assert.ok(
+        p.report.comparisons.some(
+          (row) =>
+            new Set(
+              row.citationIds.map(
+                (id) =>
+                  pending.runs[0].citations.find((c) => c.id === id)?.sourceId,
+              ),
+            ).size >= 2,
+        ),
+      );
+    } else {
+      assert.equal(p.report?.progressStatus, "recorded");
+      assert.ok(
+        p.report?.focusAreas.some((area) =>
+          area.attemptIds.includes(attempt.id),
+        ),
+      );
+      assert.ok(
+        p.report?.focusAreas.every(
+          (area) => area.noteIds.length > 0 && area.citationIds.length > 0,
+        ),
+      );
+    }
     const actions = p.actions.map(({ id, ...action }) => ({
       id,
       action:
@@ -213,6 +243,7 @@ for (const workflow of ["study_revision", "research_synthesis"] as const)
     assert.equal(applied.plan, "");
     assert.equal(applied.receipts.length, 1);
     assert.equal(applied.materials[0].citations.length, 1);
+    assert.deepEqual(applied.proposals[0].report, p.report);
     await repo.close();
   });
 test("note filters, unknown dates, scoped SQL-equivalent aggregation and immutable quiz snapshots", async () => {
@@ -232,7 +263,7 @@ test("note filters, unknown dates, scoped SQL-equivalent aggregation and immutab
   assert.equal(
     (
       await repo.queryNotes("fixture", scope, {
-        tag: "optimization",
+        tag: "learning",
         limit: 20,
       })
     ).length,

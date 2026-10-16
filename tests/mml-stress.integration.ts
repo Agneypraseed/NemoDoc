@@ -51,6 +51,10 @@ test(
     const scripted: typeof fetch = async (_url, init) => {
       const body = JSON.parse(String(init?.body));
       const results = body.messages.filter((m: any) => m.role === "tool");
+      const system = body.messages.find(
+        (m: any) => m.role === "system",
+      ).content;
+      const research = system.includes("Workflow: research_synthesis");
       const call = (name: string, args: unknown, id: string) => ({
         id,
         type: "function",
@@ -69,10 +73,31 @@ test(
       else if (results.length === 3)
         message = {
           content: null,
-          tool_calls: [
-            call("read_passage", { sourceId: "mml-book", page: 50 }, "basis"),
-            call("read_passage", { sourceId: "mml-book", page: 77 }, "norm"),
-          ],
+          tool_calls: research
+            ? [
+                call(
+                  "read_passage",
+                  { sourceId: "paper-a", page: 1 },
+                  "paper-a",
+                ),
+                call(
+                  "read_passage",
+                  { sourceId: "paper-b", page: 1 },
+                  "paper-b",
+                ),
+              ]
+            : [
+                call(
+                  "read_passage",
+                  { sourceId: "mml-book", page: 50 },
+                  "basis",
+                ),
+                call(
+                  "read_passage",
+                  { sourceId: "mml-book", page: 77 },
+                  "norm",
+                ),
+              ],
         };
       else if (results.length === 5) {
         const items = Array.from({ length: 3 }, (_, i) => ({
@@ -88,6 +113,54 @@ test(
             call(
               "propose_actions",
               {
+                report: research
+                  ? {
+                      kind: "research_synthesis",
+                      papers: [
+                        {
+                          sourceId: "paper-a",
+                          finding:
+                            "Retrieval practice improved factual learning in the primary-school study.",
+                          methodPopulation:
+                            "Classroom study with primary-school children.",
+                          citationIds: [4],
+                        },
+                        {
+                          sourceId: "paper-b",
+                          finding:
+                            "Interspersed testing with structured discussion improved next-day workplace retention.",
+                          methodPopulation:
+                            "Digital learning among workplace employees.",
+                          citationIds: [5],
+                        },
+                      ],
+                      comparisons: [
+                        {
+                          question:
+                            "Do the findings establish the same effect across settings?",
+                          relation: "qualifies",
+                          explanation:
+                            "The studies use different populations and outcomes, so they are not a direct head-to-head test.",
+                          citationIds: [4, 5],
+                        },
+                      ],
+                      unsupportedClaims: [],
+                    }
+                  : {
+                      kind: "study_revision",
+                      progressStatus: "no_recorded_attempts",
+                      progressEvidenceIds: [2],
+                      focusAreas: [
+                        {
+                          topic: "Basis and norm recall",
+                          observation:
+                            "Review the saved notes and practise recalling the definitions from their cited pages.",
+                          noteIds: ["basis-note", "norm-note"],
+                          attemptIds: [],
+                          citationIds: [4, 5],
+                        },
+                      ],
+                    },
                 actions: [
                   ...["guide", "quiz", "flashcards"].map((materialKind) => ({
                     kind: "save_material",
@@ -192,42 +265,48 @@ test(
           password: "test-only",
         }),
       );
-      await Promise.all(ids.map((id) => post("/snapshot", mmlSnapshot(id))));
+      await Promise.all(
+        ids.map((id) => post("/snapshot", mmlSnapshot(id, true))),
+      );
       // Repeat the same full 417-page snapshot concurrently. It must remain stable.
       await Promise.all(
         Array.from({ length: 16 }, () =>
-          post("/snapshot", mmlSnapshot(ids[0])),
+          post("/snapshot", mmlSnapshot(ids[0], true)),
         ),
       );
       for (let round = 0; round < 2; round++) {
         await Promise.all(
-          ids.map((notebookId, i) =>
-            post("/run", {
+          ids.map((notebookId, i) => {
+            const research = i % 2 === 1;
+            return post("/run", {
               notebookId,
-              workflow: i % 2 ? "research_synthesis" : "study_revision",
+              workflow: research ? "research_synthesis" : "study_revision",
               prompt:
-                "MML TEST: propose guide, quiz, flashcards, plan, review and optional email for explicit approval.",
-              sourceIds: ["mml-book"],
-              noteIds: ["basis-note", "norm-note"],
+                "TEST fixture: compare selected reading evidence and prepare cited actions for approval.",
+              sourceIds: research ? ["paper-a", "paper-b"] : ["mml-book"],
+              noteIds: research
+                ? ["paper-a-note", "paper-b-note"]
+                : ["basis-note", "norm-note"],
               includeProgress: true,
-            }),
-          ),
+            });
+          }),
         );
         await Promise.all(
-          ids.map((notebookId, i) =>
-            post(
+          ids.map((notebookId, i) => {
+            const research = i % 2 === 1;
+            return post(
               "/run",
               {
                 notebookId,
-                workflow: i % 2 ? "research_synthesis" : "study_revision",
+                workflow: research ? "research_synthesis" : "study_revision",
                 prompt: "Reject this duplicate active task",
-                sourceIds: ["mml-book"],
-                noteIds: ["basis-note"],
+                sourceIds: research ? ["paper-a", "paper-b"] : ["mml-book"],
+                noteIds: research ? ["paper-a-note"] : ["basis-note"],
                 includeProgress: true,
               },
               409,
-            ),
-          ),
+            );
+          }),
         );
         await worker.tick();
       }

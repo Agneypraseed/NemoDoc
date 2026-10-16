@@ -57,7 +57,7 @@ test("fixture ground truth: recorded score, missing history, known dates and res
     ["basis"],
   );
   const papers = snapshot.sources.filter((s) => s.id.startsWith("paper"));
-  assert.match(papers[0].pages[0], /0.02 after 40/);
-  assert.match(papers[1].pages[0], /0.07 after 100/);
-  assert.match(papers[1].pages[0], /No wall-clock/);
+  assert.match(papers[0].pages[0], /primary-school children/);
+  assert.match(papers[1].pages[0], /workplace employees/);
+  assert.match(papers[1].pages[0], /differs from a primary-school classroom/);
 });

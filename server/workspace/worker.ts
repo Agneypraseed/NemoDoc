@@ -25,7 +25,7 @@ const descriptions: Record<keyof typeof schemas, string> = {
   read_passage:
     "Read one selected document page (maximum 6000 characters), returning a numeric citation.",
   propose_actions:
-    "Create one editable batch of proposed materials, plan updates, review tasks and optional email. Does NOT save materials, change the plan, schedule work or send email. Each action needs evidence IDs. A guide's content must include inline numeric document references such as [3]; listing IDs only in evidenceIds is insufficient. Flashcards/quiz need at least 3 cited items. Use returned document IDs for item citations. Each quiz question must have exactly one defensible correct choice: ask about a specific axiom or calculation, not which property a norm satisfies with several true axioms as options. Email recipient is set by the application, never by this tool. Call once, then give your final answer.",
+    "Create one editable batch with a structured workflow report and proposed materials, plan updates, review tasks and optional email. Does NOT save materials, change the plan, schedule work or send email. The report must match the active workflow and cite only returned selected-source document references and query evidence. Each action needs evidence IDs. A guide's content must include inline numeric document references such as [3]; listing IDs only in evidenceIds is insufficient. Flashcards/quiz need at least 3 cited items. Use returned document IDs for item citations. Each quiz question must have exactly one defensible correct choice: ask about a specific axiom or calculation, not which property a norm satisfies with several true axioms as options. Email recipient is set by the application, never by this tool. Call once, then give your final answer.",
 };
 export class WorkspaceWorker {
   private timer?: ReturnType<typeof setInterval>;
@@ -169,6 +169,9 @@ export class WorkspaceWorker {
             "Schedule dates are Unix milliseconds, in the future and within one year. Only propose email if explicitly requested and the saved email connection is available; you cannot choose recipients.",
             `Maximum ${MAX_MODEL_CALLS} model calls and twenty tool actions. Batch independent read tools in the same turn when possible. Use exact source IDs from Selected documents, never filenames. Omit optional filters instead of guessing values or sending empty strings. Do not repeat successful proposal creation. Finish with a concise cited answer.`,
             `Workflow: ${run.workflow}. Current time: ${new Date(now).toISOString()}. Progress consent: ${run.includeProgress}.`,
+            run.workflow === "study_revision"
+              ? "STUDY REPORT REQUIREMENTS: The propose_actions report must have kind=study_revision, progressStatus, progressEvidenceIds, and focusAreas. Query approved notes and use their exact returned note IDs. When progress consent is true, query_quiz_progress and report status as recorded or no_recorded_attempts exactly as returned; include all progress query evidence IDs. When consent is false, use not_shared, an empty progressEvidenceIds list, and no attempt IDs. Each focus area must include at least one returned note ID, any related recorded mistaken attempt IDs, and citations to pages linked to those notes or attempts. Link every returned mistaken attempt to a focus area; do not generalize beyond what those records show. Missing history is unknown, not a weakness. Propose editable practice material and a future review session when appropriate."
+              : "RESEARCH REPORT REQUIREMENTS: Synthesis needs at least two selected sources. Retrieve evidence from every selected source, then return report kind=research_synthesis with exactly one papers row per selected source (exact sourceId, a finding, methodPopulation, and document citationIds from that source). Use 'Not reported in retrieved evidence.' for missing method/population details; do not fill gaps from memory. Add comparisons with relation supports, qualifies, conflicts, or insufficient_evidence. A supports/qualifies/conflicts row must cite returned document passages from at least two distinct selected sources; if they do not establish a fair comparison, use insufficient_evidence and explain why. Keep population and outcome differences visible; do not portray different studies as a head-to-head experiment. List requested conclusions that the selected evidence cannot establish under unsupportedClaims. Propose an editable cited brief and follow-up reading tasks.",
             `Selected documents: ${JSON.stringify(initial.sources.filter((s) => run.sourceIds.includes(s.id)).map((s) => ({ id: s.id, name: s.name, pages: s.pages.length })))}`,
             `Selected note IDs: ${JSON.stringify(run.noteIds)}.`,
             `Email available: ${Boolean(this.service.connections.value.email.password && this.service.connections.value.email.recipient)}.`,
@@ -195,7 +198,12 @@ export class WorkspaceWorker {
           !proposed &&
           (turn >= 7 || unparsedToolResponses > 0) &&
           run.citations.length > 0 &&
-          run.evidence.some((e) => e.kind === "notes");
+          run.evidence.some((e) => e.kind === "notes") &&
+          (run.workflow === "study_revision" ||
+            new Set(run.citations.map((c) => c.sourceId)).size >= 2) &&
+          (run.workflow !== "study_revision" ||
+            !run.includeProgress ||
+            run.evidence.some((e) => e.kind === "progress"));
         if (finishRetrieval)
           messages.push({
             role: "system",
@@ -323,6 +331,7 @@ export class WorkspaceWorker {
                 proposalId: p.id,
                 revision: p.revision,
                 actionCount: p.actions.length,
+                reportKind: p.report?.kind,
                 status: "pending human approval",
                 actions: p.actions.map((a) => ({
                   id: a.id,

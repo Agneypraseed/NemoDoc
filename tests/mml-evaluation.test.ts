@@ -4,12 +4,11 @@ import { mmlCases } from "./fixtures/mml-workspace.ts";
 import { auditMmlOutput } from "./fixtures/mml-rubric.ts";
 import type { WorkflowRun, ActionProposal } from "../src/workspace-types.ts";
 
-test("MML matrix preserves 16 study, 16 research and eight security cases without bundling the PDF", () => {
-  assert.equal(mmlCases.length, 40);
-  assert.equal(new Set(mmlCases.map((c) => c.id)).size, 40);
+test("MML matrix preserves 16 study and eight security cases without bundling the PDF", () => {
+  assert.equal(mmlCases.length, 24);
+  assert.equal(new Set(mmlCases.map((c) => c.id)).size, 24);
   for (const [prefix, count] of [
     ["study", 16],
-    ["research", 16],
     ["security", 8],
   ] as const)
     assert.equal(mmlCases.filter((c) => c.id.startsWith(prefix)).length, count);

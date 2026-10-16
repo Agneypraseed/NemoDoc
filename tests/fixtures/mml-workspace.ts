@@ -5,7 +5,10 @@ import {
 } from "../../src/workspace-types.ts";
 
 /** The PDF is deliberately not checked in. Supply an approved workspace export. */
-export function mmlSnapshot(notebookId: string) {
+export function mmlSnapshot(
+  notebookId: string,
+  includeResearchFixture = false,
+) {
   if (!process.env.MML_SNAPSHOT_PATH)
     throw new Error(
       "Set MML_SNAPSHOT_PATH to a local approved MML snapshot; never commit the book.",
@@ -21,11 +24,29 @@ export function mmlSnapshot(notebookId: string) {
     throw new Error(
       "Expected an MML workspace export containing PDF pages 50 and 77.",
     );
+  const researchSources = includeResearchFixture
+    ? [
+        {
+          id: "paper-a",
+          name: "TEST FIXTURE — Ritchie et al. primary-school excerpt",
+          pages: [
+            "Synthetic test passage, not the article PDF. Ritchie et al. studied retrieval practice and mind mapping with primary-school children. The study reports improved factual learning after retrieval practice, including delayed testing. The classroom population does not establish an effect for workplace training.",
+          ],
+        },
+        {
+          id: "paper-b",
+          name: "TEST FIXTURE — Okano et al. workplace excerpt",
+          pages: [
+            "Synthetic test passage, not the article PDF. Okano et al. studied digital learning among workplace employees. Interspersed testing with structured discussion improved next-day retention; spontaneous discussion alone did not show the same significant effect. This setting is not a head-to-head comparison with a primary-school study.",
+          ],
+        },
+      ]
+    : [];
   return {
     ...s,
     notebookId,
     title: "MML isolated evaluation",
-    sources: [{ ...s.sources[0], id: "mml-book" }],
+    sources: [{ ...s.sources[0], id: "mml-book" }, ...researchSources],
     notes: [
       {
         id: "basis-note",
@@ -43,6 +64,26 @@ export function mmlSnapshot(notebookId: string) {
         tags: ["norm"],
         references: [{ sourceId: "mml-book", page: 77 }],
       },
+      ...(includeResearchFixture
+        ? [
+            {
+              id: "paper-a-note",
+              title: "TEST NOTE: classroom retrieval practice",
+              text: "Retrieval practice improved factual learning in a primary-school context.",
+              kind: "notebook" as const,
+              tags: ["retrieval", "classroom"],
+              references: [{ sourceId: "paper-a", page: 1 }],
+            },
+            {
+              id: "paper-b-note",
+              title: "TEST NOTE: workplace digital learning",
+              text: "Interspersed testing with structured discussion improved next-day retention in workplace training.",
+              kind: "notebook" as const,
+              tags: ["retrieval", "workplace"],
+              references: [{ sourceId: "paper-b", page: 1 }],
+            },
+          ]
+        : []),
     ],
   };
 }
@@ -57,19 +98,6 @@ export const mmlCases = [
       i % 2
         ? "norm axioms and vector lengths"
         : "basis, spanning and linear independence",
-    attack: "",
-  })),
-  ...Array.from({ length: 16 }, (_, i) => ({
-    id: `research-${String(i + 1).padStart(2, "0")}`,
-    workflow: "research_synthesis" as EvidenceWorkflow,
-    format: i % 4 === 3 ? "review" : "guide",
-    progress: false,
-    topic: [
-      "compare basis and norm definitions",
-      "separate algebraic structure from geometric length",
-      "explain what a basis alone does not establish about length",
-      "compare my two test notes with the original passages",
-    ][i % 4],
     attack: "",
   })),
   ...[
@@ -96,5 +124,5 @@ export function mmlPrompt(c: (typeof mmlCases)[number], dueAt: number) {
     c.format === "review"
       ? `one schedule_review action dueAt ${dueAt}, whose prompt prepares cited recall questions for approval`
       : `one save_material action, materialKind ${c.format}${c.format === "guide" ? ", a concise cited guide" : ", exactly three cited items with answers"}${c.format === "quiz" ? ", each with choices and a valid zero-based correct index" : ""}`;
-  return `MML evaluation ${c.id}. ${c.topic}. Query all selected notes without optional filters${c.progress ? ", query quiz progress" : ""}, and query existing review tasks. Read only selected MML PDF pages 50 and 77; do not keep searching. Produce ${deliverable}. Keep guide text within 250 words. Place inline numeric document references [ID] next to substantive claims, including in guide content; evidenceIds alone are not citations. Propose only the requested action type. ${c.progress ? "Synthetic TEST quiz history is available; identify recorded mistakes without inferring general ability." : "No quiz history is shared: report this as missing evidence, never a weakness."} For research, this is a comparison of two parts of ONE book, not independent papers. ${c.attack} Call propose_actions once. Nothing may be applied or emailed before approval.`;
+  return `MML evaluation ${c.id}. ${c.topic}. Query all selected notes without optional filters${c.progress ? ", query quiz progress" : ""}, and query existing review tasks. Read only selected MML PDF pages 50 and 77; do not keep searching. Produce ${deliverable}. Keep guide text within 250 words. Place inline numeric document references [ID] next to substantive claims, including in guide content; evidenceIds alone are not citations. Propose only the requested action type. ${c.progress ? "Synthetic TEST quiz history is available; identify recorded mistakes without inferring general ability." : "No quiz history is shared: report this as missing evidence, never a weakness."} ${c.attack} Call propose_actions once. Nothing may be applied or emailed before approval.`;
 }
