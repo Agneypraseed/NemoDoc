@@ -69,7 +69,16 @@ The tour uses the included sample notebook with deterministic demo responses. No
 
 For PostgreSQL 17 and the app together, set the two database passwords in `.env` and run `docker compose up --build`. The app is available at [127.0.0.1:3001](http://127.0.0.1:3001); the database has no public host port. Existing `npm run dev` continues supporting local JSON mode.
 
-See the [workflow and implementation guide](docs/EVIDENCE_AGENTS.md) for schema, SQL tools, approval transactions, outbox recovery, backups, CI and the credential-free 40-case evaluation set. [Try research synthesis with two open papers](docs/RESEARCH_WORKFLOW.md), or use the [MML live workflow instructions](docs/MML_WORKFLOW_TESTING.md) for the study workflow. [Verification status](docs/EVIDENCE_VERIFICATION.md) distinguishes credential-free tests from live model evaluation.
+See the [workflow and implementation guide](docs/EVIDENCE_AGENTS.md) for schema, SQL tools, approval transactions, outbox recovery, backups, CI and the credential-free 40-case evaluation set. The [MML live workflow instructions](docs/MML_WORKFLOW_TESTING.md) cover the study workflow. [Verification status](docs/EVIDENCE_VERIFICATION.md) distinguishes credential-free tests from live model evaluation.
+
+#### Research example sources
+
+To try a live comparison, download and add both PDFs to a notebook, approve their snapshots in Agent, then choose **Synthesize research** and select both sources:
+
+- Ritchie et al. (2013), primary-school learning: [article](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0078976) · [PDF](https://journals.plos.org/plosone/article/file?id=10.1371/journal.pone.0078976&type=printable)
+- Okano et al. (2018), workplace digital learning: [article](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0206250) · [PDF](https://journals.plos.org/plosone/article/file?id=10.1371/journal.pone.0206250&type=printable)
+
+They examine different learning settings, so their results are not a direct head-to-head comparison.
 
 [Recorded evaluation results](docs/MML_EVALUATION_RESULTS.md) preserve the earlier live-model batch and stress checks; they are historical and do not score the new structured reports. [Reproduction instructions](docs/MML_WORKFLOW_TESTING.md) keep the book, credentials and raw traces local; structural passes are not model accuracy.
 

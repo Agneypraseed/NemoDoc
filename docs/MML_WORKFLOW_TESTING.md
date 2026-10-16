@@ -53,7 +53,7 @@ npx playwright test tests/e2e/mml-workflows-live.spec.ts --output output/mml-liv
 
 It follows MML upload → synthetic notes → explicit snapshot sharing → the NVIDIA study workflow → structured focus/evidence inspection → proposal edit → approval → duplicate-safe Studio import → browser reload. It uses the saved notebook model key without loading SMTP credentials. A successful video is saved to ignored `output/mml-live-walkthrough.webm`; it is a real-model MML study walkthrough. Ordinary CI skips this paid/private-fixture test and continues using the original distributable synthetic workspace.
 
-To exercise the live multi-paper research workflow with the supplied example, import both PDFs yourself as described in [Research synthesis](RESEARCH_WORKFLOW.md), approve their snapshots in Agent, select both papers, and run **Synthesize research**. Do not use the one-book MML fixture as a research comparison.
+To exercise the live multi-paper research workflow, import both PDFs linked under [Research example sources](../README.md#research-example-sources), approve their snapshots in Agent, select both papers, and run **Synthesize research**. Do not use the one-book MML fixture as a research comparison.
 
 Full regression: `npm test`, `npm run check`, `npm run test:postgres`, `npm run test:e2e`, and `npm run build`. Docker startup still requires a machine with Docker; having these scripts does not verify container startup or a hosted CI run.
 
