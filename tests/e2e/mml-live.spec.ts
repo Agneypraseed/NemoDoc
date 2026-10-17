@@ -128,7 +128,7 @@ test("real Nemotron answers and exports supporting MML book pages", async ({
     expect(catalog.models.every((id: string) => /nemotron/i.test(id))).toBe(
       true,
     );
-    await page.goto("/");
+    await page.goto("/app");
     await page
       .getByRole("button", { name: "New notebook", exact: true })
       .click();

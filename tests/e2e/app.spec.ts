@@ -9,7 +9,7 @@ test("PDF reader layouts, selection, notes, persistence, search, and export", as
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto("/");
+  await page.goto("/app");
   await expect(
     page.getByRole("heading", { name: "The thoughtful interface" }),
   ).toBeVisible();
@@ -101,7 +101,7 @@ test("PDF reader layouts, selection, notes, persistence, search, and export", as
 test("real PDF and PowerPoint uploads persist in a new notebook", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto("/app");
   await page.getByRole("button", { name: "New notebook", exact: true }).click();
   await page
     .getByRole("textbox", { name: "Notebook title" })
@@ -202,7 +202,7 @@ test("streamed grounded chat shows citations that navigate back to the page", as
       body: 'event: sources\ndata: [{"id":1,"sourceId":"sample-paper","sourceName":"Designing for human attention.pdf","page":3,"text":"Vertical scrolling supports continuous reading."}]\n\nevent: delta\ndata: "Vertical scrolling supports continuous reading. [1]"\n\nevent: done\ndata: {}\n\n',
     }),
   );
-  await page.goto("/");
+  await page.goto("/app");
   await page
     .getByRole("textbox", { name: "Ask about your sources", exact: true })
     .fill("Which reading modes are available?");
@@ -225,7 +225,7 @@ test("streamed grounded chat shows citations that navigate back to the page", as
 test("area annotations work on the cover and mobile reader remains usable", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto("/app");
   const canvas = page.locator('[data-page="1"] canvas');
   await expect(canvas).toBeVisible();
   await openReaderTools(page);

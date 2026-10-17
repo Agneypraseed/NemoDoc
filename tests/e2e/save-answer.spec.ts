@@ -9,7 +9,7 @@ test("interrupted answer stays unsaveable after reload and backup restore", asyn
       body: 'event: delta\ndata: "An unfinished answer"\n\n',
     }),
   );
-  await page.goto("/");
+  await page.goto("/app");
   const input = page.getByRole("textbox", { name: "Ask about your sources" });
   await input.fill("Explain attention");
   await input.press("Enter");

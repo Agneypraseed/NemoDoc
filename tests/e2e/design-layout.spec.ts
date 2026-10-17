@@ -16,7 +16,7 @@ test("responsive navigation keeps notebook identity and tools reachable", async 
       },
     }),
   );
-  await page.goto("/");
+  await page.goto("/app");
   await expect(page.locator('[data-page="1"] canvas')).toBeVisible();
   for (const width of [320, 390, 700, 960, 1440, 1536]) {
     const height = width === 1536 ? 1024 : 900;

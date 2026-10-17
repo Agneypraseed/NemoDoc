@@ -81,7 +81,7 @@ test("agent overview shows multiple agents, filters live work and refreshes with
     });
   });
   try {
-    const response = await page.goto("/");
+    const response = await page.goto("/app");
     expect(response?.ok()).toBe(true);
     await expect(page).toHaveTitle(/NemoDoc/i);
     await expect(page.locator('[data-page="1"] canvas')).toBeVisible();
@@ -285,7 +285,7 @@ test("agent overview displays an API error without a fake connected state", asyn
       json: { error: "Runtime status is temporarily unavailable" },
     }),
   );
-  await page.goto("/");
+  await page.goto("/app");
   await page.getByRole("button", { name: "Agent", exact: true }).click();
   const overview = page.getByRole("region", { name: "Agent overview" });
   await expect(overview.getByRole("alert")).toContainText(
@@ -342,7 +342,7 @@ test("work animation stops when the last runtime snapshot becomes stale", async 
           },
     ),
   );
-  await page.goto("/");
+  await page.goto("/app");
   await page.getByRole("button", { name: "Agent", exact: true }).click();
   const overview = page.getByRole("region", { name: "Agent overview" });
   const scene = overview.getByRole("figure");

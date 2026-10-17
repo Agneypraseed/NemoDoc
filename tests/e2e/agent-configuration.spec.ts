@@ -65,7 +65,7 @@ async function setup(page: Page) {
   };
 }
 async function openSettings(page: Page) {
-  await page.goto("/");
+  await page.goto("/app");
   await page.getByRole("button", { name: "Agent", exact: true }).click();
   await page
     .getByRole("button", { name: "Configure roles & models", exact: true })

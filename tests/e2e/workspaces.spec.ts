@@ -82,7 +82,7 @@ test("both evidence workflows: explicit snapshot, inspect queries, edit, approve
     });
   });
   try {
-    await page.goto("http://127.0.0.1:5173");
+    await page.goto("http://127.0.0.1:5173/app");
     await expect(page.locator('[data-page="1"] canvas')).toBeVisible();
     await page
       .getByLabel("Upload sources", { exact: true })

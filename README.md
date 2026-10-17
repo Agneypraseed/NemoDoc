@@ -91,7 +91,7 @@ npm ci
 npm run dev
 ```
 
-Open [localhost:5173](http://127.0.0.1:5173). Reading and annotation work without model credentials. To enable live AI, open **Settings → Nebius**, enter your **Nebius Token Factory API key**, and choose **Save & test**.
+Open [localhost:5173](http://127.0.0.1:5173) for the homepage, then choose **Open NemoDoc** to enter the notebook workspace at [/app](http://127.0.0.1:5173/app). Reading and annotation work without model credentials. To enable live AI, open **Settings → Nebius**, enter your **Nebius Token Factory API key**, and choose **Save & test**.
 
 Settings loads the saved provider's model catalog into the **Chat & study model** dropdown and labels each option **Text** or **Vision**. The provider determines which model IDs are available; refresh after changing the connection. Chat, passage answers and study tools use that selection. OCR and image questions use the separate **Image model** dropdown and its **Save & test image model** button; semantic search uses the embedding model. The agent can use the notebook connection or its own tested model connection.
 

@@ -3,7 +3,7 @@ import { test, expect } from "./fixtures";
 test("library searches, sorts, creates and reopens persisted notebooks", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto("/app");
   await expect(
     page.getByRole("heading", { name: "The thoughtful interface" }),
   ).toBeVisible();

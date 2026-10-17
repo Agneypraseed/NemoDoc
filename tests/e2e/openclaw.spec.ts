@@ -58,7 +58,7 @@ test("OpenClaw connection saves a masked gateway token and verifies both tool tu
     });
   });
   try {
-    await page.goto("/");
+    await page.goto("/app");
     await page.getByRole("button", { name: "Agent", exact: true }).click();
     await page
       .getByRole("button", { name: "Connections", exact: true })

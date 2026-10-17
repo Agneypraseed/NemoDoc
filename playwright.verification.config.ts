@@ -3,7 +3,12 @@ if (!process.env.NEMODOC_VERIFY_DATA_DIR)
   throw new Error("Run npm run verify:agents to create isolated storage.");
 export default defineConfig({
   testDir: "./tests/e2e",
-  testMatch: ["agent-overview.spec.ts", "agent-configuration.spec.ts"],
+  testMatch: [
+    "agent-overview.spec.ts",
+    "agent-configuration.spec.ts",
+    "home.spec.ts",
+    "library.spec.ts",
+  ],
   timeout: 45000,
   workers: 1,
   outputDir: "output/verification/results",

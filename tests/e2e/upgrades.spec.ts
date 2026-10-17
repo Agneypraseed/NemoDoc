@@ -7,7 +7,7 @@ import { readFile } from "node:fs/promises";
 test("reader navigation, bookmarks, markup history, tags, exports and complete restore", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto("/app");
   await expect(page.locator('[data-page="1"] canvas')).toBeVisible();
   await page
     .getByRole("button", { name: "Toggle page navigation", exact: true })
@@ -217,7 +217,7 @@ test("connection settings, semantic search and citations reveal supporting sourc
       },
     }),
   );
-  await page.goto("/");
+  await page.goto("/app");
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByText("Advanced capabilities", { exact: true }).click();
   await page
@@ -286,7 +286,7 @@ test("OCR persists searchable selectable text and visual questions send a real p
       json: { content: "The diagram shows an attention budget." },
     });
   });
-  await page.goto("/");
+  await page.goto("/app");
   const pdf = await PDFDocument.create();
   pdf.addPage([612, 792]);
   await page.getByLabel("Upload sources", { exact: true }).setInputFiles({
@@ -408,7 +408,7 @@ test("study studio generates, edits, quizzes, maps, persists and backs up all ma
       },
     });
   });
-  await page.goto("/");
+  await page.goto("/app");
   await page.getByRole("button", { name: "Studio", exact: true }).click();
   await page.getByRole("button", { name: "Flashcards", exact: true }).click();
   await expect(
@@ -525,7 +525,7 @@ test("side by side comparison reads independently and grounds AI in exactly the 
       body: 'event: delta\ndata: "These sources complement each other."\n\nevent: done\ndata: {}\n\n',
     });
   });
-  await page.goto("/");
+  await page.goto("/app");
   const pdf = await PDFDocument.create(),
     font = await pdf.embedFont(StandardFonts.Helvetica);
   pdf.addPage().drawText("A second perspective on attention.", {
@@ -590,7 +590,7 @@ test("side by side comparison reads independently and grounds AI in exactly the 
 test("PDF outlines and exact reading position survive a reload across mixed page sizes", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto("/app");
   const pdf = await PDFDocument.create(),
     font = await pdf.embedFont(StandardFonts.Helvetica);
   pdf
@@ -748,7 +748,7 @@ test("existing MVP libraries migrate without losing original documents, notes, o
     });
     db.close();
   }, bytes);
-  await page.goto("/");
+  await page.goto("/app");
   await expect(
     page.getByRole("heading", { name: "My previous notebook", exact: true }),
   ).toBeVisible();

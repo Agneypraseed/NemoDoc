@@ -97,7 +97,7 @@ test("live Nebius document and personal agent workflow", async ({
     expect(catalog.models).toContain(
       process.env.NEBIUS_MODEL || "nvidia/Nemotron-3_5-Lightning",
     );
-    await page.goto("/");
+    await page.goto("/app");
     await page
       .getByRole("button", { name: "New notebook", exact: true })
       .click();

@@ -11,7 +11,7 @@ test("lecture answers render equations without breaking citations or saved notes
       body: `event: sources\ndata: ${JSON.stringify([{ id: 1, sourceId: "sample-paper", sourceName: "Designing for human attention.pdf", page: 2, text: "An isolated math-rendering fixture." }])}\n\nevent: delta\ndata: ${JSON.stringify(answer)}\n\nevent: done\ndata: {}\n\n`,
     }),
   );
-  await page.goto("/");
+  await page.goto("/app");
   await page
     .getByRole("textbox", { name: "Ask about your sources", exact: true })
     .fill("Define rank");

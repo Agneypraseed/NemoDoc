@@ -16,7 +16,7 @@ test("chat can close without losing a draft; bottom input sends and suggestions 
       body: 'event: sources\ndata: [{"id":1,"sourceId":"sample-paper","sourceName":"Designing for human attention.pdf","page":3,"text":"Vertical scrolling supports continuous reading."}]\n\nevent: delta\ndata: "Vertical scrolling supports continuous reading. [1]"\n\nevent: done\ndata: {}\n\n',
     });
   });
-  await page.goto("/");
+  await page.goto("/app");
   await expect(page.locator('[data-page="1"] canvas')).toBeVisible({
     timeout: 15_000,
   });
@@ -117,7 +117,7 @@ test("mobile bottom chat and on-demand cards fit the viewport and the panel stay
       body: 'event: sources\ndata: [{"id":1,"sourceId":"sample-paper","sourceName":"Designing for human attention.pdf","page":3,"text":"Vertical scrolling supports continuous reading."}]\n\nevent: delta\ndata: "Vertical scrolling supports continuous reading. [1]"\n\nevent: done\ndata: {}\n\n',
     }),
   );
-  await page.goto("/");
+  await page.goto("/app");
   await expect(page.locator('[data-page="1"] canvas')).toBeVisible();
   const input = page.getByRole("textbox", { name: "Ask about your sources" });
   await expect(input).toBeVisible();

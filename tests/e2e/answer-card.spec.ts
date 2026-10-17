@@ -11,7 +11,7 @@ for (const mobile of [false, true]) {
         body: 'event: sources\ndata: [{"id":1,"sourceId":"sample-paper","sourceName":"Designing for human attention.pdf","page":2,"text":"Every interface asks for a little of our attention."}]\n\nevent: delta\ndata: "A focused interface protects attention. [1]"\n\nevent: done\ndata: {}\n\n',
       }),
     );
-    await page.goto("/");
+    await page.goto("/app");
     await expect(page.locator('[data-page="1"] canvas')).toBeVisible();
     const pageNumber = page.getByRole("textbox", {
       name: "Page number",

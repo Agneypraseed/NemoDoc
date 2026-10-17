@@ -94,7 +94,7 @@ test("live Nebius defines the selected MML Rank with its page context in Quick a
     });
   });
   try {
-    await page.goto("/");
+    await page.goto("/app");
     await page
       .getByRole("button", { name: "New notebook", exact: true })
       .click();

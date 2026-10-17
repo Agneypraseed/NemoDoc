@@ -1,6 +1,6 @@
 ---
 name: verify-nemodoc
-description: Verify NemoDoc's browser journeys through Playwright, including agent monitoring, model and role settings, notebook persistence, and saving answers. Use after UI or API changes to capture evidence and distinguish fixture coverage from live runtime proof.
+description: Verify NemoDoc's browser journeys through Playwright, including the homepage, agent monitoring, model and role settings, notebook persistence, and saving answers. Use after UI or API changes to capture evidence and distinguish fixture coverage from live runtime proof.
 ---
 
 # Verify NemoDoc
@@ -9,7 +9,7 @@ Created using [pstack/create-verification-skill](https://github.com/cursor/plugi
 
 ## Launch
 
-From the repository root, use Node >=22.13 and `npm ci`. Install the browser and recording support with `npx playwright install --with-deps chromium ffmpeg` once. Run `npm run verify:agents` for the mapped agent journeys. This builds the real frontend and starts the real Express app serving it at `http://127.0.0.1:4179`. The log `NemoDoc API ready at http://127.0.0.1:4179` means workspace initialization completed. The browser must also load the sample PDF canvas before driving the overview.
+From the repository root, use Node >=22.13 and `npm ci`. Install the browser and recording support with `npx playwright install --with-deps chromium ffmpeg` once. Run `npm run verify:agents` for the mapped agent journeys. This builds the real frontend and starts the real Express app serving it at `http://127.0.0.1:4179`. The log `NemoDoc API ready at http://127.0.0.1:4179` means workspace initialization completed. The homepage is at `/`; the notebook workspace is at `/app`. The browser must also load the sample PDF canvas before driving the overview.
 
 The executable helper `scripts/verify-agents.sh` creates an empty temporary data directory, disables dotenv loading, clears provider/database credentials, and lets Playwright own startup and shutdown. Fresh browser contexts seed the built-in sample notebook. The agent specs each create their own ephemeral API server and inject the external NemoClaw reader; this does not install or run NemoClaw. Port 4179 is fixed: concurrent verification runs are unsupported and a listener already there causes a refusal, never reuse. Do not run against a personal session.
 
@@ -17,11 +17,11 @@ For a system browser, prefix with `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/
 
 ## Doctor
 
-The overview journey checks the root HTTP response, the NemoDoc document title, and the sample PDF canvas before interacting. These are read-only readiness checks on the Playwright-owned instance. If startup fails, check the build output and port conflict; never terminate another listener. A successful HTTP response alone is insufficient. Run `npm run agent:preflight` only when diagnosing a real NemoClaw host; fixture success does not imply that runtime exists.
+The overview journey checks the workspace HTTP response at `/app`, the NemoDoc document title, and the sample PDF canvas before interacting. These are read-only readiness checks on the Playwright-owned instance. If startup fails, check the build output and port conflict; never terminate another listener. A successful HTTP response alone is insufficient. Run `npm run agent:preflight` only when diagnosing a real NemoClaw host; fixture success does not imply that runtime exists.
 
 ## Drive
 
-See [the feature map](features/README.md). Use the app's accessible buttons, searchbox, selectors and editor, as the specs do. The agent suite proxies real browser API requests to isolated Express instances, replacing only external runtime/inference boundaries. Do not replace save handlers or directly set React state to make a journey pass. The notebook and answer journeys use the existing development harness (`npm run test:e2e -- <spec>`); they require exclusive ports 5173/3001 and a disposable development data directory. They are mapped but not covered by `verify:agents`.
+See [the feature map](features/README.md). Use the app's accessible buttons, searchbox, selectors and editor, as the specs do. The agent suite proxies real browser API requests to isolated Express instances, replacing only external runtime/inference boundaries. Do not replace save handlers or directly set React state to make a journey pass. Homepage, agent, and library journeys are included in `verify:agents`. The answer journey uses the existing development harness (`npm run test:e2e -- save-answer.spec.ts`); it requires exclusive ports 5173/3001 and a disposable development data directory and is not covered by `verify:agents`.
 
 ## Evidence
 

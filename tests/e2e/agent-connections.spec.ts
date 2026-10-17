@@ -77,7 +77,7 @@ test("open model reads approved notebook notes and previews email before deliver
     });
   });
   try {
-    await page.goto("/");
+    await page.goto("/app");
     await page.getByRole("button", { name: "Notes", exact: true }).click();
     await page.getByRole("button", { name: "Notebook", exact: true }).click();
     await page

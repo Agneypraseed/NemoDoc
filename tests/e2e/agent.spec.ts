@@ -67,7 +67,7 @@ test("personal agent remembers preferences, reuses skills, runs while browser is
     });
   });
   try {
-    await page.goto("/");
+    await page.goto("/app");
     await expect(page.locator('[data-page="1"] canvas')).toBeVisible();
     await page.getByRole("button", { name: "Agent", exact: true }).click();
     await page.getByRole("button", { name: "Memory", exact: true }).click();
@@ -222,7 +222,7 @@ test("connection presets and model catalog select exact model IDs", async ({
       },
     }),
   );
-  await page.goto("/");
+  await page.goto("/app");
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("button", { name: "Nebius", exact: true }).click();
   await expect(page.getByLabel("Chat API base URL")).toHaveValue(

@@ -23,7 +23,7 @@ test("numbered-page Q&A calls chat with only that page; PDF slide returns stay l
       body: `event: sources\ndata: ${JSON.stringify([citation])}\n\nevent: delta\ndata: ${JSON.stringify("This page explains the reading space and scrolling layouts. [1]")}\n\nevent: done\ndata: {}\n\n`,
     });
   });
-  await page.goto("/");
+  await page.goto("/app");
   const ask = page.getByRole("textbox", { name: "Ask about your sources" });
   await ask.fill("Explain page 3");
   await ask.press("Enter");
@@ -53,7 +53,7 @@ test("local multi-page PDF previews, exact downloads, reload, ZIP and mobile", a
     if (/\/api\/(chat|vision)/.test(request.url()))
       providerRequests.push(request.url());
   });
-  await page.goto("/");
+  await page.goto("/app");
   const pdf = await PDFDocument.create();
   for (const text of [
     "Introduction only",
@@ -134,7 +134,7 @@ test("local multi-page PDF previews, exact downloads, reload, ZIP and mobile", a
   await expect(page.getByText(/has 3 pages/)).toBeVisible();
 });
 test("real PPTX slide preview and isolated PNG export", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/app");
   await page
     .getByLabel("Upload sources", { exact: true })
     .setInputFiles("tests/fixtures/learning.pptx");
@@ -167,7 +167,7 @@ test("real PPTX slide preview and isolated PNG export", async ({ page }) => {
 test("topic answer renders only validated cited pages and deduplicates evidence", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto("/app");
   await page.route("**/api/chat", async (route) => {
     const body = route.request().postDataJSON();
     const s = body.sources[0];

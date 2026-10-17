@@ -15,7 +15,7 @@ for (const mobile of [false, true]) {
         body: 'event: sources\ndata: [{"id":1,"sourceId":"sample-paper","sourceName":"Designing for human attention.pdf","page":2,"text":"Every interface asks for a little of our attention."}]\n\nevent: delta\ndata: "Attention is limited, so interfaces should reduce distraction. [1]"\n\nevent: done\ndata: {}\n\n',
       }),
     );
-    await page.goto("/");
+    await page.goto("/app");
     const number = page.getByRole("textbox", {
       name: "Page number",
       exact: true,
@@ -137,7 +137,7 @@ for (const mobile of [false, true]) {
         },
       });
     });
-    await page.goto("/");
+    await page.goto("/app");
     await page.getByRole("button", { name: "Notes", exact: true }).click();
     await page.getByRole("button", { name: "Notebook", exact: true }).click();
     await page

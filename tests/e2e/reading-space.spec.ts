@@ -45,7 +45,7 @@ test("paper workspace gives space to the document and passage questions stay in 
       body: 'event: sources\ndata: [{"id":1,"sourceId":"sample-paper","sourceName":"Designing for human attention.pdf","page":2,"text":"Every interface asks for a little of our attention."}]\n\nevent: delta\ndata: "Good design protects our limited attention. [1]"\n\nevent: done\ndata: {}\n\n',
     });
   });
-  await page.goto("/");
+  await page.goto("/app");
   const assistant = page.getByRole("complementary", {
     name: "Notebook assistant",
   });
@@ -320,7 +320,7 @@ test("an unverified passage error appears in the chat turn", async ({
       },
     }),
   );
-  await page.goto("/");
+  await page.goto("/app");
   const selection = await selectPassage(page);
   await selection.getByRole("button", { name: "Ask AI", exact: true }).click();
   const question = selection.getByRole("textbox", {
@@ -363,7 +363,7 @@ test("book-view passage answers stay beside the reader on medium screens", async
       body: 'event: sources\ndata: [{"id":1,"sourceId":"sample-paper","sourceName":"Designing for human attention.pdf","page":2,"text":"Every interface asks for a little of our attention."}]\n\nevent: delta\ndata: "A comfortable answer needs room to read. [1]"\n\nevent: done\ndata: {}\n\n',
     }),
   );
-  await page.goto("/");
+  await page.goto("/app");
   await openReaderTools(page);
   await page.getByRole("button", { name: "Book view", exact: true }).click();
   await expect(page.locator(".page-scroller")).toHaveClass(/book/);
@@ -460,7 +460,7 @@ test("bottom chat stays separate from selected-passage chats in Book view", asyn
     });
   });
 
-  await page.goto("/");
+  await page.goto("/app");
   await openReaderTools(page);
   await page.getByRole("button", { name: "Book view", exact: true }).click();
   await expect(
@@ -573,7 +573,7 @@ test("paper and dark reading views stay compact on desktop and mobile", async ({
       body: 'event: sources\ndata: [{"id":1,"sourceId":"sample-paper","sourceName":"Designing for human attention.pdf","page":2,"text":"Every interface asks for a little of our attention."}]\n\nevent: delta\ndata: "A clear reading space gives each idea room to breathe. [1]"\n\nevent: done\ndata: {}\n\n',
     }),
   );
-  await page.goto("/");
+  await page.goto("/app");
   const assistant = page.getByRole("complementary", {
     name: "Notebook assistant",
   });

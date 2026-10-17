@@ -69,7 +69,7 @@ test("clean workspace, persistent sidebar, theme and saved model attribution", a
       },
     });
   });
-  await page.goto("/");
+  await page.goto("/app");
   await expect(page.locator('[data-page="1"] canvas')).toBeVisible();
   await expect(
     page.locator('[data-page="1"] .textLayer span').first(),
@@ -168,7 +168,7 @@ test("system theme follows the OS and mobile sidebar closes accessibly", async (
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ colorScheme: "dark" });
-  await page.goto("/");
+  await page.goto("/app");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   const sidebar = page.getByRole("complementary", { name: "Notebook sidebar" });
   await expect(sidebar).toBeHidden();

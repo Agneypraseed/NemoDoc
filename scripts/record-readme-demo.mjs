@@ -177,7 +177,7 @@ try {
     }),
   );
 
-  await page.goto(baseUrl);
+  await page.goto(new URL("/app", baseUrl).href);
   await expect(
     page.getByRole("heading", { name: "The thoughtful interface" }),
   ).toBeVisible();

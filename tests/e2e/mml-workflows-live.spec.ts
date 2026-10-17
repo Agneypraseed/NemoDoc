@@ -67,7 +67,7 @@ test("real Nemotron MML study workflow: upload, share, run, inspect, edit, appro
     });
   });
   try {
-    await page.goto("/");
+    await page.goto("/app");
     await page
       .getByRole("button", { name: "New notebook", exact: true })
       .click();
