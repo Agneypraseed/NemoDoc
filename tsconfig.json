@@ -19,6 +19,7 @@
     "server",
     "tests",
     "vite.config.ts",
-    "playwright.config.ts"
+    "playwright.config.ts",
+    "playwright.verification.config.ts"
   ]
 }

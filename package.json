@@ -15,13 +15,17 @@
     "check": "tsc -b",
     "test": "tsx --test tests/*.test.ts",
     "test:e2e": "playwright test",
+    "agent:preflight": "node scripts/agent-preflight.mjs",
     "test:postgres": "tsx --test tests/postgres.integration.ts",
     "test:mml:stress": "tsx --test tests/mml-stress.integration.ts",
     "eval:mml": "tsx scripts/evaluate-mml.ts",
     "db:migrate": "tsx scripts/workspace-db.ts",
     "db:import": "tsx scripts/workspace-db.ts import",
     "eval:live": "tsx scripts/evaluate-workflows.ts",
-    "demo:workflows": "node scripts/record-workflows.mjs"
+    "demo:workflows": "node scripts/record-workflows.mjs",
+    "lint": "node scripts/check-boundaries.mjs && node --test scripts/check-boundaries.test.mjs",
+    "verify": "npm run lint && npm run check && npm test && npm run build",
+    "verify:agents": "bash scripts/verify-agents.sh"
   },
   "dependencies": {
     "dotenv": "^17.2.3",

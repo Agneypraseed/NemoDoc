@@ -23,6 +23,7 @@ const app = createApp(
     databaseUrl: process.env.DATABASE_URL,
     readDatabaseUrl: process.env.AGENT_READ_DATABASE_URL,
     startWorkspaceWorker: true,
+    nemoclawSandbox: process.env.NEMODOC_NEMOCLAW_SANDBOX || "nemodoc",
   },
 );
 if (existsSync("dist/index.html")) {

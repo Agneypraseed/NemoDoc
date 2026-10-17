@@ -93,6 +93,7 @@ test("real Nemotron MML study workflow: upload, share, run, inspect, edit, appro
         "SYNTHETIC MML acceptance notes: A basis is a linearly independent generating set (PDF page 50). A norm satisfies absolute homogeneity, triangle inequality and positive definiteness (PDF page 77). No real quiz history is claimed.",
       );
     await page.getByRole("button", { name: "Agent", exact: true }).click();
+    await page.getByRole("button", { name: "Tasks", exact: true }).click();
     const flow = page.getByRole("region", { name: "Evidence workflows" });
     await flow
       .getByRole("group", { name: "Documents", exact: true })

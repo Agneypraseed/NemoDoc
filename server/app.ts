@@ -16,6 +16,8 @@ import { registerAgent } from "./agent.ts";
 import { registerWorkspace } from "./workspace/routes.ts";
 import type { SmtpTransportFactory } from "./smtp.ts";
 import { isNemotron } from "../src/lib/model-policy.ts";
+import { registerAgentMonitor, type NemoClawReader } from "./agent-monitor.ts";
+import { registerAgentConfiguration } from "./agent-config.ts";
 
 export interface Config {
   apiKey: string;
@@ -67,6 +69,8 @@ export function createApp(
     databaseUrl?: string;
     readDatabaseUrl?: string;
     startWorkspaceWorker?: boolean;
+    nemoclawSandbox?: string;
+    nemoclawReader?: NemoClawReader;
   } = {},
 ) {
   const providerFetch = fetcher;
@@ -103,6 +107,19 @@ export function createApp(
     readDatabaseUrl: options.readDatabaseUrl,
     startWorker: options.startWorkspaceWorker,
   });
+  registerAgentMonitor(
+    app,
+    agent.worker,
+    providerFetch,
+    options.nemoclawSandbox,
+    options.nemoclawReader,
+  );
+  registerAgentConfiguration(
+    app,
+    agent.worker,
+    options.nemoclawSandbox,
+    options.nemoclawReader,
+  );
   app.get("/api/settings", (_req, res) => res.json(store.public()));
   app.get("/api/models", async (req, res) => {
     try {

@@ -23,3 +23,8 @@ NemoDoc is a local notebook for PDFs and lecture slides with source-grounded Nem
 - Work on main and commit/push directly when the user requests it. Create or use a PR branch only when the user asks for a PR. Report checks and limitations accurately.
 - Do not merge a PR or push feature changes to main unless the user explicitly requests it.
 - For Save answer to Notes, follow `docs/SAVE_ANSWER_TO_NOTES.md`.
+
+## Verification
+
+- `npm run lint` enforces browser/server and shared-contract import boundaries; `npm run verify` runs the local static, unit/API and build checks.
+- For agent UI journeys, use [.cursor/skills/verify-nemodoc/SKILL.md](.cursor/skills/verify-nemodoc/SKILL.md). `npm run verify:agents` owns an isolated server and retains browser traces; fixture coverage is not proof of a live NemoClaw run.

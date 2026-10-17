@@ -5,6 +5,27 @@ import { emptyWorkspace } from "../../src/workspace-types";
 export const test = base.extend({
   page: async ({ page }, use, testInfo) => {
     if (!/^live |real Nemotron/i.test(testInfo.title)) {
+      await page.route("**/api/agent/overview?*", (route) =>
+        route.fulfill({
+          json: {
+            runtime: {
+              status: "not_configured",
+              source: "none",
+              checkedAt: 0,
+              message: "No runtime is connected in this browser fixture.",
+              agents: [],
+              activity: [],
+              hasMore: false,
+            },
+            connection: {
+              mode: "notebook",
+              model: "nvidia/test-nemotron",
+              tested: false,
+            },
+            notebookActivity: [],
+          },
+        }),
+      );
       // A reused development server may contain an approved personal workspace.
       // Ordinary tests must never read or mutate it through the new endpoints.
       // Tests needing a real workspace create a separate context/backend.

@@ -334,6 +334,7 @@ test("live Nebius document and personal agent workflow", async ({
     const next = await context.newPage();
     await next.goto("/");
     await next.getByRole("button", { name: "Agent", exact: true }).click();
+    await next.getByRole("button", { name: "Tasks", exact: true }).click();
     await expect(next.locator("article.agent-result")).toContainText(
       closedRun.answer.slice(0, 40),
       { timeout: 10000 },

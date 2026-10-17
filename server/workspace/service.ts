@@ -95,11 +95,11 @@ export class WorkspaceService {
         "The model connection changed. Run this task again with the current connection.",
       );
     if (
-      this.connections.value.model.mode === "custom" &&
+      this.connections.value.model.mode !== "notebook" &&
       !this.connections.value.model.tested
     )
       throw new WorkspaceConflict(
-        "Test the custom agent model before running workflows.",
+        "Test the agent connection before running workflows.",
       );
     if (
       run.sourceIds.some((id) => !state.sources.some((s) => s.id === id)) ||

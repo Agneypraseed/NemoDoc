@@ -144,6 +144,7 @@ test("personal agent remembers preferences, reuses skills, runs while browser is
     const next = await context.newPage();
     await next.goto("/");
     await next.getByRole("button", { name: "Agent", exact: true }).click();
+    await next.getByRole("button", { name: "Tasks", exact: true }).click();
     await expect(next.locator("article.agent-result")).toContainText(
       "Your study guide and plan are saved.",
     );

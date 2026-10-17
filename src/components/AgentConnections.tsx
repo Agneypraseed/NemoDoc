@@ -174,13 +174,17 @@ export function AgentConnections() {
         ? "SMTP password / app password"
         : section === "whatsapp"
           ? "WhatsApp access token"
-          : "Agent model API key";
+          : data.model.mode === "openclaw"
+            ? "OpenClaw gateway token"
+            : "Agent model API key";
     const hasSecret =
       section === "email" ? data.email.hasPassword : data[section].hasApiKey;
     const placeholder = hasSecret
       ? "••••••••••••"
       : section === "model"
-        ? "Optional for local models"
+        ? data.model.mode === "openclaw"
+          ? "Paste the gateway bearer token"
+          : "Optional for local models"
         : section === "email"
           ? "Enter your mailbox app password"
           : "Paste your Meta access token";
@@ -360,20 +364,32 @@ export function AgentConnections() {
         <label className="field-label">
           Model connection
           <select
+            aria-label="Model connection"
             value={data.model.mode}
-            onChange={(e) =>
+            onChange={(e) => {
+              const mode = e.target.value as Connections["model"]["mode"];
+              setKeys((old) => ({ ...old, model: "" }));
+              setClear((old) => ({ ...old, model: false }));
               setData({
                 ...data,
                 model: {
                   ...data.model,
-                  mode: e.target.value as "custom" | "notebook",
+                  mode,
+                  hasApiKey: false,
+                  ...(mode === "openclaw"
+                    ? {
+                        baseUrl: "http://127.0.0.1:18789/v1",
+                        model: "openclaw/nemodoc",
+                      }
+                    : {}),
                   tested: false,
                 },
-              })
-            }
+              });
+            }}
           >
             <option value="notebook">Use notebook’s Nemotron connection</option>
             <option value="custom">Use a separate open model</option>
+            <option value="openclaw">OpenClaw agent through NemoClaw</option>
           </select>
         </label>
         {data.model.mode === "custom" && (
@@ -413,6 +429,36 @@ export function AgentConnections() {
             </p>
           </>
         )}
+        {data.model.mode === "openclaw" && (
+          <>
+            <p className="agent-fine">
+              Connect a dedicated OpenClaw agent running inside NemoClaw /
+              OpenShell. NVIDIA model credentials belong in NemoClaw; this
+              connection uses the gateway token.
+            </p>
+            {field(
+              "model",
+              "baseUrl",
+              "OpenClaw gateway base URL",
+              data.model.baseUrl,
+              { type: "url", placeholder: "http://127.0.0.1:18789/v1" },
+            )}
+            {field(
+              "model",
+              "model",
+              "OpenClaw agent target",
+              data.model.model,
+              { placeholder: "openclaw/nemodoc" },
+            )}
+            {credential("model")}
+            <p className="agent-fine">
+              Only approved notebook context and tool results are shared.
+              NemoDoc keeps control of evidence, proposals and delivery. Verify
+              OpenShell isolation on the runtime host; the gateway test verifies
+              tool support, not sandbox enforcement.
+            </p>
+          </>
+        )}
         <button className="primary-button" disabled={busy}>
           Save model connection
         </button>{" "}
@@ -431,7 +477,9 @@ export function AgentConnections() {
               );
               setData((old) => (old ? { ...old, model: saved.model } : saved));
               setMessage(
-                "Saved model successfully returned a tool call. Ready for agent tasks.",
+                saved.model.mode === "openclaw"
+                  ? "Gateway tool-call and result round trip passed. Verify the NemoClaw sandbox on its runtime host before using private notes."
+                  : "Saved model successfully returned a tool call. Ready for agent tasks.",
               );
             } catch (e) {
               setError((e as Error).message);
@@ -440,12 +488,14 @@ export function AgentConnections() {
             }
           }}
         >
-          Test saved model
+          {data.model.mode === "openclaw"
+            ? "Test gateway tool support"
+            : "Test saved model"}
         </button>
         <p className="agent-fine">
           Save before testing. A separate model must pass the tool-call test
           before creating tasks.
-          {data.model.mode === "custom" &&
+          {data.model.mode !== "notebook" &&
             data.model.tested &&
             " The saved connection has passed its tool-call test."}
         </p>

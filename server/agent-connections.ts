@@ -25,14 +25,21 @@ import {
 
 const secret = z.string().trim().max(2048).optional();
 export const connectionInput = z.discriminatedUnion("section", [
-  z.object({
-    section: z.literal("model"),
-    mode: z.enum(["notebook", "custom"]),
-    baseUrl: endpoint,
-    model: z.string().trim().min(1).max(200),
-    apiKey: secret,
-    clearApiKey: z.boolean().optional(),
-  }),
+  z
+    .object({
+      section: z.literal("model"),
+      mode: z.enum(["notebook", "custom", "openclaw"]),
+      baseUrl: endpoint,
+      model: z.string().trim().min(1).max(200),
+      apiKey: secret,
+      clearApiKey: z.boolean().optional(),
+    })
+    .refine(
+      (value) =>
+        value.mode !== "openclaw" ||
+        /^openclaw\/[a-z0-9][a-z0-9_-]{0,63}$/.test(value.model),
+      "Choose an OpenClaw agent target such as openclaw/nemodoc.",
+    ),
   z.object({
     section: z.literal("email"),
     smtpHost: z
@@ -61,11 +68,12 @@ export const connectionInput = z.discriminatedUnion("section", [
 ]);
 type Stored = {
   model: {
-    mode: "notebook" | "custom";
+    mode: "notebook" | "custom" | "openclaw";
     baseUrl: string;
     model: string;
     apiKey: string;
     tested: boolean;
+    runtimeRevision?: string;
   };
   email: SmtpConnection & {
     revision: string;
@@ -133,7 +141,16 @@ export class AgentConnectionStore {
           this.value[section],
           fields,
           section === "model"
-            ? { tested: saved.model.tested === true }
+            ? {
+                tested: saved.model.tested === true,
+                ...(saved.model.runtimeRevision
+                  ? {
+                      runtimeRevision: z
+                        .uuid()
+                        .parse(saved.model.runtimeRevision),
+                    }
+                  : {}),
+              }
             : { revision: z.uuid().parse(saved[section].revision) },
         );
       }
@@ -187,13 +204,16 @@ export class AgentConnectionStore {
     const previous = this.value[section];
     const retain =
       section !== "model" ||
-      new URL(this.value.model.baseUrl).origin ===
-        new URL((fields as Stored["model"]).baseUrl).origin;
+      (this.value.model.mode === input.mode &&
+        new URL(this.value.model.baseUrl).origin ===
+          new URL((fields as Stored["model"]).baseUrl).origin);
     const next = {
       ...previous,
       ...fields,
       apiKey: clearApiKey ? "" : apiKey || (retain ? previous.apiKey : ""),
-      ...(section === "model" ? { tested: false } : { revision: randomUUID() }),
+      ...(section === "model"
+        ? { tested: false, runtimeRevision: randomUUID() }
+        : { revision: randomUUID() }),
     };
     Object.assign(previous, next);
     this.flush();
@@ -207,9 +227,20 @@ export class AgentConnectionStore {
     renameSync(this.filename + ".tmp", this.filename);
   }
   runtime() {
-    return this.value.model.mode === "custom"
+    return this.value.model.mode !== "notebook"
       ? { ...this.value.model }
       : this.settings.value;
+  }
+  invalidateAgentRuntime(agentId: string) {
+    if (
+      this.value.model.mode !== "openclaw" ||
+      this.value.model.model !== `openclaw/${agentId}`
+    )
+      return false;
+    this.value.model.tested = false;
+    this.value.model.runtimeRevision = randomUUID();
+    this.flush();
+    return true;
   }
   target(channel: AgentChannel): DeliveryTarget {
     const c = this.value[channel];
@@ -256,6 +287,16 @@ export class AgentConnectionStore {
     signal = AbortSignal.timeout(120000),
   ) {
     const c = this.runtime();
+    if (this.value.model.mode === "openclaw") {
+      if (!c.apiKey)
+        throw new Error(
+          "Save the dedicated OpenClaw gateway token in Connections. Your NVIDIA API key is configured inside NemoClaw, not used as a gateway token.",
+        );
+      if ((body as { model?: unknown })?.model !== c.model)
+        throw new Error(
+          "OpenClaw requests must use the selected agent target.",
+        );
+    }
     if (!c.apiKey && !isLocal(c.baseUrl))
       throw new Error("Save an API key for the agent model.");
     const response = await fetcher(
@@ -273,7 +314,9 @@ export class AgentConnectionStore {
     );
     if (!response.ok)
       throw new Error(
-        `Agent model returned HTTP ${response.status}. Check its connection and tool support.`,
+        this.value.model.mode === "openclaw"
+          ? `OpenClaw gateway returned HTTP ${response.status}. Check the gateway token, agent target and enabled Chat Completions endpoint.`
+          : `Agent model returned HTTP ${response.status}. Check its connection and tool support.`,
       );
     return response.json();
   }

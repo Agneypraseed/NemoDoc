@@ -218,7 +218,7 @@ export class AgentWorker {
         throw new Error("Task is no longer active.");
       this.permitted(task);
       if (
-        this.connections.value.model.mode === "custom" &&
+        this.connections.value.model.mode !== "notebook" &&
         !this.connections.value.model.tested
       )
         throw new Error("Test the saved agent model before running tasks.");
@@ -347,7 +347,7 @@ export class AgentWorker {
           ...(/nemotron/i.test(config.model) ? chatOptions(config) : {}),
         };
         const raw =
-          this.connections.value.model.mode === "custom"
+          this.connections.value.model.mode !== "notebook"
             ? await this.connections.modelJSON(
                 this.fetcher,
                 body,
@@ -707,19 +707,23 @@ export function registerAgent(
       connections.flush();
       const config = connections.runtime();
       const fingerprint = JSON.stringify(connections.value.model);
+      const openclaw = connections.value.model.mode === "openclaw";
+      const messages = [
+        {
+          role: "user",
+          content: openclaw
+            ? "Call connection_probe with ok=true. After its result arrives, reply with only the receipt value from that result."
+            : "Call connection_probe with ok=true. Do not answer in text.",
+        },
+      ];
+      const signal = AbortSignal.timeout(openclaw ? 60000 : 30000);
       const value = responseSchema.parse(
         await connections.modelJSON(
           fetcher,
           {
             model: config.model,
             stream: false,
-            messages: [
-              {
-                role: "user",
-                content:
-                  "Call connection_probe with ok=true. Do not answer in text.",
-              },
-            ],
+            messages,
             tools: [
               {
                 type: "function",
@@ -734,9 +738,17 @@ export function registerAgent(
                 },
               },
             ],
+            ...(openclaw
+              ? {
+                  tool_choice: {
+                    type: "function",
+                    function: { name: "connection_probe" },
+                  },
+                }
+              : {}),
             max_tokens: 1024,
           },
-          AbortSignal.timeout(30000),
+          signal,
         ),
       );
       const call = value.choices[0].message.tool_calls?.find(
@@ -748,6 +760,44 @@ export function registerAgent(
         );
       if (fingerprint !== JSON.stringify(connections.value.model))
         throw new Error("Connection changed during test. Test again.");
+      if (openclaw) {
+        if (value.choices[0].message.tool_calls?.length !== 1)
+          throw new Error(
+            "OpenClaw must return exactly the requested probe tool call.",
+          );
+        const receipt = randomUUID();
+        const continued = responseSchema.parse(
+          await connections.modelJSON(
+            fetcher,
+            {
+              model: config.model,
+              stream: false,
+              messages: [
+                ...messages,
+                { role: "assistant", ...value.choices[0].message },
+                {
+                  role: "tool",
+                  tool_call_id: call.id,
+                  content: JSON.stringify({ receipt }),
+                },
+              ],
+              tools: [],
+              tool_choice: "none",
+              max_tokens: 256,
+            },
+            signal,
+          ),
+        );
+        if (
+          continued.choices[0].message.tool_calls?.length ||
+          continued.choices[0].message.content?.trim() !== receipt
+        )
+          throw new Error(
+            "OpenClaw did not complete the tool-result round trip. Check gateway version and client function-tool support.",
+          );
+        if (fingerprint !== JSON.stringify(connections.value.model))
+          throw new Error("Connection changed during test. Test again.");
+      }
       connections.value.model.tested = true;
       connections.flush();
       res.json({ ok: true, model: config.model });
@@ -921,7 +971,7 @@ export function registerAgent(
     )
       throw new Error("Cancel an older task before adding another.");
     if (
-      connections.value.model.mode === "custom" &&
+      connections.value.model.mode !== "notebook" &&
       !connections.value.model.tested
     )
       throw new Error(
@@ -978,7 +1028,7 @@ export function registerAgent(
         throw new Error("Cancelled tasks cannot run. Create a new task.");
       worker.permitted(task);
       if (
-        connections.value.model.mode === "custom" &&
+        connections.value.model.mode !== "notebook" &&
         !connections.value.model.tested
       )
         throw new Error("Test the saved agent model before resuming tasks.");

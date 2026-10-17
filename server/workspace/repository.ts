@@ -19,12 +19,17 @@ export interface QueryScope {
   sourceIds: string[];
   noteIds: string[];
 }
+export type WorkspaceActivity = Pick<
+  WorkspaceState,
+  "runs" | "proposals" | "outbox"
+>;
 export interface WorkspaceRepository {
   readonly kind: "json" | "postgres";
   initialize(): Promise<void>;
   ids(): Promise<string[]>;
   runnableIds(now: number): Promise<string[]>;
   read(id: string): Promise<WorkspaceState>;
+  readActivity(id: string): Promise<WorkspaceActivity>;
   transaction<T>(id: string, action: (state: WorkspaceState) => T): Promise<T>;
   queryNotes(
     id: string,
@@ -89,6 +94,22 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
   async read(id: string) {
     await this.queue;
     return structuredClone(this.states[id] ?? emptyWorkspace(id));
+  }
+  async readActivity(id: string): Promise<WorkspaceActivity> {
+    await this.queue;
+    const state = this.states[id] ?? emptyWorkspace(id);
+    const runs = state.runs
+      .slice()
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 50);
+    const ids = new Set(runs.map((run) => run.id));
+    const proposals = state.proposals.filter((p) => ids.has(p.runId));
+    const proposalIds = new Set(proposals.map((p) => p.id));
+    return structuredClone({
+      runs,
+      proposals,
+      outbox: state.outbox.filter((o) => proposalIds.has(o.proposalId)),
+    });
   }
   transaction<T>(id: string, action: (state: WorkspaceState) => T): Promise<T> {
     const work = this.queue.then(() => {
@@ -401,6 +422,39 @@ export class PostgresWorkspaceRepository implements WorkspaceRepository {
       const state = await this.load(c, id);
       await c.query("COMMIT");
       return state;
+    } catch (e) {
+      await c.query("ROLLBACK");
+      throw e;
+    } finally {
+      c.release();
+    }
+  }
+  async readActivity(id: string): Promise<WorkspaceActivity> {
+    // Dashboard polling must not load approved PDF pages, notes or quiz answers.
+    const c = await this.pool.connect();
+    try {
+      await c.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+      const runs = (
+        await c.query(
+          "SELECT payload FROM workspace_runs WHERE notebook_id=$1 ORDER BY created_at DESC,id LIMIT 50",
+          [id],
+        )
+      ).rows.map((row) => row.payload) as WorkspaceState["runs"];
+      const ids = runs.map((run) => run.id);
+      const proposals = (
+        await c.query(
+          "SELECT payload FROM workspace_proposals WHERE notebook_id=$1 AND run_id=ANY($2::text[])",
+          [id, ids],
+        )
+      ).rows.map((row) => row.payload) as WorkspaceState["proposals"];
+      const outbox = (
+        await c.query(
+          "SELECT o.payload FROM workspace_email_outbox o JOIN workspace_proposals p ON p.notebook_id=o.notebook_id AND p.id=o.proposal_id WHERE o.notebook_id=$1 AND p.run_id=ANY($2::text[])",
+          [id, ids],
+        )
+      ).rows.map((row) => row.payload) as WorkspaceState["outbox"];
+      await c.query("COMMIT");
+      return { runs, proposals, outbox };
     } catch (e) {
       await c.query("ROLLBACK");
       throw e;

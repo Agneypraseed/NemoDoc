@@ -194,6 +194,51 @@ test("Gemma tool test gates tasks; notes alone provide scoped evidence without c
   }
 });
 
+test("OpenClaw tasks use the dedicated agent and scoped note tools after a two-turn gateway test", async () => {
+  const requests: any[] = [];
+  const h = await harness((async (_url, init) => {
+    const body = JSON.parse(String(init?.body));
+    requests.push(body);
+    assert.equal(body.model, "openclaw/nemodoc");
+    assert.equal(
+      new Headers(init?.headers).get("Authorization"),
+      "Bearer gateway-fixture",
+    );
+    if (body.tools[0]?.function.name === "connection_probe")
+      return reply(tool("connection_probe", { ok: true }));
+    const result = body.messages.find((m: any) => m.role === "tool");
+    if (body.messages[0].content.includes("connection_probe"))
+      return reply({ content: JSON.parse(result.content).receipt });
+    return reply(
+      result
+        ? { content: "Use spaced practice. [1]" }
+        : tool("search_sources", { query: "recall" }),
+    );
+  }) as typeof fetch);
+  try {
+    await approve(h.api);
+    await h.api("/api/agent/connections", {
+      ...model,
+      mode: "openclaw",
+      baseUrl: "http://127.0.0.1:18789/v1",
+      model: "openclaw/nemodoc",
+      apiKey: "gateway-fixture",
+    });
+    assert.equal((await h.api("/api/agent/task", task)).status, 409);
+    assert.equal((await h.api("/api/agent/connections/test", {})).status, 200);
+    assert.equal((await h.api("/api/agent/task", task)).status, 200);
+    await h.app.locals.agent.tick(1);
+    const state = (await h.api("/api/agent")).data;
+    assert.equal(state.tasks[0].connectionMode, "openclaw");
+    assert.equal(state.runs[0].status, "completed");
+    assert.equal(state.runs[0].citations[0].sourceId, "notes:notebook");
+    assert.equal(requests.length, 4);
+    assert.equal(h.smtpMessages.length, 0);
+  } finally {
+    await h.close();
+  }
+});
+
 test("automatic email corrects premature and internal citations before sending to the approved recipient", async () => {
   const sent: { url: string; init?: RequestInit }[] = [];
   const h = await harness((async (url, init) => {

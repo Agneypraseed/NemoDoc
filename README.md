@@ -113,6 +113,16 @@ Choose **Settings → Search & embeddings → Use EmbeddingGemma 2 locally**, th
 
 NemoDoc agents use the notebook's Nemotron connection by default, or a separate tool-capable open model such as Gemma through Ollama. Weekday schedules use a chosen local time and time zone. See the [agent connections setup guide](docs/AGENT_CONNECTIONS.md).
 
+For agent isolation, choose **OpenClaw agent through NemoClaw** in Connections. The [NVIDIA NemoClaw setup guide](docs/NEMOCLAW.md) includes a dedicated agent manifest, host preflight and private gateway configuration. NemoDoc retains scoped evidence tools and approval before delivery; the app and database keep their existing deployment.
+
+**Agent → Agents** shows the sandbox’s agent roster, models and reported work, with activity filters and notebook tool history. Live session monitoring uses the NemoClaw CLI on the runtime host; a remote gateway provides agent inventory with a clearly marked limited view. See [monitoring setup](docs/NEMOCLAW.md#see-your-agents-and-their-work).
+
+**Agent → Settings** creates and configures individual OpenClaw agents with their own primary model, ordered fallbacks and Markdown roles. Edit `AGENTS.md` for role instructions and `SOUL.md` for personality, or insert a role template while preserving existing instructions. See [agent configuration](docs/NEMOCLAW.md#assign-models-and-markdown-roles).
+
 ## More
 
 [Personal agent guide](docs/PERSONAL_AGENT.md) · [Real book demo verification](docs/MML_VERIFICATION.md) · [MIT license](LICENSE)
+
+### Local verification
+
+Run `npm run verify` for dependency-boundary checks, TypeScript, unit/API tests, and the production build. `npm run verify:agents` builds and drives agent monitoring/settings in an isolated browser session, retaining traces in `output/verification/`. It needs Playwright Chromium; set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to use an installed browser. The [verification skill and feature map](.cursor/skills/verify-nemodoc/SKILL.md) describe the journeys, cleanup, and external-runtime limits.

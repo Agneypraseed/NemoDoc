@@ -13,6 +13,10 @@ To use the NVIDIA Nemotron model you already use in notebook chat, keep **Use no
 
 Existing notebook Chat and Studio generation keep their Nemotron policy. Switching an agent connection does not change them. Agent study materials can still be saved to Studio.
 
+## Sandboxed OpenClaw through NemoClaw
+
+Choose **OpenClaw agent through NemoClaw** to route tasks and evidence workflows to a dedicated agent in NVIDIA's OpenShell sandbox. Save its private gateway URL, `openclaw/nemodoc` target and gateway token, then run **Test gateway tool support**. The NVIDIA inference key belongs in NemoClaw. Follow the [NemoClaw setup guide](NEMOCLAW.md) for the agent manifest, host checks and isolation boundary. The app test verifies a tool-call/result round trip; verify the actual sandbox separately on its host.
+
 ## Approve notebook notes
 
 In **Agent → Sources**, select **Notebook notes, saved answers and annotations**, check the extracted-text consent and save permissions. You can approve notes alone or combine them with documents. Each task selects a subset of approved sources.

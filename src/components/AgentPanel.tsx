@@ -18,6 +18,9 @@ import remarkGfm from "remark-gfm";
 import { apiJSON } from "../lib/api";
 import { download } from "../lib/storage";
 import { AgentConnections } from "./AgentConnections";
+import { AgentOverview } from "./AgentOverview";
+import { AgentConfiguration } from "./AgentConfiguration";
+import type { AgentRoleDrafts } from "../agent-config-types";
 import { AgentDelivery } from "./AgentDelivery";
 import { EvidenceWorkflows } from "./EvidenceWorkflows";
 import type { SearchNote } from "../lib/search-notes";
@@ -54,6 +57,7 @@ export function AgentPanel({
   onCitation,
   onSave,
   onSettings,
+  roleDrafts,
 }: {
   notebookId: string;
   notebookTitle: string;
@@ -63,11 +67,19 @@ export function AgentPanel({
   onCitation: (c: Citation) => void;
   onSave: (a: StudyArtifact) => void;
   onSettings: () => void;
+  roleDrafts: AgentRoleDrafts;
 }) {
   const [data, setData] = useState<Overview>();
   const [view, setView] = useState<
-    "tasks" | "memory" | "skills" | "access" | "connections"
-  >("tasks");
+    | "agents"
+    | "tasks"
+    | "memory"
+    | "skills"
+    | "access"
+    | "connections"
+    | "settings"
+  >("agents");
+  const [configureAgentId, setConfigureAgentId] = useState("");
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState("");
@@ -201,30 +213,38 @@ export function AgentPanel({
         </div>
         <div>
           <div className="eyebrow">WORKING WITH YOU</div>
-          <h2>Your personal agent</h2>
+          <h2>Your agents</h2>
         </div>
       </header>
       <p className="agent-intro">
-        A study partner with memory, reusable skills and a local task worker.
-        Use an open model and receive results here, by email or on WhatsApp.
+        See what your agents are doing, review their work, and manage tasks,
+        memory and connections.
       </p>
       <div className="agent-subtabs" aria-label="Agent sections">
-        {(["tasks", "memory", "skills", "access", "connections"] as const).map(
-          (v) => (
-            <button
-              key={v}
-              className={view === v ? "active" : ""}
-              onClick={() => {
-                setView(v);
-                if (v === "access") setSelected(approved.map((s) => s.id));
-                setError("");
-                setMessage("");
-              }}
-            >
-              {v === "access" ? "Sources" : v[0].toUpperCase() + v.slice(1)}
-            </button>
-          ),
-        )}
+        {(
+          [
+            "agents",
+            "tasks",
+            "memory",
+            "skills",
+            "access",
+            "connections",
+            "settings",
+          ] as const
+        ).map((v) => (
+          <button
+            key={v}
+            className={view === v ? "active" : ""}
+            onClick={() => {
+              setView(v);
+              if (v === "access") setSelected(approved.map((s) => s.id));
+              setError("");
+              setMessage("");
+            }}
+          >
+            {v === "access" ? "Sources" : v[0].toUpperCase() + v.slice(1)}
+          </button>
+        ))}
       </div>
       {error && (
         <p className="form-error" role="alert">
@@ -238,6 +258,25 @@ export function AgentPanel({
         </p>
       )}
       {view === "connections" && <AgentConnections />}
+      {view === "settings" && (
+        <AgentConfiguration
+          initialAgentId={configureAgentId}
+          drafts={roleDrafts}
+          onConnections={() => setView("connections")}
+        />
+      )}
+      {view === "agents" && (
+        <AgentOverview
+          key={notebookId}
+          notebookId={notebookId}
+          onConnections={() => setView("connections")}
+          onTasks={() => setView("tasks")}
+          onConfigure={(id) => {
+            setConfigureAgentId(id || "");
+            setView("settings");
+          }}
+        />
+      )}
       {view === "tasks" && (
         <>
           <EvidenceWorkflows
