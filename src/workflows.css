@@ -36,10 +36,14 @@
   height: 16px;
 }
 .evidence-workflows textarea,
-.evidence-workflows input:not([type="checkbox"]) {
+.evidence-workflows input:not([type="checkbox"]),
+.evidence-workflows select {
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
+}
+.research-agent-assignments {
+  gap: 12px;
 }
 .evidence-workflows pre {
   max-height: 320px;
@@ -56,6 +60,80 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   line-height: 1.7;
+}
+.research-team {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+.research-team-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.research-team-heading h5,
+.research-team-heading p {
+  margin: 0;
+}
+.research-team-heading p,
+.research-agent-focus {
+  color: var(--muted);
+  font-size: 0.9em;
+}
+.research-team-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.research-agent-card {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--panel, transparent) 72%, transparent);
+}
+.research-agent-card h6 {
+  margin: 8px 0 4px;
+  font-size: 0.98em;
+}
+.research-agent-card .agent-work-scene {
+  margin: 0 0 8px;
+}
+.research-agent-card .agent-monitor-status {
+  margin-top: 3px;
+}
+.research-agent-focus {
+  min-height: 3.6em;
+  margin: 0 0 8px;
+  line-height: 1.45;
+}
+.research-agent-findings {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.research-agent-findings > div {
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+.research-team-synthesis {
+  margin-top: 0;
+}
+.research-team-synthesis > :last-child {
+  margin-bottom: 0;
+}
+.research-team-synthesis p,
+.research-agent-findings p {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 850px) {
+  .research-team-grid {
+    grid-template-columns: 1fr;
+  }
+  .research-agent-focus {
+    min-height: 0;
+  }
 }
 .workflow-report {
   min-width: 0;

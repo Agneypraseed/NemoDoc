@@ -73,6 +73,7 @@ export class WorkspaceService {
   constructor(
     readonly repository: WorkspaceRepository,
     readonly connections: AgentConnectionStore,
+    private readonly listRuntimeAgentIds?: () => Promise<string[]>,
   ) {}
   connection() {
     const c = this.connections.runtime();
@@ -189,6 +190,24 @@ export class WorkspaceService {
   }
   async queue(body: unknown) {
     const input = workflowTaskSchema.parse(body);
+    const usesOpenClawTeam =
+      input.workflow === "research_team" &&
+      this.connections.value.model.mode === "openclaw";
+    if (usesOpenClawTeam) {
+      if (!input.agentIds || new Set(input.agentIds).size !== 3)
+        throw new WorkspaceConflict(
+          "Assign three different NemoClaw agents to this research run.",
+        );
+      const available = new Set((await this.listRuntimeAgentIds?.()) ?? []);
+      if (input.agentIds.some((id) => !available.has(id)))
+        throw new WorkspaceConflict(
+          "One or more assigned agents are no longer in the connected runtime. Refresh the agent list and assign the three researchers again.",
+        );
+    } else if (input.agentIds?.length) {
+      throw new WorkspaceConflict(
+        "Runtime agent assignments are available only through an OpenClaw connection.",
+      );
+    }
     return this.repository.transaction(scopeId.parse(input.notebookId), (s) => {
       if (!s.revision)
         throw new WorkspaceConflict("Approve the workspace first.");
@@ -228,6 +247,45 @@ export class WorkspaceService {
         steps: [],
         citations: [],
         evidence: [],
+        ...(input.workflow === "research_team"
+          ? {
+              researchTeam: [
+                {
+                  id: "foundations",
+                  name: "Foundations researcher",
+                  focus:
+                    "Definitions, mathematics, and source-grounded foundations",
+                  ...(input.agentIds?.[0]
+                    ? { agentId: input.agentIds[0] }
+                    : {}),
+                  status: "queued" as const,
+                  citationIds: [],
+                },
+                {
+                  id: "neural-networks",
+                  name: "Neural networks researcher",
+                  focus:
+                    "Connections to neural networks and learned representations",
+                  ...(input.agentIds?.[1]
+                    ? { agentId: input.agentIds[1] }
+                    : {}),
+                  status: "queued" as const,
+                  citationIds: [],
+                },
+                {
+                  id: "critical-review",
+                  name: "Critical reviewer",
+                  focus:
+                    "Applications, assumptions, and limits of the evidence",
+                  ...(input.agentIds?.[2]
+                    ? { agentId: input.agentIds[2] }
+                    : {}),
+                  status: "queued" as const,
+                  citationIds: [],
+                },
+              ],
+            }
+          : {}),
       };
       this.checkRun(s, run);
       s.runs.unshift(run);

@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import { Pause, Play } from "lucide-react";
 import "../workflows.css";
 import { apiJSON } from "../lib/api";
+import { citationMarkdown } from "../lib/citations";
 import { download } from "../lib/storage";
 import type { SearchNote } from "../lib/search-notes";
 import type { Citation, Source, StudyArtifact } from "../types";
@@ -11,6 +17,13 @@ import type {
   WorkflowReport,
   WorkspaceState,
 } from "../workspace-types";
+import type {
+  AgentActivityStatus,
+  AgentDashboard,
+  RuntimeAgent,
+} from "../agent-monitor-types";
+import { activityLabels } from "../lib/agent-activity";
+import { AgentWorkScene } from "./AgentWorkScene";
 
 const root = "/api/agent/workspace";
 const prompts = {
@@ -18,7 +31,28 @@ const prompts = {
     "Prepare a targeted revision plan from my selected notes and recorded quiz mistakes. Connect each focus to the relevant note, mistake and cited book page. Propose editable practice materials and a review session. If no quiz history is shared or recorded, say the learning gaps are unknown.",
   research_synthesis:
     "Compare my selected papers in an evidence table. For each paper, report its finding, method or population, and cited page. Explain where findings support, qualify or conflict with one another; distinguish differences in study settings from direct disagreements. Flag conclusions these sources cannot establish, then propose an editable cited brief and follow-up reading tasks.",
+  research_team:
+    "Research PCA in neural networks. Explain the PCA mathematics, connect PCA to linear autoencoders and neural-network representations, and assess what the selected sources do and do not establish about applying PCA to neural networks. Cite every factual claim to the approved pages and label any inference.",
 };
+const sceneStatus: Record<
+  NonNullable<WorkspaceState["runs"][number]["researchTeam"]>[number]["status"],
+  AgentActivityStatus
+> = {
+  queued: "queued",
+  running: "running",
+  completed: "completed",
+  failed: "failed",
+};
+const workflowNames = {
+  study_revision: "Revision plan",
+  research_synthesis: "Research synthesis",
+  research_team: "Three-agent research",
+} as const;
+const researchAgentLabels = [
+  "Foundations researcher",
+  "Neural networks researcher",
+  "Critical reviewer",
+];
 export function EvidenceWorkflows({
   notebookId,
   title,
@@ -36,7 +70,15 @@ export function EvidenceWorkflows({
 }) {
   const [state, setState] = useState<WorkspaceState>();
   const [backend, setBackend] = useState("");
+  const [connection, setConnection] = useState<{
+    mode: string;
+    model: string;
+  }>();
+  const [runtimeAgents, setRuntimeAgents] = useState<RuntimeAgent[]>([]);
+  const [runtimeMessage, setRuntimeMessage] = useState("");
+  const [agentIds, setAgentIds] = useState<string[]>([]);
   const [workflow, setWorkflow] = useState<EvidenceWorkflow>("study_revision");
+  const [motion, setMotion] = useState(true);
   const [prompt, setPrompt] = useState(prompts.study_revision);
   const [sourceIds, setSources] = useState<string[]>([]),
     [noteIds, setNotes] = useState<string[]>([]);
@@ -76,6 +118,49 @@ export function EvidenceWorkflows({
       controller.abort();
     };
   }, [notebookId]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void apiJSON<{ model: { mode: string; model: string } }>(
+      "/api/agent/connections",
+      undefined,
+      controller.signal,
+    )
+      .then((value) => setConnection(value.model))
+      .catch(() => {});
+    return () => controller.abort();
+  }, [notebookId]);
+  useEffect(() => {
+    if (workflow !== "research_team" || connection?.mode !== "openclaw") {
+      setRuntimeAgents([]);
+      setRuntimeMessage("");
+      setAgentIds([]);
+      return;
+    }
+    const controller = new AbortController();
+    setRuntimeMessage("Loading agents from the connected NemoClaw runtime…");
+    void apiJSON<AgentDashboard>(
+      `/api/agent/overview?notebookId=${encodeURIComponent(notebookId)}`,
+      undefined,
+      controller.signal,
+    )
+      .then((dashboard) => {
+        if (controller.signal.aborted) return;
+        setRuntimeAgents(dashboard.runtime.agents);
+        setRuntimeMessage(dashboard.runtime.message);
+        setAgentIds((previous) => {
+          const selected = previous.filter((id) =>
+            dashboard.runtime.agents.some((agent) => agent.id === id),
+          );
+          return selected.length === 3
+            ? selected
+            : dashboard.runtime.agents.slice(0, 3).map((agent) => agent.id);
+        });
+      })
+      .catch((e) => {
+        if (!controller.signal.aborted) setRuntimeMessage(e.message);
+      });
+    return () => controller.abort();
+  }, [connection?.mode, notebookId, workflow]);
   const act = async (fn: () => Promise<unknown>) => {
     setBusy(true);
     setError("");
@@ -111,7 +196,9 @@ export function EvidenceWorkflows({
         </p>
       )}
       <div className="workflow-templates">
-        {(["study_revision", "research_synthesis"] as const).map((w) => (
+        {(
+          ["study_revision", "research_synthesis", "research_team"] as const
+        ).map((w) => (
           <button
             key={w}
             className={workflow === w ? "primary-button" : "secondary-button"}
@@ -120,7 +207,11 @@ export function EvidenceWorkflows({
               setPrompt(prompts[w]);
             }}
           >
-            {w === "study_revision" ? "Plan revision" : "Synthesize research"}
+            {w === "study_revision"
+              ? "Plan revision"
+              : w === "research_synthesis"
+                ? "Synthesize research"
+                : "Research with 3 agents"}
           </button>
         ))}
       </div>
@@ -229,6 +320,48 @@ export function EvidenceWorkflows({
       {state?.revision && (
         <div className="agent-form">
           <h4>2 · Run with approved evidence</h4>
+          {workflow === "research_team" && (
+            <p className="agent-fine">
+              Three independent research roles run through the active model
+              connection{connection?.model ? ` (${connection.model})` : ""},
+              then a lead checks their synthesis against the approved pages. The
+              run does not save notes or change notebook materials.
+            </p>
+          )}
+          {workflow === "research_team" && connection?.mode === "openclaw" && (
+            <fieldset className="research-agent-assignments">
+              <legend>Assign three NemoClaw agents</legend>
+              {researchAgentLabels.map((label, index) => (
+                <label className="field-label" key={label}>
+                  {label}
+                  <select
+                    aria-label={label}
+                    value={agentIds[index] ?? ""}
+                    onChange={(event) => {
+                      const next = [...agentIds];
+                      next[index] = event.target.value;
+                      setAgentIds(next);
+                    }}
+                  >
+                    <option value="">
+                      {runtimeAgents.length
+                        ? "Choose an agent"
+                        : "No runtime agents available"}
+                    </option>
+                    {runtimeAgents.map((agent) => (
+                      <option key={agent.id} value={agent.id}>
+                        {agent.name} · {agent.id}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ))}
+              <p className="agent-fine" role="status">
+                {runtimeMessage ||
+                  "Each role will run on a different agent in the connected runtime."}
+              </p>
+            </fieldset>
+          )}
           <fieldset>
             <legend>Approved documents</legend>
             {state.sources.map((s) => (
@@ -277,6 +410,9 @@ export function EvidenceWorkflows({
             disabled={
               busy ||
               !sourceIds.length ||
+              (workflow === "research_team" &&
+                connection?.mode === "openclaw" &&
+                (agentIds.length !== 3 || new Set(agentIds).size !== 3)) ||
               (workflow === "research_synthesis" && sourceIds.length < 2) ||
               (workflow === "study_revision" && !noteIds.length) ||
               !prompt.trim() ||
@@ -293,15 +429,32 @@ export function EvidenceWorkflows({
                   sourceIds,
                   noteIds,
                   includeProgress: progress,
+                  ...(workflow === "research_team" &&
+                  connection?.mode === "openclaw"
+                    ? { agentIds }
+                    : {}),
                 }),
               )
             }
           >
-            Create proposal
+            {workflow === "research_team"
+              ? "Start 3-agent research"
+              : "Create proposal"}
           </button>
           {workflow === "research_synthesis" && sourceIds.length < 2 ? (
             <p className="agent-fine" role="status">
               Select at least two sources to compare papers.
+            </p>
+          ) : workflow === "research_team" && !sourceIds.length ? (
+            <p className="agent-fine" role="status">
+              Select at least one approved source for the research team.
+            </p>
+          ) : workflow === "research_team" &&
+            connection?.mode === "openclaw" &&
+            (agentIds.length !== 3 || new Set(agentIds).size !== 3) ? (
+            <p className="agent-fine" role="status">
+              Connect three different NemoClaw agents, then assign one to each
+              role above.
             </p>
           ) : workflow === "study_revision" && !noteIds.length ? (
             <p className="agent-fine" role="status">
@@ -313,14 +466,20 @@ export function EvidenceWorkflows({
       {state?.runs.map((run) => (
         <article key={run.id} data-run-id={run.id} className="agent-form">
           <h4>
-            {run.workflow === "study_revision"
-              ? "Revision plan"
-              : "Research synthesis"}{" "}
-            · {run.status}
+            {workflowNames[run.workflow]} · {run.status}
           </h4>
           <p>{run.prompt}</p>
           {run.error && <p role="alert">{run.error}</p>}
-          <p className="workflow-answer">{run.answer}</p>
+          {run.workflow === "research_team" ? (
+            <ResearchTeamRun
+              run={run}
+              motion={motion}
+              toggleMotion={() => setMotion((value) => !value)}
+              onCitation={onCitation}
+            />
+          ) : (
+            <p className="workflow-answer">{run.answer}</p>
+          )}
           <details>
             <summary>
               Queries, evidence & execution · {run.steps.length} steps
@@ -518,6 +677,129 @@ export function EvidenceWorkflows({
         </button>
       )}
     </section>
+  );
+}
+
+function ResearchTeamRun({
+  run,
+  motion,
+  toggleMotion,
+  onCitation,
+}: {
+  run: WorkspaceState["runs"][number];
+  motion: boolean;
+  toggleMotion: () => void;
+  onCitation: (citation: Citation) => void;
+}) {
+  const team = run.researchTeam ?? [];
+  return (
+    <section className="research-team" aria-label="Three-agent research run">
+      <div className="research-team-heading">
+        <div>
+          <h5>Research team</h5>
+          <p>Three specialist roles · one lead synthesis</p>
+        </div>
+        <button
+          type="button"
+          className="text-button"
+          aria-pressed={motion}
+          onClick={toggleMotion}
+        >
+          {motion ? <Pause size={13} /> : <Play size={13} />}
+          {motion ? "Pause animations" : "Play animations"}
+        </button>
+      </div>
+      <div className="research-team-grid">
+        {team.map((agent) => (
+          <article className="research-agent-card" key={agent.id}>
+            <AgentWorkScene
+              name={agent.name}
+              status={sceneStatus[agent.status]}
+              motion={motion}
+            />
+            <h6>{agent.name}</h6>
+            <p className="research-agent-focus">{agent.focus}</p>
+            <span
+              className={`agent-monitor-status is-${sceneStatus[agent.status]}`}
+            >
+              <span aria-hidden="true" />
+              {activityLabels[sceneStatus[agent.status]]}
+            </span>
+            {agent.error && <p role="alert">{agent.error}</p>}
+            {agent.answer && (
+              <details className="research-agent-findings">
+                <summary>Read this agent’s findings</summary>
+                <ResearchMarkdown
+                  content={agent.answer}
+                  run={run}
+                  onCitation={onCitation}
+                />
+              </details>
+            )}
+          </article>
+        ))}
+      </div>
+      {!!run.answer && (
+        <section className="workflow-report research-team-synthesis">
+          <h4>Lead synthesis</h4>
+          <ResearchMarkdown
+            content={run.answer}
+            run={run}
+            onCitation={onCitation}
+          />
+        </section>
+      )}
+    </section>
+  );
+}
+
+function ResearchMarkdown({
+  content,
+  run,
+  onCitation,
+}: {
+  content: string;
+  run: WorkspaceState["runs"][number];
+  onCitation: (citation: Citation) => void;
+}) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm, remarkMath]}
+      rehypePlugins={[
+        [rehypeKatex, { trust: false, maxExpand: 1000, maxSize: 20 }],
+      ]}
+      components={{
+        a: ({ href, children }) => {
+          const citation = href?.startsWith("#citation-")
+            ? run.citations.find(
+                (item) => item.id === Number(href.slice("#citation-".length)),
+              )
+            : undefined;
+          return citation ? (
+            <button
+              className="inline-citation"
+              onClick={() =>
+                onCitation({
+                  id: citation.id,
+                  sourceId: citation.sourceId,
+                  sourceName: citation.sourceName,
+                  page: citation.page,
+                  text: citation.text,
+                })
+              }
+            >
+              {children}
+            </button>
+          ) : (
+            <a href={href} target="_blank" rel="noreferrer">
+              {children}
+            </a>
+          );
+        },
+      }}
+    >
+      {citationMarkdown(content, run.citations)}
+    </ReactMarkdown>
   );
 }
 

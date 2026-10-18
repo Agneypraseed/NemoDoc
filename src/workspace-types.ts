@@ -11,7 +11,11 @@ const id = z
   .min(1)
   .max(100)
   .refine((v) => !v.includes("\0"), "IDs cannot contain NUL characters.");
-export const workflowSchema = z.enum(["study_revision", "research_synthesis"]);
+export const workflowSchema = z.enum([
+  "study_revision",
+  "research_synthesis",
+  "research_team",
+]);
 export type EvidenceWorkflow = z.infer<typeof workflowSchema>;
 const referenceSchema = z
   .object({ sourceId: id, page: z.number().int().min(1).max(500) })
@@ -164,6 +168,10 @@ export const workflowTaskSchema = z
     sourceIds: z.array(id).max(30),
     noteIds: z.array(id).max(1000),
     includeProgress: z.boolean().default(false),
+    agentIds: z
+      .array(z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/))
+      .length(3)
+      .optional(),
   })
   .strict();
 export type WorkflowTask = z.infer<typeof workflowTaskSchema>;
@@ -259,7 +267,18 @@ export interface WorkflowRun extends WorkflowTask {
   steps: { tool: string; summary: string; at: number }[];
   citations: AgentCitation[];
   evidence: QueryEvidence[];
+  researchTeam?: ResearchTeamAgent[];
   usage?: { promptTokens: number; completionTokens: number };
+}
+export interface ResearchTeamAgent {
+  id: string;
+  name: string;
+  focus: string;
+  agentId?: string;
+  status: "queued" | "running" | "completed" | "failed";
+  answer?: string;
+  error?: string;
+  citationIds: number[];
 }
 export interface ActionProposal {
   id: string;

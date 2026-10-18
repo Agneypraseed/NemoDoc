@@ -19,6 +19,7 @@ export function registerWorkspace(
     readDatabaseUrl?: string;
     repository?: WorkspaceRepository;
     startWorker?: boolean;
+    listRuntimeAgentIds?: () => Promise<string[]>;
   } = {},
 ) {
   if (options.databaseUrl && !options.readDatabaseUrl)
@@ -33,7 +34,11 @@ export function registerWorkspace(
           options.readDatabaseUrl!,
         )
       : new JsonWorkspaceRepository(options.workspaceFile));
-  const service = new WorkspaceService(repository, connections),
+  const service = new WorkspaceService(
+      repository,
+      connections,
+      options.listRuntimeAgentIds,
+    ),
     worker = new WorkspaceWorker(service, fetcher);
   const ready = repository
     .initialize()
@@ -54,14 +59,12 @@ export function registerWorkspace(
         await ready;
         res.json(await action(req.body));
       } catch (e) {
-        res
-          .status(e instanceof z.ZodError ? 400 : 409)
-          .json({
-            error:
-              e instanceof z.ZodError
-                ? "Check the workspace fields and evidence selection."
-                : (e as Error).message,
-          });
+        res.status(e instanceof z.ZodError ? 400 : 409).json({
+          error:
+            e instanceof z.ZodError
+              ? "Check the workspace fields and evidence selection."
+              : (e as Error).message,
+        });
       }
     });
   app.get("/api/agent/workspace/status", async (_req, res) => {
@@ -69,12 +72,10 @@ export function registerWorkspace(
       await ready;
       res.json({ backend: repository.kind, ready: true });
     } catch {
-      res
-        .status(503)
-        .json({
-          error:
-            "Agent workspace is unavailable. Check database migrations and permissions.",
-        });
+      res.status(503).json({
+        error:
+          "Agent workspace is unavailable. Check database migrations and permissions.",
+      });
     }
   });
   app.get("/api/agent/workspace/:notebookId", async (req, res) => {

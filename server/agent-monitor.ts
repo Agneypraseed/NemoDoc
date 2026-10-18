@@ -353,44 +353,81 @@ export function registerAgentMonitor(
         app.locals.workspace;
       await workspace.ready;
       const state = await workspace.service.repository.readActivity(notebookId);
-      for (const run of state.runs.slice(0, 50))
-        activity.push({
-          id: run.id,
-          agentId:
-            run.connection.mode === "openclaw"
-              ? run.connection.model.slice(9)
-              : "notebook-agent",
-          kind: "workflow",
-          title:
-            run.workflow === "study_revision"
-              ? "Study revision"
-              : "Research synthesis",
-          status: run.status,
-          summary:
-            run.error ||
-            run.steps.at(-1)?.summary ||
-            (run.status === "queued"
-              ? "Waiting for the worker"
-              : "Workflow started"),
-          updatedAt:
-            run.finishedAt ||
-            run.steps.at(-1)?.at ||
-            run.startedAt ||
-            run.createdAt,
-          model: run.connection.model,
-          steps: run.steps.slice(-8),
-          pendingApproval: state.proposals.some(
-            (p) => p.runId === run.id && p.status === "pending",
-          ),
-          delivery: state.outbox
-            .filter((o) =>
-              state.proposals.some(
-                (p) => p.id === o.proposalId && p.runId === run.id,
-              ),
-            )
-            .map((o) => `email: ${o.status}`)
-            .join(", "),
-        });
+      for (const run of state.runs.slice(0, 50)) {
+        const team =
+          run.workflow === "research_team" ? (run.researchTeam ?? []) : [];
+        const rows = team.length
+          ? team.map((specialist) => ({
+              id: `${run.id}:${specialist.id}`,
+              agentId:
+                specialist.agentId ||
+                (run.connection.mode === "openclaw"
+                  ? run.connection.model.slice(9)
+                  : "notebook-agent"),
+              kind: "workflow" as const,
+              title: `Research · ${specialist.name}`,
+              status: specialist.status,
+              summary:
+                specialist.error ||
+                run.steps
+                  .filter((step) => step.summary.includes(specialist.name))
+                  .at(-1)?.summary ||
+                (specialist.status === "queued"
+                  ? "Waiting for the research team"
+                  : "Research started"),
+              updatedAt:
+                run.finishedAt ||
+                run.steps.at(-1)?.at ||
+                run.startedAt ||
+                run.createdAt,
+              model: specialist.agentId
+                ? `openclaw/${specialist.agentId}`
+                : run.connection.model,
+              steps: run.steps.slice(-8),
+              pendingApproval: false,
+              delivery: "",
+            }))
+          : [
+              {
+                id: run.id,
+                agentId:
+                  run.connection.mode === "openclaw"
+                    ? run.connection.model.slice(9)
+                    : "notebook-agent",
+                kind: "workflow" as const,
+                title:
+                  run.workflow === "study_revision"
+                    ? "Study revision"
+                    : "Research synthesis",
+                status: run.status,
+                summary:
+                  run.error ||
+                  run.steps.at(-1)?.summary ||
+                  (run.status === "queued"
+                    ? "Waiting for the worker"
+                    : "Workflow started"),
+                updatedAt:
+                  run.finishedAt ||
+                  run.steps.at(-1)?.at ||
+                  run.startedAt ||
+                  run.createdAt,
+                model: run.connection.model,
+                steps: run.steps.slice(-8),
+                pendingApproval: state.proposals.some(
+                  (p) => p.runId === run.id && p.status === "pending",
+                ),
+                delivery: state.outbox
+                  .filter((o) =>
+                    state.proposals.some(
+                      (p) => p.id === o.proposalId && p.runId === run.id,
+                    ),
+                  )
+                  .map((o) => `email: ${o.status}`)
+                  .join(", "),
+              },
+            ];
+        activity.push(...rows);
+      }
     } catch {
       notebookError =
         "Notebook workflow activity is unavailable. Check the workspace database.";
@@ -428,4 +465,5 @@ export function registerAgentMonitor(
       ),
     );
   });
+  return monitor;
 }

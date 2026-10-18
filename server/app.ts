@@ -101,19 +101,21 @@ export function createApp(
     options.agentFile,
     options.smtpTransportFactory,
   );
-  registerWorkspace(app, agent.worker.connections, providerFetch, {
-    workspaceFile: options.workspaceFile,
-    databaseUrl: options.databaseUrl,
-    readDatabaseUrl: options.readDatabaseUrl,
-    startWorker: options.startWorkspaceWorker,
-  });
-  registerAgentMonitor(
+  const monitor = registerAgentMonitor(
     app,
     agent.worker,
     providerFetch,
     options.nemoclawSandbox,
     options.nemoclawReader,
   );
+  registerWorkspace(app, agent.worker.connections, providerFetch, {
+    workspaceFile: options.workspaceFile,
+    databaseUrl: options.databaseUrl,
+    readDatabaseUrl: options.readDatabaseUrl,
+    startWorker: options.startWorkspaceWorker,
+    listRuntimeAgentIds: async () =>
+      (await monitor.snapshot()).agents.map((runtimeAgent) => runtimeAgent.id),
+  });
   registerAgentConfiguration(
     app,
     agent.worker,

@@ -285,14 +285,22 @@ export class AgentConnectionStore {
     fetcher: typeof fetch,
     body: unknown,
     signal = AbortSignal.timeout(120000),
+    agentId?: string,
   ) {
     const c = this.runtime();
+    if (
+      agentId &&
+      (this.value.model.mode !== "openclaw" ||
+        !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(agentId))
+    )
+      throw new Error("Choose an agent from the connected OpenClaw runtime.");
+    const target = agentId ? `openclaw/${agentId}` : c.model;
     if (this.value.model.mode === "openclaw") {
       if (!c.apiKey)
         throw new Error(
           "Save the dedicated OpenClaw gateway token in Connections. Your NVIDIA API key is configured inside NemoClaw, not used as a gateway token.",
         );
-      if ((body as { model?: unknown })?.model !== c.model)
+      if ((body as { model?: unknown })?.model !== target)
         throw new Error(
           "OpenClaw requests must use the selected agent target.",
         );
