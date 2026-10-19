@@ -22,6 +22,16 @@ flowchart LR
 
 Use a supported Docker host following NVIDIA's [prerequisites](https://docs.nvidia.com/nemoclaw/latest/user-guide/openclaw/get-started/prerequisites) and [official installation quickstart](https://docs.nvidia.com/nemoclaw/latest/user-guide/openclaw/get-started/quickstart). Current Linux requirements include Node 22.19+, npm 10+, 4 CPUs, 8 GiB RAM and 20 GiB disk. Allow room for the sandbox image. A GPU is not required when using hosted NVIDIA inference.
 
+For a Windows development machine, follow NVIDIA's [Windows preparation guide](https://docs.nvidia.com/nemoclaw/user-guide/openclaw/get-started/additional-setup/windows-preparation) to prepare WSL2 and Docker Desktop first. Run NemoClaw, PostgreSQL, and the NemoDoc server from the same WSL2 host so the server can use the native `nemoclaw` CLI. Keep NemoDoc's Vite development server on its default `127.0.0.1:5173`; browser notebooks are origin-scoped and will not automatically move from another origin. Start only the PostgreSQL service from Compose, then run the app with `npm run dev`:
+
+```bash
+docker compose up -d db
+npm run db:migrate
+npm run dev
+```
+
+Set `NVIDIA_API_KEY` and `NVIDIA_MODEL` locally in `.env`, plus owner and restricted-reader `DATABASE_URL` values for loopback port `55433`. Compose stores PostgreSQL 17 in its named volume and leaves the separate integration-test cluster on `55432`. Do not start a second app container for this host workflow; Docker's app would not have the host's NemoClaw CLI or preserve the Vite browser origin. Saved NemoDoc connection settings still take precedence for other features; the three-agent research prerequisite requires all selected agents to use the environment's `NVIDIA_MODEL` through NemoClaw.
+
 From this checkout on that host:
 
 ```bash
@@ -67,6 +77,14 @@ For a remote runtime, use an authenticated private HTTPS connection or a loopbac
 The HTTP bridge omits persistent `user` and session headers, so separate runs do not intentionally share an OpenClaw conversation. It sends complete tool history on each continuation. The gateway and inference provider still receive task context, selected metadata and retrieved evidence; inspect their retention settings before using private material. Revoke snapshots in NemoDoc to stop further access; revocation cannot retract context already sent.
 
 NemoDoc validates every returned function name and argument. Evidence workflows retain their read → proposal → approval → outbox sequence. SMTP and WhatsApp secrets stay in the app; the model does not select the recipient. Legacy scheduled tasks retain their existing explicit delivery authorization. Email uses your configured SMTP mailbox, with no additional email service account. See [agent connections](AGENT_CONNECTIONS.md) for weekday scheduling and delivery setup.
+
+## Run the PCA three-agent research workflow
+
+The **Research with 3 agents** workflow has a stricter route gate than other NemoDoc tasks. In **Agent → Settings → Configure roles & models**, preserve the existing sandbox roster and restrictions, then select or create three distinct agents named for foundations, neural-network research, and critical review. Set each agent's primary model to the exact local `NVIDIA_MODEL`. Any configured fallbacks must stay within that model's provider route; a Nebius or other provider fallback makes that agent ineligible. No NVIDIA key is entered in NemoDoc's gateway field: the key remains in NemoClaw's supported provider configuration, while NemoDoc stores a separate private gateway token.
+
+In **Agent → Connections**, save and test the private gateway target. Approve the MML extracted-text snapshot in the selected browser notebook. In **Evidence workflows**, choose **Research with 3 agents**, select the approved MML source, and assign the three verified runtime agents. The three specialists run concurrently; each can make up to three model calls and six bounded source reads. The critical reviewer then checks the findings against supplied excerpts and writes a cited synthesis. Neural-network claims that the MML evidence cannot establish must be identified explicitly. No direct NemoDoc model fallback is used.
+
+Each run records prompts, excerpts, tool arguments/results, visible responses, HTTP metadata, reported usage and citations in a redacted local trace. PostgreSQL stores trace history separately from notebook persistence; a private JSONL spool records events during a database outage and replays them idempotently. The inspector in **Run history and trace inspection** shows live events, span details, metrics and export. The agent cards animate from persisted run stages, label model waits as **Waiting for inference**, and stop on failure or interruption. Overview and prerequisite reads inspect the roster/configuration only; they do not call inference. Citation ID validation is a structural check and does not establish factual correctness.
 
 Saving or changing the connection resets its test status and pauses legacy tasks. Queued evidence runs reject a changed connection revision. Notebook Chat and Studio retain their existing model policy.
 

@@ -15,6 +15,7 @@ import type { WorkspaceRepository } from "./repository.ts";
 import { validateActions, validateWorkflowReport } from "./evidence.ts";
 import { usesCitation } from "../../src/lib/citations.ts";
 import { canonical } from "./canonical.ts";
+import type { TraceStore } from "../trace-store.ts";
 const orderedRefs = (refs: { sourceId: string; page: number }[]) =>
   [...new Map(refs.map((r) => [JSON.stringify(r), r])).values()].sort((a, b) =>
     a.sourceId < b.sourceId
@@ -45,8 +46,16 @@ const revisionOf = (s: WorkspaceState) =>
       }),
     )
     .digest("hex");
+const availableModel = (targets: RuntimeResearchTarget[], id: string) =>
+  targets.find((target) => target.id === id)!.model;
 
 export class WorkspaceConflict extends Error {}
+export interface RuntimeResearchTarget {
+  id: string;
+  model: string;
+  fallbacks?: string[];
+}
+const modelProvider = (model: string) => model.split("/", 1)[0].toLowerCase();
 export const scopeId = z
   .string()
   .trim()
@@ -74,6 +83,11 @@ export class WorkspaceService {
     readonly repository: WorkspaceRepository,
     readonly connections: AgentConnectionStore,
     private readonly listRuntimeAgentIds?: () => Promise<string[]>,
+    private readonly listRuntimeAgentTargets?: () => Promise<
+      RuntimeResearchTarget[]
+    >,
+    private readonly expectedNvidiaModel?: string,
+    private readonly traces?: TraceStore,
   ) {}
   connection() {
     const c = this.connections.runtime();
@@ -84,6 +98,47 @@ export class WorkspaceService {
       configurationRevision: createHash("sha256")
         .update(JSON.stringify(c))
         .digest("hex"),
+    };
+  }
+  async researchPrerequisites() {
+    const connection = this.connections.value.model;
+    const targets = (await this.listRuntimeAgentTargets?.()) ?? [];
+    const expectedModel = this.expectedNvidiaModel;
+    const expectedProvider = expectedModel
+      ? modelProvider(expectedModel)
+      : "nvidia";
+    const routed = (target: RuntimeResearchTarget) =>
+      !!target.model &&
+      (expectedModel
+        ? target.model === expectedModel &&
+          (target.fallbacks ?? []).every(
+            (fallback) => modelProvider(fallback) === expectedProvider,
+          )
+        : /^nvidia\//i.test(target.model) &&
+          (target.fallbacks ?? []).every((fallback) =>
+            /^nvidia\//i.test(fallback),
+          ));
+    const matching = targets.filter(routed);
+    const gatewayReady =
+      connection.mode === "openclaw" &&
+      connection.tested &&
+      !!connection.apiKey;
+    const available = gatewayReady && matching.length >= 3;
+    return {
+      available,
+      connectionMode: connection.mode,
+      gatewayTested: connection.tested,
+      configuredModel: expectedModel,
+      targets: targets.map((target) => ({
+        id: target.id,
+        model: target.model,
+        verified: routed(target),
+      })),
+      message: !gatewayReady
+        ? "Save and test the NemoClaw gateway connection. Its gateway token is separate from NVIDIA inference credentials."
+        : matching.length < 3
+          ? `The runtime must expose at least three agents configured for ${expectedModel || "an NVIDIA model"} with no fallback outside its NVIDIA provider route.`
+          : "Three or more NemoClaw agents use the configured NVIDIA model.",
     };
   }
   checkRun(state: WorkspaceState, run: WorkflowRun) {
@@ -190,107 +245,205 @@ export class WorkspaceService {
   }
   async queue(body: unknown) {
     const input = workflowTaskSchema.parse(body);
-    const usesOpenClawTeam =
-      input.workflow === "research_team" &&
-      this.connections.value.model.mode === "openclaw";
-    if (usesOpenClawTeam) {
+    let researchTargets: RuntimeResearchTarget[] = [];
+    if (input.workflow === "research_team") {
+      if (
+        this.connections.value.model.mode !== "openclaw" ||
+        !this.connections.value.model.tested ||
+        !this.connections.value.model.apiKey
+      )
+        throw new WorkspaceConflict(
+          "Three-agent research requires a tested NemoClaw gateway connection and its separate gateway token. Direct model fallback is disabled.",
+        );
       if (!input.agentIds || new Set(input.agentIds).size !== 3)
         throw new WorkspaceConflict(
           "Assign three different NemoClaw agents to this research run.",
         );
-      const available = new Set((await this.listRuntimeAgentIds?.()) ?? []);
+      researchTargets = (await this.listRuntimeAgentTargets?.()) ?? [];
+      const available = new Map(
+        researchTargets.map((target) => [target.id, target]),
+      );
       if (input.agentIds.some((id) => !available.has(id)))
         throw new WorkspaceConflict(
           "One or more assigned agents are no longer in the connected runtime. Refresh the agent list and assign the three researchers again.",
+        );
+      if (!this.listRuntimeAgentTargets || researchTargets.length === 0)
+        throw new WorkspaceConflict(
+          "NemoClaw agent model routes could not be verified on this host. Start NemoClaw and reload its agent configuration before dispatch.",
+        );
+      const expected = this.expectedNvidiaModel;
+      const expectedProvider = expected
+        ? modelProvider(expected)
+        : "nvidia";
+      const invalid = input.agentIds.filter((id) => {
+        const target = available.get(id);
+        const model = target?.model;
+        const fallbacks = target?.fallbacks ?? [];
+        return (
+          !model ||
+          (expected
+            ? model !== expected ||
+              fallbacks.some(
+                (fallback) => modelProvider(fallback) !== expectedProvider,
+              )
+            : !/^nvidia\//i.test(model) ||
+              fallbacks.some((fallback) => !/^nvidia\//i.test(fallback)))
+        );
+      });
+      if (invalid.length)
+        throw new WorkspaceConflict(
+          `Assign three agents configured for the verified NVIDIA model${expected ? ` ${expected}` : ""} and NVIDIA-only fallback routes. Unverified targets: ${invalid.join(", ")}.`,
         );
     } else if (input.agentIds?.length) {
       throw new WorkspaceConflict(
         "Runtime agent assignments are available only through an OpenClaw connection.",
       );
     }
-    return this.repository.transaction(scopeId.parse(input.notebookId), (s) => {
-      if (!s.revision)
-        throw new WorkspaceConflict("Approve the workspace first.");
-      if (!input.sourceIds.length)
-        throw new WorkspaceConflict("Select at least one approved document.");
-      if (input.workflow === "research_synthesis" && input.sourceIds.length < 2)
-        throw new WorkspaceConflict(
-          "Research synthesis requires at least two selected papers.",
-        );
-      if (input.workflow === "study_revision" && !input.noteIds.length)
-        throw new WorkspaceConflict(
-          "Select at least one approved note to build a revision plan.",
-        );
-      if (
-        new Set(input.sourceIds).size !== input.sourceIds.length ||
-        new Set(input.noteIds).size !== input.noteIds.length
-      )
-        throw new WorkspaceConflict("Duplicate evidence selections.");
-      for (const note of s.notes.filter((n) => input.noteIds.includes(n.id)))
-        if (note.references.some((r) => !input.sourceIds.includes(r.sourceId)))
+    const run = await this.repository.transaction(
+      scopeId.parse(input.notebookId),
+      (s) => {
+        if (!s.revision)
+          throw new WorkspaceConflict("Approve the workspace first.");
+        if (!input.sourceIds.length)
+          throw new WorkspaceConflict("Select at least one approved document.");
+        if (
+          input.workflow === "research_synthesis" &&
+          input.sourceIds.length < 2
+        )
           throw new WorkspaceConflict(
-            "Select the source documents referenced by your selected notes.",
+            "Research synthesis requires at least two selected papers.",
           );
-      if (s.runs.some((r) => r.status === "queued" || r.status === "running"))
-        throw new WorkspaceConflict(
-          "Wait for this notebook's current workflow to finish.",
-        );
-      const run: WorkflowRun = {
-        ...input,
-        id: randomUUID(),
-        status: "queued",
-        snapshotRevision: s.revision,
-        connection: this.connection(),
-        createdAt: Date.now(),
-        answer: "",
-        calls: 0,
-        steps: [],
-        citations: [],
-        evidence: [],
-        ...(input.workflow === "research_team"
-          ? {
-              researchTeam: [
-                {
-                  id: "foundations",
-                  name: "Foundations researcher",
-                  focus:
-                    "Definitions, mathematics, and source-grounded foundations",
-                  ...(input.agentIds?.[0]
-                    ? { agentId: input.agentIds[0] }
-                    : {}),
-                  status: "queued" as const,
-                  citationIds: [],
-                },
-                {
-                  id: "neural-networks",
-                  name: "Neural networks researcher",
-                  focus:
-                    "Connections to neural networks and learned representations",
-                  ...(input.agentIds?.[1]
-                    ? { agentId: input.agentIds[1] }
-                    : {}),
-                  status: "queued" as const,
-                  citationIds: [],
-                },
-                {
-                  id: "critical-review",
-                  name: "Critical reviewer",
-                  focus:
-                    "Applications, assumptions, and limits of the evidence",
-                  ...(input.agentIds?.[2]
-                    ? { agentId: input.agentIds[2] }
-                    : {}),
-                  status: "queued" as const,
-                  citationIds: [],
-                },
-              ],
-            }
-          : {}),
-      };
-      this.checkRun(s, run);
-      s.runs.unshift(run);
-      return run;
+        if (input.workflow === "study_revision" && !input.noteIds.length)
+          throw new WorkspaceConflict(
+            "Select at least one approved note to build a revision plan.",
+          );
+        if (
+          new Set(input.sourceIds).size !== input.sourceIds.length ||
+          new Set(input.noteIds).size !== input.noteIds.length
+        )
+          throw new WorkspaceConflict("Duplicate evidence selections.");
+        for (const note of s.notes.filter((n) => input.noteIds.includes(n.id)))
+          if (
+            note.references.some((r) => !input.sourceIds.includes(r.sourceId))
+          )
+            throw new WorkspaceConflict(
+              "Select the source documents referenced by your selected notes.",
+            );
+        if (s.runs.some((r) => r.status === "queued" || r.status === "running"))
+          throw new WorkspaceConflict(
+            "Wait for this notebook's current workflow to finish.",
+          );
+        const run: WorkflowRun = {
+          ...input,
+          id: randomUUID(),
+          traceId: "",
+          status: "queued",
+          snapshotRevision: s.revision,
+          connection: this.connection(),
+          createdAt: Date.now(),
+          answer: "",
+          calls: 0,
+          steps: [],
+          citations: [],
+          evidence: [],
+          ...(input.workflow === "research_team"
+            ? {
+                stage: "queued" as const,
+                researchTeam: [
+                  {
+                    id: "foundations",
+                    name: "Foundations researcher",
+                    focus:
+                      "Definitions, mathematics, and source-grounded foundations",
+                    ...(input.agentIds?.[0]
+                      ? { agentId: input.agentIds[0] }
+                      : {}),
+                    ...(input.agentIds?.[0]
+                      ? {
+                          assignedModel: availableModel(
+                            researchTargets,
+                            input.agentIds[0],
+                          ),
+                        }
+                      : {}),
+                    status: "queued" as const,
+                    stage: "queued" as const,
+                    citationIds: [],
+                  },
+                  {
+                    id: "neural-networks",
+                    name: "Neural networks researcher",
+                    focus:
+                      "Connections to neural networks and learned representations",
+                    ...(input.agentIds?.[1]
+                      ? { agentId: input.agentIds[1] }
+                      : {}),
+                    ...(input.agentIds?.[1]
+                      ? {
+                          assignedModel: availableModel(
+                            researchTargets,
+                            input.agentIds[1],
+                          ),
+                        }
+                      : {}),
+                    status: "queued" as const,
+                    stage: "queued" as const,
+                    citationIds: [],
+                  },
+                  {
+                    id: "critical-review",
+                    name: "Critical reviewer",
+                    focus:
+                      "Applications, assumptions, and limits of the evidence",
+                    ...(input.agentIds?.[2]
+                      ? { agentId: input.agentIds[2] }
+                      : {}),
+                    ...(input.agentIds?.[2]
+                      ? {
+                          assignedModel: availableModel(
+                            researchTargets,
+                            input.agentIds[2],
+                          ),
+                        }
+                      : {}),
+                    status: "queued" as const,
+                    stage: "queued" as const,
+                    citationIds: [],
+                  },
+                ],
+              }
+            : {}),
+        };
+        this.checkRun(s, run);
+        run.traceId = run.id;
+        s.runs.unshift(run);
+        return run;
+      },
+    );
+    await this.traces?.start({
+      traceId: run.traceId ?? run.id,
+      notebookId: run.notebookId,
+      runner: "evidence_workflow",
+      name:
+        run.workflow === "research_team"
+          ? "Three-agent research"
+          : run.workflow === "research_synthesis"
+            ? "Research synthesis"
+            : "Study revision",
+      status: "queued",
+      createdAt: run.createdAt,
+      metadata: {
+        workflow: run.workflow,
+        connectionMode: run.connection.mode,
+        gatewayTarget: run.connection.model,
+        configuredModel: this.expectedNvidiaModel,
+        assignedAgents: run.researchTeam?.map((agent) => ({
+          id: agent.agentId,
+          model: agent.assignedModel,
+        })),
+      },
     });
+    return run;
   }
   async createProposal(run: WorkflowRun, body: unknown) {
     const { actions, report } = proposeSchema.parse(body);

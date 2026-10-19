@@ -22,6 +22,12 @@ import type {
   AgentDashboard,
   RuntimeAgent,
 } from "../agent-monitor-types";
+import type {
+  TraceDetail,
+  TraceEvent,
+  TraceMetrics,
+  TraceSummary,
+} from "../trace-types";
 import { activityLabels } from "../lib/agent-activity";
 import { AgentWorkScene } from "./AgentWorkScene";
 
@@ -34,14 +40,33 @@ const prompts = {
   research_team:
     "Research PCA in neural networks. Explain the PCA mathematics, connect PCA to linear autoencoders and neural-network representations, and assess what the selected sources do and do not establish about applying PCA to neural networks. Cite every factual claim to the approved pages and label any inference.",
 };
-const sceneStatus: Record<
-  NonNullable<WorkspaceState["runs"][number]["researchTeam"]>[number]["status"],
-  AgentActivityStatus
-> = {
-  queued: "queued",
-  running: "running",
-  completed: "completed",
-  failed: "failed",
+const sceneStatus = (
+  agent: NonNullable<WorkspaceState["runs"][number]["researchTeam"]>[number],
+): AgentActivityStatus => {
+  if (agent.status === "interrupted") return "interrupted";
+  if (agent.status === "failed") return "failed";
+  if (agent.status === "completed") return "completed";
+  if (agent.stage === "awaiting_model_response") return "waiting";
+  if (agent.stage === "queued") return "queued";
+  return "running";
+};
+const stageLabels: Record<string, string> = {
+  queued: "Queued",
+  retrieving: "Retrieving approved evidence",
+  awaiting_model_response: "Waiting for inference",
+  validating: "Validating citations",
+  synthesizing: "Reviewer synthesis",
+  completed: "Completed",
+  failed: "Failed",
+  interrupted: "Interrupted",
+};
+type ResearchPrerequisites = {
+  available: boolean;
+  connectionMode: string;
+  gatewayTested: boolean;
+  configuredModel?: string;
+  targets: { id: string; model: string; verified: boolean }[];
+  message: string;
 };
 const workflowNames = {
   study_revision: "Revision plan",
@@ -69,13 +94,22 @@ export function EvidenceWorkflows({
   onSave: (a: StudyArtifact) => void;
 }) {
   const [state, setState] = useState<WorkspaceState>();
+  const [runStatusVisible, setRunStatusVisible] = useState(true);
   const [backend, setBackend] = useState("");
   const [connection, setConnection] = useState<{
     mode: string;
     model: string;
+    tested: boolean;
   }>();
   const [runtimeAgents, setRuntimeAgents] = useState<RuntimeAgent[]>([]);
   const [runtimeMessage, setRuntimeMessage] = useState("");
+  const [prerequisites, setPrerequisites] = useState<ResearchPrerequisites>();
+  const [traces, setTraces] = useState<TraceSummary[]>([]);
+  const [metrics, setMetrics] = useState<TraceMetrics>();
+  const [selectedTraceId, setSelectedTraceId] = useState("");
+  const [traceDetail, setTraceDetail] = useState<TraceDetail>();
+  const [traceEvents, setTraceEvents] = useState<TraceEvent[]>([]);
+  const [traceCursor, setTraceCursor] = useState(0);
   const [agentIds, setAgentIds] = useState<string[]>([]);
   const [workflow, setWorkflow] = useState<EvidenceWorkflow>("study_revision");
   const [motion, setMotion] = useState(true);
@@ -86,23 +120,31 @@ export function EvidenceWorkflows({
     [consent, setConsent] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
-  const refresh = async () =>
-    setState(
-      await apiJSON<WorkspaceState>(
-        `${root}/${encodeURIComponent(notebookId)}`,
-      ),
+  const refresh = async () => {
+    const next = await apiJSON<WorkspaceState>(
+      `${root}/${encodeURIComponent(notebookId)}`,
     );
+    setState(next);
+    setRunStatusVisible(true);
+  };
   useEffect(() => {
     const controller = new AbortController();
+    setRunStatusVisible(false);
     const update = () =>
       void apiJSON<WorkspaceState>(
         `${root}/${encodeURIComponent(notebookId)}`,
         undefined,
         controller.signal,
       )
-        .then(setState)
+        .then((next) => {
+          setState(next);
+          setRunStatusVisible(true);
+        })
         .catch((e) => {
-          if (e.name !== "AbortError") setError(e.message);
+          if (e.name !== "AbortError") {
+            setRunStatusVisible(false);
+            setError(e.message);
+          }
         });
     update();
     void apiJSON<{ backend: string }>(
@@ -120,7 +162,7 @@ export function EvidenceWorkflows({
   }, [notebookId]);
   useEffect(() => {
     const controller = new AbortController();
-    void apiJSON<{ model: { mode: string; model: string } }>(
+    void apiJSON<{ model: { mode: string; model: string; tested: boolean } }>(
       "/api/agent/connections",
       undefined,
       controller.signal,
@@ -130,37 +172,154 @@ export function EvidenceWorkflows({
     return () => controller.abort();
   }, [notebookId]);
   useEffect(() => {
-    if (workflow !== "research_team" || connection?.mode !== "openclaw") {
+    if (workflow !== "research_team") {
       setRuntimeAgents([]);
       setRuntimeMessage("");
+      setPrerequisites(undefined);
       setAgentIds([]);
       return;
     }
     const controller = new AbortController();
-    setRuntimeMessage("Loading agents from the connected NemoClaw runtime…");
-    void apiJSON<AgentDashboard>(
-      `/api/agent/overview?notebookId=${encodeURIComponent(notebookId)}`,
-      undefined,
-      controller.signal,
-    )
-      .then((dashboard) => {
+    setRuntimeMessage(
+      "Checking the tested NemoClaw gateway and NVIDIA routes…",
+    );
+    void Promise.all([
+      apiJSON<AgentDashboard>(
+        `/api/agent/overview?notebookId=${encodeURIComponent(notebookId)}`,
+        undefined,
+        controller.signal,
+      ),
+      apiJSON<ResearchPrerequisites>(
+        `${root}/research-prerequisites`,
+        undefined,
+        controller.signal,
+      ),
+    ])
+      .then(([dashboard, prerequisiteResult]) => {
         if (controller.signal.aborted) return;
-        setRuntimeAgents(dashboard.runtime.agents);
-        setRuntimeMessage(dashboard.runtime.message);
+        setPrerequisites(prerequisiteResult);
+        const configured = new Map(
+          prerequisiteResult.targets.map((target) => [target.id, target]),
+        );
+        const agents = dashboard.runtime.agents.map((agent) => ({
+          ...agent,
+          model: configured.get(agent.id)?.model,
+        }));
+        setRuntimeAgents(agents);
+        setRuntimeMessage(
+          prerequisiteResult.message || dashboard.runtime.message,
+        );
         setAgentIds((previous) => {
           const selected = previous.filter((id) =>
-            dashboard.runtime.agents.some((agent) => agent.id === id),
+            agents.some(
+              (agent) => agent.id === id && configured.get(id)?.verified,
+            ),
           );
           return selected.length === 3
             ? selected
-            : dashboard.runtime.agents.slice(0, 3).map((agent) => agent.id);
+            : agents
+                .filter((agent) => configured.get(agent.id)?.verified)
+                .slice(0, 3)
+                .map((agent) => agent.id);
         });
       })
       .catch((e) => {
         if (!controller.signal.aborted) setRuntimeMessage(e.message);
       });
     return () => controller.abort();
-  }, [connection?.mode, notebookId, workflow]);
+  }, [connection?.mode, connection?.tested, notebookId, workflow]);
+  useEffect(() => {
+    const controller = new AbortController();
+    const update = async () => {
+      try {
+        const [history, summary] = await Promise.all([
+          apiJSON<{ traces: TraceSummary[] }>(
+            `${root}/${encodeURIComponent(notebookId)}/traces`,
+            undefined,
+            controller.signal,
+          ),
+          apiJSON<TraceMetrics>(
+            `${root}/${encodeURIComponent(notebookId)}/traces/metrics`,
+            undefined,
+            controller.signal,
+          ),
+        ]);
+        if (controller.signal.aborted) return;
+        setTraces(history.traces);
+        setMetrics(summary);
+        setSelectedTraceId((current) =>
+          current && history.traces.some((trace) => trace.traceId === current)
+            ? current
+            : (history.traces[0]?.traceId ?? ""),
+        );
+      } catch (cause) {
+        if ((cause as Error).name !== "AbortError")
+          setError((cause as Error).message);
+      }
+    };
+    void update();
+    const timer = setInterval(update, 2500);
+    return () => {
+      clearInterval(timer);
+      controller.abort();
+    };
+  }, [notebookId]);
+  useEffect(() => {
+    if (!selectedTraceId) {
+      setTraceEvents([]);
+      setTraceDetail(undefined);
+      setTraceCursor(0);
+      return;
+    }
+    const controller = new AbortController();
+    let cursor = 0;
+    let busyPolling = false;
+    setTraceEvents([]);
+    setTraceDetail(undefined);
+    setTraceCursor(0);
+    const update = async () => {
+      if (busyPolling) return;
+      busyPolling = true;
+      try {
+        const base = `${root}/${encodeURIComponent(notebookId)}/traces/${encodeURIComponent(selectedTraceId)}`;
+        const [detail, page] = await Promise.all([
+          apiJSON<TraceDetail>(base, undefined, controller.signal),
+          apiJSON<{
+            events: TraceEvent[];
+            nextCursor: number;
+            hasMore: boolean;
+          }>(
+            `${base}/events?after=${cursor}&limit=200`,
+            undefined,
+            controller.signal,
+          ),
+        ]);
+        if (controller.signal.aborted) return;
+        setTraceDetail(detail);
+        if (page.events.length)
+          setTraceEvents((current) => {
+            const known = new Set(current.map((event) => event.eventId));
+            return [
+              ...current,
+              ...page.events.filter((event) => !known.has(event.eventId)),
+            ];
+          });
+        cursor = page.nextCursor;
+        setTraceCursor(cursor);
+      } catch (cause) {
+        if ((cause as Error).name !== "AbortError")
+          setError((cause as Error).message);
+      } finally {
+        busyPolling = false;
+      }
+    };
+    void update();
+    const timer = setInterval(update, 1500);
+    return () => {
+      clearInterval(timer);
+      controller.abort();
+    };
+  }, [notebookId, selectedTraceId]);
   const act = async (fn: () => Promise<unknown>) => {
     setBusy(true);
     setError("");
@@ -322,15 +481,27 @@ export function EvidenceWorkflows({
           <h4>2 · Run with approved evidence</h4>
           {workflow === "research_team" && (
             <p className="agent-fine">
-              Three independent research roles run through the active model
-              connection{connection?.model ? ` (${connection.model})` : ""},
-              then a lead checks their synthesis against the approved pages. The
-              run does not save notes or change notebook materials.
+              Three assigned NemoClaw agents research the approved pages in
+              parallel. The critical reviewer writes the final synthesis. Every
+              agent must use the verified NVIDIA model shown below; direct-model
+              fallback is disabled for this workflow.
             </p>
           )}
-          {workflow === "research_team" && connection?.mode === "openclaw" && (
+          {workflow === "research_team" && connection?.mode !== "openclaw" && (
+            <p className="form-error" role="status">
+              Connect NemoDoc to the NemoClaw gateway in Connections, save its
+              separate gateway token, then test the connection before starting
+              three-agent research.
+            </p>
+          )}
+          {workflow === "research_team" && (
             <fieldset className="research-agent-assignments">
-              <legend>Assign three NemoClaw agents</legend>
+              <legend>
+                Assign three NemoClaw agents
+                {prerequisites?.configuredModel
+                  ? ` · ${prerequisites.configuredModel}`
+                  : ""}
+              </legend>
               {researchAgentLabels.map((label, index) => (
                 <label className="field-label" key={label}>
                   {label}
@@ -344,22 +515,36 @@ export function EvidenceWorkflows({
                     }}
                   >
                     <option value="">
-                      {runtimeAgents.length
-                        ? "Choose an agent"
-                        : "No runtime agents available"}
+                      {runtimeAgents.some((agent) =>
+                        prerequisites?.targets.some(
+                          (target) => target.id === agent.id && target.verified,
+                        ),
+                      )
+                        ? "Choose a verified NVIDIA agent"
+                        : "No verified NVIDIA agents available"}
                     </option>
-                    {runtimeAgents.map((agent) => (
-                      <option key={agent.id} value={agent.id}>
-                        {agent.name} · {agent.id}
-                      </option>
-                    ))}
+                    {runtimeAgents
+                      .filter((agent) =>
+                        prerequisites?.targets.some(
+                          (target) => target.id === agent.id && target.verified,
+                        ),
+                      )
+                      .map((agent) => (
+                        <option key={agent.id} value={agent.id}>
+                          {agent.name} · {agent.id} · {agent.model}
+                        </option>
+                      ))}
                   </select>
                 </label>
               ))}
               <p className="agent-fine" role="status">
-                {runtimeMessage ||
-                  "Each role will run on a different agent in the connected runtime."}
+                {runtimeMessage || "Checking the NVIDIA routes…"}
               </p>
+              {!connection?.tested && (
+                <p className="form-error" role="status">
+                  Test the saved NemoClaw gateway connection before dispatch.
+                </p>
+              )}
             </fieldset>
           )}
           <fieldset>
@@ -411,8 +596,11 @@ export function EvidenceWorkflows({
               busy ||
               !sourceIds.length ||
               (workflow === "research_team" &&
-                connection?.mode === "openclaw" &&
-                (agentIds.length !== 3 || new Set(agentIds).size !== 3)) ||
+                (connection?.mode !== "openclaw" ||
+                  !connection.tested ||
+                  !prerequisites?.available ||
+                  agentIds.length !== 3 ||
+                  new Set(agentIds).size !== 3)) ||
               (workflow === "research_synthesis" && sourceIds.length < 2) ||
               (workflow === "study_revision" && !noteIds.length) ||
               !prompt.trim() ||
@@ -429,10 +617,7 @@ export function EvidenceWorkflows({
                   sourceIds,
                   noteIds,
                   includeProgress: progress,
-                  ...(workflow === "research_team" &&
-                  connection?.mode === "openclaw"
-                    ? { agentIds }
-                    : {}),
+                  ...(workflow === "research_team" ? { agentIds } : {}),
                 }),
               )
             }
@@ -450,11 +635,14 @@ export function EvidenceWorkflows({
               Select at least one approved source for the research team.
             </p>
           ) : workflow === "research_team" &&
-            connection?.mode === "openclaw" &&
-            (agentIds.length !== 3 || new Set(agentIds).size !== 3) ? (
+            (!prerequisites?.available ||
+              connection?.mode !== "openclaw" ||
+              !connection.tested ||
+              agentIds.length !== 3 ||
+              new Set(agentIds).size !== 3) ? (
             <p className="agent-fine" role="status">
-              Connect three different NemoClaw agents, then assign one to each
-              role above.
+              {runtimeMessage ||
+                "Verify three different NemoClaw agents use the configured NVIDIA model and assign one to each role."}
             </p>
           ) : workflow === "study_revision" && !noteIds.length ? (
             <p className="agent-fine" role="status">
@@ -466,14 +654,16 @@ export function EvidenceWorkflows({
       {state?.runs.map((run) => (
         <article key={run.id} data-run-id={run.id} className="agent-form">
           <h4>
-            {workflowNames[run.workflow]} · {run.status}
+            {workflowNames[run.workflow]} ·{" "}
+            {runStatusVisible ? run.status : "status unknown"}
           </h4>
           <p>{run.prompt}</p>
           {run.error && <p role="alert">{run.error}</p>}
           {run.workflow === "research_team" ? (
             <ResearchTeamRun
               run={run}
-              motion={motion}
+              motion={motion && runStatusVisible}
+              statusVisible={runStatusVisible}
               toggleMotion={() => setMotion((value) => !value)}
               onCitation={onCitation}
             />
@@ -661,6 +851,156 @@ export function EvidenceWorkflows({
           )}
         </div>
       ))}
+      <section
+        className="agent-form trace-inspector"
+        aria-label="Agent run traces"
+      >
+        <div className="trace-inspector-heading">
+          <div>
+            <h4>Run history and trace inspection</h4>
+            <p>
+              {metrics?.totalRuns ?? traces.length} traced runs · recent 30 days
+            </p>
+          </div>
+          <span
+            className={`trace-persistence is-${metrics?.persistence ?? "degraded"}`}
+          >
+            {metrics?.persistence === "persisted"
+              ? "PostgreSQL trace storage"
+              : "Persistence degraded · local JSONL spool"}
+          </span>
+        </div>
+        {metrics && (
+          <div className="trace-metrics" aria-label="Run metrics">
+            <span>
+              Completion / failure / interruption:{" "}
+              {metrics.completionRate === null ||
+              metrics.failureRate === null ||
+              metrics.interruptionRate === null
+                ? "Unknown"
+                : `${Math.round(metrics.completionRate * 100)}% / ${Math.round(metrics.failureRate * 100)}% / ${Math.round(metrics.interruptionRate * 100)}%`}
+            </span>
+            <span>
+              Completed / failed / interrupted: {metrics.completedRuns} /{" "}
+              {metrics.failedRuns} / {metrics.interruptedRuns}
+            </span>
+            <span>
+              Latency p50 / p95:{" "}
+              {metrics.latencyMs.p50 === null
+                ? "Unknown"
+                : `${Math.round(metrics.latencyMs.p50)} ms`}{" "}
+              /{" "}
+              {metrics.latencyMs.p95 === null
+                ? "Unknown"
+                : `${Math.round(metrics.latencyMs.p95)} ms`}
+            </span>
+            <span>
+              Model calls: {metrics.modelCalls} · Tool calls:{" "}
+              {metrics.toolCalls}
+            </span>
+            <span>
+              Reported tokens:{" "}
+              {metrics.promptTokens === null ||
+              metrics.completionTokens === null
+                ? "Unknown"
+                : `${metrics.promptTokens} prompt · ${metrics.completionTokens} completion`}
+            </span>
+            <span>
+              Citation checks: {metrics.citationChecksPassed} passed ·{" "}
+              {metrics.citationChecksFailed} failed
+            </span>
+          </div>
+        )}
+        {traces.length ? (
+          <>
+            <label className="field-label">
+              Notebook runs
+              <select
+                aria-label="Select run trace"
+                value={selectedTraceId}
+                onChange={(event) => setSelectedTraceId(event.target.value)}
+              >
+                {traces.map((trace) => (
+                  <option key={trace.traceId} value={trace.traceId}>
+                    {trace.name} · {trace.status} ·{" "}
+                    {new Date(trace.createdAt).toLocaleString()}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {traceDetail && (
+              <>
+                <div className="trace-detail-heading">
+                  <p>
+                    {traceDetail.runner.replaceAll("_", " ")} ·{" "}
+                    {traceDetail.status}
+                    {traceDetail.durationMs !== undefined &&
+                      ` · ${traceDetail.durationMs} ms`}
+                  </p>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() =>
+                      download(
+                        new Blob(
+                          [
+                            JSON.stringify(
+                              { trace: traceDetail, events: traceEvents },
+                              null,
+                              2,
+                            ),
+                          ],
+                          { type: "application/json" },
+                        ),
+                        `agent-trace-${traceDetail.traceId}.json`,
+                      )
+                    }
+                  >
+                    Export redacted trace JSON
+                  </button>
+                </div>
+                {traceDetail.error && <p role="alert">{traceDetail.error}</p>}
+                <details className="trace-span-list">
+                  <summary>
+                    Agent and execution spans · {traceDetail.spans.length}
+                  </summary>
+                  {traceDetail.spans.map((span) => (
+                    <details className="trace-span" key={span.spanId}>
+                      <summary>
+                        {span.name} · {span.kind} · {span.status}
+                        {span.durationMs !== undefined &&
+                          ` · ${span.durationMs} ms`}
+                        {span.attempt !== undefined &&
+                          ` · attempt ${span.attempt}`}
+                      </summary>
+                      <pre>{JSON.stringify(span, null, 2)}</pre>
+                    </details>
+                  ))}
+                </details>
+                <details className="trace-event-list" open>
+                  <summary>
+                    Persisted event timeline · {traceEvents.length} events ·
+                    cursor {traceCursor}
+                  </summary>
+                  {traceEvents.map((event) => (
+                    <details className="trace-event" key={event.eventId}>
+                      <summary>
+                        {event.sequence} · {event.type.replaceAll(".", " · ")} ·{" "}
+                        {new Date(event.at).toLocaleTimeString()}
+                      </summary>
+                      <pre>{JSON.stringify(event.payload, null, 2)}</pre>
+                    </details>
+                  ))}
+                </details>
+              </>
+            )}
+          </>
+        ) : (
+          <p className="agent-fine">
+            No agent runs have been recorded for this notebook.
+          </p>
+        )}
+      </section>
       {state?.revision && (
         <button
           className="secondary-button"
@@ -683,11 +1023,13 @@ export function EvidenceWorkflows({
 function ResearchTeamRun({
   run,
   motion,
+  statusVisible,
   toggleMotion,
   onCitation,
 }: {
   run: WorkspaceState["runs"][number];
   motion: boolean;
+  statusVisible: boolean;
   toggleMotion: () => void;
   onCitation: (citation: Citation) => void;
 }) {
@@ -710,34 +1052,55 @@ function ResearchTeamRun({
         </button>
       </div>
       <div className="research-team-grid">
-        {team.map((agent) => (
-          <article className="research-agent-card" key={agent.id}>
-            <AgentWorkScene
-              name={agent.name}
-              status={sceneStatus[agent.status]}
-              motion={motion}
-            />
-            <h6>{agent.name}</h6>
-            <p className="research-agent-focus">{agent.focus}</p>
-            <span
-              className={`agent-monitor-status is-${sceneStatus[agent.status]}`}
-            >
-              <span aria-hidden="true" />
-              {activityLabels[sceneStatus[agent.status]]}
-            </span>
-            {agent.error && <p role="alert">{agent.error}</p>}
-            {agent.answer && (
-              <details className="research-agent-findings">
-                <summary>Read this agent’s findings</summary>
-                <ResearchMarkdown
-                  content={agent.answer}
-                  run={run}
-                  onCitation={onCitation}
-                />
-              </details>
-            )}
-          </article>
-        ))}
+        {team.map((agent) => {
+          const activity = statusVisible ? sceneStatus(agent) : "unknown";
+          return (
+            <article className="research-agent-card" key={agent.id}>
+              <AgentWorkScene
+                name={agent.name}
+                status={activity}
+                motion={motion}
+              />
+              <h6>{agent.name}</h6>
+              <p className="research-agent-focus">{agent.focus}</p>
+              <span className={`agent-monitor-status is-${activity}`}>
+                <span aria-hidden="true" />
+                {activityLabels[activity]}
+              </span>
+              <p className="research-agent-runtime">
+                Runtime agent: <code>{agent.agentId || "Unassigned"}</code>
+                <br />
+                NVIDIA model: <code>{agent.assignedModel || "Unverified"}</code>
+                {agent.returnedModel && (
+                  <>
+                    <br />
+                    Reported model: <code>{agent.returnedModel}</code>
+                  </>
+                )}
+              </p>
+              <p className="research-agent-stage" role="status">
+                {statusVisible
+                  ? stageLabels[agent.stage] || "Status unknown"
+                  : "Status unknown"}
+                {agent.modelCalls !== undefined &&
+                  ` · ${agent.modelCalls}/3 model calls`}
+                {agent.readActions !== undefined &&
+                  ` · ${agent.readActions}/6 reads`}
+              </p>
+              {agent.error && <p role="alert">{agent.error}</p>}
+              {agent.answer && (
+                <details className="research-agent-findings">
+                  <summary>Read this agent’s findings</summary>
+                  <ResearchMarkdown
+                    content={agent.answer}
+                    run={run}
+                    onCitation={onCitation}
+                  />
+                </details>
+              )}
+            </article>
+          );
+        })}
       </div>
       {!!run.answer && (
         <section className="workflow-report research-team-synthesis">

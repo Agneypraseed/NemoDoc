@@ -24,6 +24,55 @@ export const readSchemas = {
     .strict(),
 };
 export type ReadTool = keyof typeof readSchemas;
+
+export function researchReadCandidates(
+  run: WorkflowRun,
+  state: WorkspaceState,
+  name: "search_sources" | "read_passage",
+  input: unknown,
+): {
+  citations: Omit<WorkflowRun["citations"][number], "id">[];
+  summary: string;
+} {
+  if (state.notebookId !== run.notebookId)
+    throw new Error("Notebook evidence is outside this run's scope.");
+  const args = readSchemas[name].parse(input) as any;
+  const sources = state.sources.filter((source) =>
+    run.sourceIds.includes(source.id),
+  );
+  if (sources.length !== run.sourceIds.length)
+    throw new Error("A selected source is no longer approved.");
+  if (name === "search_sources") {
+    const citations = retrieve(sources, args.query, 6).map(
+      ({ id: _id, ...citation }) => citation,
+    );
+    return {
+      citations,
+      summary: `Searched selected documents: ${args.query}`,
+    };
+  }
+  if (!run.sourceIds.includes(args.sourceId))
+    throw new Error(
+      "This page is outside the run's approved source selection.",
+    );
+  const source = sources.find((candidate) => candidate.id === args.sourceId);
+  if (!source?.pages[args.page - 1]?.trim())
+    throw new Error(
+      "This page is unavailable or outside the approved sources.",
+    );
+  return {
+    citations: [
+      {
+        sourceId: source.id,
+        sourceName: source.name,
+        page: args.page,
+        text: source.pages[args.page - 1].slice(0, 6000),
+      },
+    ],
+    summary: `Read ${source.name}, page ${args.page}`,
+  };
+}
+
 export async function executeReadTool(
   repository: WorkspaceRepository,
   run: WorkflowRun,

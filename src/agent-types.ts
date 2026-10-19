@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ResearchStage } from "./trace-types";
 const id = z.string().min(1).max(100);
 export const memoryInput = z.object({
   id: id.optional(),
@@ -102,6 +103,8 @@ export interface AgentMaterial {
 }
 export interface AgentRun {
   id: string;
+  traceId?: string;
+  stage?: ResearchStage;
   taskId: string;
   notebookId: string;
   title: string;

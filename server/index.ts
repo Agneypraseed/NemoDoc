@@ -24,6 +24,9 @@ const app = createApp(
     readDatabaseUrl: process.env.AGENT_READ_DATABASE_URL,
     startWorkspaceWorker: true,
     nemoclawSandbox: process.env.NEMODOC_NEMOCLAW_SANDBOX || "nemodoc",
+    traceSpoolFile: path.resolve(dataDirectory, "agent-traces.jsonl"),
+    nvidiaModel:
+      process.env.NVIDIA_MODEL || "nvidia/nemotron-3-nano-30b-a3b",
   },
 );
 if (existsSync("dist/index.html")) {

@@ -11,6 +11,8 @@ import type { Config } from "./app.ts";
 import type { ConnectionSettings } from "../src/types.ts";
 import { credentialAllowed, providerKind } from "./providers.ts";
 import { isNemotron, requireNemotron } from "../src/lib/model-policy.ts";
+import type { ModelRequestObserver } from "./model-observer.ts";
+import { notifyModelObserver } from "./model-observer.ts";
 
 export const endpoint = z
   .string()
@@ -152,6 +154,7 @@ export async function providerJSON(
   settings: RuntimeSettings,
   signal = AbortSignal.timeout(120000),
   capability: "chat" | "embedding" | "vision" | "rerank" = "chat",
+  observer?: ModelRequestObserver,
 ) {
   if ((!settings.apiKey || !credentialAllowed(url, settings)) && !isLocal(url))
     throw new Error(
@@ -166,6 +169,14 @@ export async function providerJSON(
         : "Set an embedding or reranking model in Settings before using semantic search.",
     );
   let response: Response;
+  await notifyModelObserver(() =>
+    observer?.onRequest?.({
+      url,
+      model: String(modelId ?? ""),
+      body,
+      at: Date.now(),
+    }),
+  );
   try {
     response = await fetcher(url, {
       method: "POST",
@@ -174,13 +185,31 @@ export async function providerJSON(
       signal,
     });
   } catch (error) {
+    await notifyModelObserver(() =>
+      observer?.onError?.((error as Error).message, Date.now()),
+    );
     if (capability === "embedding" && isLocal(url))
       throw new Error(
         `Could not reach the local embedding service at ${new URL(url).origin}. Start Ollama and pull ${settings.embeddingModel}, then test again.`,
       );
     throw error;
   }
-  if (!response.ok)
+  const requestId =
+    response.headers.get("x-request-id") ||
+    response.headers.get("request-id") ||
+    response.headers.get("x-nvidia-request-id") ||
+    response.headers.get("x-openai-request-id") ||
+    undefined;
+  if (!response.ok) {
+    const errorBody = await response.text().catch(() => "");
+    await notifyModelObserver(() =>
+      observer?.onResponse?.({
+        status: response.status,
+        requestId,
+        errorBody,
+        at: Date.now(),
+      }),
+    );
     throw new Error(
       response.status === 401 || response.status === 403
         ? "The endpoint rejected the API key. Check your connection in Settings."
@@ -194,7 +223,41 @@ export async function providerJSON(
               ? `The vision endpoint returned ${response.status}. Choose an available image-capable model in Settings → OCR & images.`
               : `The configured model endpoint returned ${response.status}. Check its URL and model ID.`,
     );
-  return response.json();
+  }
+  try {
+    const result: any = await response.json();
+    const usage = result?.usage;
+    await notifyModelObserver(() =>
+      observer?.onResponse?.({
+        status: response.status,
+        requestId,
+        returnedModel:
+          typeof result?.model === "string" ? result.model : undefined,
+        responseId: typeof result?.id === "string" ? result.id : undefined,
+        finishReason:
+          typeof result?.choices?.[0]?.finish_reason === "string"
+            ? result.choices[0].finish_reason
+            : undefined,
+        usage,
+        promptTokens:
+          typeof usage?.prompt_tokens === "number"
+            ? usage.prompt_tokens
+            : undefined,
+        completionTokens:
+          typeof usage?.completion_tokens === "number"
+            ? usage.completion_tokens
+            : undefined,
+        body: result,
+        at: Date.now(),
+      }),
+    );
+    return result;
+  } catch (error) {
+    await notifyModelObserver(() =>
+      observer?.onError?.((error as Error).message, Date.now()),
+    );
+    throw error;
+  }
 }
 export const parseJSON = (content: string) =>
   JSON.parse(

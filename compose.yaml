@@ -9,6 +9,7 @@ services:
     volumes:
       - postgres:/var/lib/postgresql/data
       - ./scripts/init-database.sh:/docker-entrypoint-initdb.d/10-reader.sh:ro
+    ports: ["127.0.0.1:55433:5432"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U nemodoc -d nemodoc"]
       interval: 5s

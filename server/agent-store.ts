@@ -74,6 +74,7 @@ export class AgentStore {
           }
         if (run.status === "running") {
           run.status = "interrupted";
+          run.stage = "interrupted";
           run.finishedAt = Date.now();
           run.error =
             "The server stopped during this run. Review its actions before running again.";

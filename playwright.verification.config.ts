@@ -6,6 +6,7 @@ export default defineConfig({
   testMatch: [
     "agent-overview.spec.ts",
     "agent-configuration.spec.ts",
+    "research-team.spec.ts",
     "home.spec.ts",
     "library.spec.ts",
   ],

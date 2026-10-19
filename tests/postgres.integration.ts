@@ -1,11 +1,22 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import {
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { PostgresWorkspaceRepository } from "../server/workspace/repository.ts";
 import { WorkspaceService } from "../server/workspace/service.ts";
 import { WorkspaceWorker } from "../server/workspace/worker.ts";
 import { AgentConnectionStore } from "../server/agent-connections.ts";
 import { SettingsStore } from "../server/settings.ts";
+import { TraceStore } from "../server/trace-store.ts";
 import {
   snapshot,
   attempt,
@@ -29,6 +40,71 @@ test("PostgreSQL 17: migrations, SQL filters/aggregates, role boundary, approval
   try {
     await repo.initialize();
     await repo.initialize();
+    const traceDirectory = mkdtempSync(
+      path.join(tmpdir(), "nemodoc-pg-trace-"),
+    );
+    try {
+      const spool = path.join(traceDirectory, "events.jsonl");
+      const traceId = randomUUID();
+      const offline = new TraceStore(undefined, spool);
+      const trace = await offline.start({
+        traceId,
+        notebookId: `trace-${traceId}`,
+        runner: "personal_agent",
+        name: "Spool replay fixture",
+        status: "running",
+        createdAt: Date.now(),
+      });
+      const span = await trace.span("fixture agent", "agent");
+      await span.event("model.response", {
+        httpStatus: 200,
+        returnedModel: "nvidia/test-nemotron",
+        promptTokens: 7,
+        completionTokens: 3,
+      });
+      await span.finish("completed");
+      await trace.finish("completed");
+      const originalSpool = readFileSync(spool, "utf8");
+      writeFileSync(spool, originalSpool + originalSpool);
+
+      const online = new TraceStore(process.env.TEST_DATABASE_URL, spool);
+      await online.initialize();
+      assert.equal(online.status(), "persisted");
+      await online.initialize();
+      assert.equal(statSync(spool).size, 0);
+      const persisted = await online.detail(`trace-${traceId}`, traceId);
+      assert.equal(persisted?.status, "completed");
+      assert.equal(persisted?.spans[0].status, "completed");
+      const events = await online.events(`trace-${traceId}`, traceId);
+      assert.equal(
+        events.events.length,
+        5,
+        "duplicate JSONL replay must be idempotent",
+      );
+      const row = await repo.pool.query(
+        "SELECT count(*)::int AS count FROM agent_trace_events WHERE trace_id=$1",
+        [traceId],
+      );
+      assert.equal(row.rows[0].count, 5);
+      await assert.rejects(
+        repo.pool.query(
+          "UPDATE agent_trace_events SET payload='{}' WHERE trace_id=$1",
+          [traceId],
+        ),
+        /append-only/,
+      );
+      await assert.rejects(
+        reader.query("SELECT * FROM agent_traces LIMIT 1"),
+        /permission denied/,
+      );
+      await assert.rejects(
+        reader.query("SELECT * FROM agent_trace_events LIMIT 1"),
+        /permission denied/,
+      );
+      await online.close();
+    } finally {
+      rmSync(traceDirectory, { recursive: true, force: true });
+    }
     const version = await repo.pool.query("SHOW server_version_num");
     assert.equal(
       Math.floor(Number(version.rows[0].server_version_num) / 10000),
@@ -83,7 +159,7 @@ test("PostgreSQL 17: migrations, SQL filters/aggregates, role boundary, approval
     assert.equal(
       (
         await repo.queryNotes("fixture", scope, {
-          tag: "optimization",
+          tag: "retrieval",
           limit: 20,
         })
       ).length,

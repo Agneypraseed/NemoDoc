@@ -4,6 +4,7 @@ import type {
   AgentMaterial,
   DeliveryTarget,
 } from "./agent-types";
+import type { ResearchStage } from "./trace-types";
 
 const id = z
   .string()
@@ -250,6 +251,7 @@ export interface QueryEvidence {
 }
 export interface WorkflowRun extends WorkflowTask {
   id: string;
+  traceId?: string;
   status: "queued" | "running" | "completed" | "failed" | "interrupted";
   snapshotRevision: string;
   connection: {
@@ -269,16 +271,23 @@ export interface WorkflowRun extends WorkflowTask {
   evidence: QueryEvidence[];
   researchTeam?: ResearchTeamAgent[];
   usage?: { promptTokens: number; completionTokens: number };
+  stage?: ResearchStage;
 }
+export type { ResearchStage } from "./trace-types";
 export interface ResearchTeamAgent {
   id: string;
   name: string;
   focus: string;
   agentId?: string;
-  status: "queued" | "running" | "completed" | "failed";
+  status: "queued" | "running" | "completed" | "failed" | "interrupted";
+  stage: ResearchStage;
   answer?: string;
   error?: string;
   citationIds: number[];
+  assignedModel?: string;
+  returnedModel?: string;
+  modelCalls?: number;
+  readActions?: number;
 }
 export interface ActionProposal {
   id: string;

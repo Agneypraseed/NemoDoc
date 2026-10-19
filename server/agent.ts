@@ -24,6 +24,12 @@ import {
   DeliveryRejected,
 } from "./agent-connections.ts";
 import type { DeliveryTarget, AgentDelivery } from "../src/agent-types.ts";
+import type {
+  TraceHandle,
+  TraceSpanHandle,
+  TraceStore,
+} from "./trace-store.ts";
+import type { ModelRequestObserver } from "./model-observer.ts";
 
 const query = z.object({ query: z.string().min(1).max(2000) });
 const passage = z.object({
@@ -60,6 +66,35 @@ const descriptions: Record<keyof typeof toolSchemas, string> = {
     "Create a one-time review with the same sources, provider and skill. Only one follow-up per run. Do not imply an external notification will be sent.",
 };
 
+const traceModelObserver = (
+  span: TraceSpanHandle,
+  gatewayTarget?: string,
+): ModelRequestObserver => ({
+  onRequest: ({ url, model, target, body, at }) =>
+    span.event("model.request", {
+      url,
+      configuredModel: model,
+      gatewayTarget: target ?? gatewayTarget,
+      request: body,
+      requestedAt: at,
+    }),
+  onResponse: (response) =>
+    span.event("model.response", {
+      httpStatus: response.status,
+      gatewayTarget,
+      requestId: response.requestId,
+      responseId: response.responseId,
+      returnedModel: response.returnedModel,
+      finishReason: response.finishReason,
+      usage: response.usage,
+      promptTokens: response.promptTokens,
+      completionTokens: response.completionTokens,
+      response: response.body,
+      errorBody: response.errorBody,
+    }),
+  onError: (error) => span.event("model.error", { error }),
+});
+
 export class AgentWorker {
   private active?: { taskId: string; controller: AbortController };
   private timer?: ReturnType<typeof setInterval>;
@@ -69,6 +104,7 @@ export class AgentWorker {
     private settings: SettingsStore,
     private fetcher: typeof fetch,
     readonly connections = new AgentConnectionStore(settings),
+    private traces?: TraceStore,
   ) {}
   start() {
     this.timer = setInterval(() => {
@@ -87,6 +123,15 @@ export class AgentWorker {
   abort(taskId?: string) {
     if (!taskId || this.active?.taskId === taskId)
       this.active?.controller.abort();
+  }
+  async recoverTraces() {
+    for (const run of this.data.state.runs)
+      if (run.status === "interrupted" && run.traceId)
+        await this.traces?.markInterrupted(
+          run.traceId,
+          run.notebookId,
+          run.error || "Server stopped during this agent run.",
+        );
   }
   permitted(task: AgentTask) {
     const selected = this.data.state.sources.filter(
@@ -184,12 +229,15 @@ export class AgentWorker {
   }
   private async execute(task: AgentTask, now: number) {
     const state = this.data.state;
+    const wasManual = task.manualRun;
     const run: AgentRun = {
       id: randomUUID(),
+      traceId: "",
       taskId: task.id,
       notebookId: task.notebookId,
       title: task.title,
       status: "running",
+      stage: "retrieving",
       startedAt: now,
       answer: "",
       connection: { ...task.connection },
@@ -199,6 +247,7 @@ export class AgentWorker {
       sent: { memoryIds: [], sourceIds: [], skill: "", prompt: task.prompt },
       calls: 0,
     };
+    run.traceId = run.id;
     state.runs.unshift(run);
     state.runs = state.runs.slice(0, 100);
     // Advance before inference so a restart cannot replay a half-finished run.
@@ -211,7 +260,7 @@ export class AgentWorker {
     this.data.flush();
     const controller = new AbortController();
     this.active = { taskId: task.id, controller };
-    const timeout = setTimeout(() => controller.abort(), 180000);
+    const timeout = setTimeout(() => controller.abort("timeout"), 180000);
     const check = () => {
       controller.signal.throwIfAborted();
       if (task.status !== "active")
@@ -262,7 +311,61 @@ export class AgentWorker {
     let scheduled = false,
       citationRetryCount = 0,
       toolCount = 0;
+    let trace: TraceHandle | undefined;
+    let agentSpan: TraceSpanHandle | undefined;
+    const setStage = async (
+      stage: NonNullable<AgentRun["stage"]>,
+      attempt?: number,
+    ) => {
+      run.stage = stage;
+      this.data.flush();
+      await trace?.event(
+        "stage.changed",
+        { stage, taskId: task.id, attempt },
+        { spanId: agentSpan?.spanId, attempt },
+      );
+    };
     try {
+      if (this.traces) {
+        trace = await this.traces.start({
+          traceId: run.traceId,
+          notebookId: run.notebookId,
+          runner: "personal_agent",
+          name: run.title,
+          status: "running",
+          createdAt: run.startedAt,
+          startedAt: run.startedAt,
+          metadata: {
+            taskId: task.id,
+            manual: wasManual,
+            schedule: task.schedule,
+            repeatHours: task.repeatHours,
+            connectionMode: task.connectionMode || "notebook",
+            gatewayTarget:
+              (task.connectionMode || "notebook") === "openclaw"
+                ? task.connection.model
+                : undefined,
+            configuredModel: task.connection.model,
+            sourceIds: task.sourceIds,
+          },
+        });
+        agentSpan = await trace.span("Agent task", "agent", {
+          attributes: {
+            taskId: task.id,
+            title: task.title,
+            manual: wasManual,
+          },
+        });
+        await trace.status("running", { taskId: task.id });
+        await trace.event(
+          "stage.changed",
+          {
+            stage: run.stage,
+            taskId: task.id,
+          },
+          { spanId: agentSpan?.spanId },
+        );
+      }
       check();
       const skill = state.skills.find((s) => s.id === task.skillId);
       if (!skill)
@@ -331,6 +434,7 @@ export class AgentWorker {
       for (let turn = 0; turn < 8; turn++) {
         check();
         run.calls++;
+        await setStage("awaiting_model_response", run.calls);
         this.data.flush();
         const config = {
           ...this.settings.value,
@@ -346,20 +450,51 @@ export class AgentWorker {
           max_tokens: 4096,
           ...(/nemotron/i.test(config.model) ? chatOptions(config) : {}),
         };
-        const raw =
-          this.connections.value.model.mode !== "notebook"
-            ? await this.connections.modelJSON(
-                this.fetcher,
-                body,
-                controller.signal,
-              )
-            : await providerJSON(
-                this.fetcher,
-                config.baseUrl.replace(/\/$/, "") + "/chat/completions",
-                body,
-                config,
-                controller.signal,
-              );
+        const gatewayTarget =
+          this.connections.value.model.mode === "openclaw"
+            ? config.model
+            : undefined;
+        const modelSpan = await trace?.span(
+          `Model call ${run.calls}`,
+          "model_call",
+          {
+            parentSpanId: agentSpan?.spanId,
+            attempt: run.calls,
+            attributes: { configuredModel: config.model, gatewayTarget },
+          },
+        );
+        let raw: unknown;
+        try {
+          raw =
+            this.connections.value.model.mode !== "notebook"
+              ? await this.connections.modelJSON(
+                  this.fetcher,
+                  body,
+                  controller.signal,
+                  undefined,
+                  modelSpan
+                    ? traceModelObserver(modelSpan, gatewayTarget)
+                    : undefined,
+                )
+              : await providerJSON(
+                  this.fetcher,
+                  config.baseUrl.replace(/\/$/, "") + "/chat/completions",
+                  body,
+                  config,
+                  controller.signal,
+                  "chat",
+                  modelSpan
+                    ? traceModelObserver(modelSpan, gatewayTarget)
+                    : undefined,
+                );
+        } catch (error) {
+          await modelSpan?.finish("failed", {}, (error as Error).message);
+          throw error;
+        }
+        await modelSpan?.finish("completed", {
+          configuredModel: config.model,
+          gatewayTarget,
+        });
         check();
         const result = responseSchema.parse(raw);
         this.data.receipt({
@@ -370,6 +505,10 @@ export class AgentWorker {
           method: "agent",
         });
         const message = result.choices[0].message;
+        await setStage(
+          message.tool_calls?.length ? "retrieving" : "validating",
+          run.calls,
+        );
         if (!message.tool_calls?.length) {
           if (!message.content?.trim())
             throw new Error(
@@ -396,6 +535,24 @@ export class AgentWorker {
           const refs = [...content.matchAll(/\[(\d+)\]/g)].map((m) =>
             Number(m[1]),
           );
+          const validCitations =
+            refs.length > 0 &&
+            refs.every((id) =>
+              run.citations.some((citation) => citation.id === id),
+            );
+          const citationSpan = await trace?.span(
+            "Citation validation",
+            "validation",
+            { parentSpanId: agentSpan?.spanId, attempt: run.calls },
+          );
+          await citationSpan?.event("citation.validation", {
+            valid: validCitations,
+            citationIds: refs,
+            knownCitationIds: run.citations.map((citation) => citation.id),
+          });
+          await citationSpan?.finish(validCitations ? "completed" : "failed", {
+            valid: validCitations,
+          });
           if (refs.some((id) => !run.citations.some((c) => c.id === id)))
             throw new Error(
               "The final answer contained a citation that was not retrieved.",
@@ -440,12 +597,33 @@ export class AgentWorker {
         });
         for (const call of message.tool_calls) {
           check();
+          await setStage("retrieving", run.calls);
           if (++toolCount > 20)
             throw new Error(
               "The agent reached its 20-action limit. Try a smaller task.",
             );
           let output: unknown;
           let summary: string;
+          const toolSpan = await trace?.span(
+            call.function.name,
+            call.function.name === "search_sources"
+              ? "source_retrieval"
+              : call.function.name === "read_passage"
+                ? "source_read"
+                : "tool",
+            {
+              parentSpanId: agentSpan?.spanId,
+              attempt: run.calls,
+              attributes: {
+                toolCallId: call.id,
+                arguments: call.function.arguments,
+              },
+            },
+          );
+          await toolSpan?.event("tool.call", {
+            tool: call.function.name,
+            arguments: call.function.arguments,
+          });
           try {
             const name = call.function.name as keyof typeof toolSchemas;
             if (
@@ -600,6 +778,20 @@ export class AgentWorker {
                 : (error as Error).message;
             output = { error: summary };
           }
+          await toolSpan?.event("tool.result", {
+            tool: call.function.name,
+            summary,
+            result: output,
+          });
+          await toolSpan?.finish(
+            output && typeof output === "object" && "error" in output
+              ? "failed"
+              : "completed",
+            { summary, tool: call.function.name },
+            output && typeof output === "object" && "error" in output
+              ? summary
+              : undefined,
+          );
           run.steps.push({ tool: call.function.name, summary, at: Date.now() });
           this.data.flush();
           messages.push({
@@ -642,6 +834,28 @@ export class AgentWorker {
       clearTimeout(timeout);
       this.active = undefined;
       run.finishedAt = Date.now();
+      const terminalStage =
+        run.status === "completed"
+          ? "completed"
+          : controller.signal.aborted && controller.signal.reason !== "timeout"
+            ? "interrupted"
+            : "failed";
+      run.stage = terminalStage;
+      if (trace) {
+        const status = terminalStage;
+        await trace.event(
+          "stage.changed",
+          { stage: terminalStage, taskId: task.id },
+          { spanId: agentSpan?.spanId },
+        );
+        await agentSpan?.finish(
+          status === "interrupted" ? "interrupted" : status,
+          { modelCalls: run.calls, stepCount: run.steps.length },
+          run.error,
+          run.finishedAt,
+        );
+        await trace.finish(status, run.error, run.finishedAt);
+      }
       if (task.status === "active" && !task.repeatHours && !task.schedule)
         task.status = "done";
       this.data.flush();
@@ -655,6 +869,7 @@ export function registerAgent(
   fetcher: typeof fetch,
   filename?: string,
   smtpFactory?: SmtpTransportFactory,
+  traces?: TraceStore,
 ) {
   const data = new AgentStore(filename),
     connections = new AgentConnectionStore(
@@ -662,7 +877,7 @@ export function registerAgent(
       filename ? filename + ".connections.json" : undefined,
       smtpFactory,
     ),
-    worker = new AgentWorker(data, settings, fetcher, connections);
+    worker = new AgentWorker(data, settings, fetcher, connections, traces);
   app.locals.agent = worker;
   if (filename) worker.start();
   app.get("/api/agent", (_req, res) => res.json(data.public()));

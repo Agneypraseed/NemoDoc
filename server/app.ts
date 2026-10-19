@@ -18,6 +18,7 @@ import type { SmtpTransportFactory } from "./smtp.ts";
 import { isNemotron } from "../src/lib/model-policy.ts";
 import { registerAgentMonitor, type NemoClawReader } from "./agent-monitor.ts";
 import { registerAgentConfiguration } from "./agent-config.ts";
+import { TraceStore } from "./trace-store.ts";
 
 export interface Config {
   apiKey: string;
@@ -71,12 +72,32 @@ export function createApp(
     startWorkspaceWorker?: boolean;
     nemoclawSandbox?: string;
     nemoclawReader?: NemoClawReader;
+    traceSpoolFile?: string;
+    nvidiaModel?: string;
   } = {},
 ) {
   const providerFetch = fetcher;
   // Chat is restricted below; vision and embeddings use separate capability models.
   const app = express();
   const store = new SettingsStore(initialConfig, options.settingsFile);
+  const environmentSecrets = [
+    process.env.NVIDIA_API_KEY,
+    process.env.NEBIUS_API_KEY,
+    process.env.DATABASE_URL,
+    process.env.AGENT_READ_DATABASE_URL,
+  ];
+  let traceSecrets = () =>
+    [...environmentSecrets, initialConfig.apiKey, store.value.apiKey].filter(
+      (secret): secret is string => !!secret,
+    );
+  const traceStore = new TraceStore(
+    options.databaseUrl,
+    options.traceSpoolFile ??
+      (options.workspaceFile
+        ? `${options.workspaceFile}.traces.jsonl`
+        : "data/agent-traces.jsonl"),
+    () => traceSecrets(),
+  );
   const retriever = new SemanticRetriever(fetcher);
   app.disable("x-powered-by");
   app.use((req, res, next) => {
@@ -100,7 +121,17 @@ export function createApp(
     providerFetch,
     options.agentFile,
     options.smtpTransportFactory,
+    traceStore,
   );
+  traceSecrets = () =>
+    [
+      ...environmentSecrets,
+      initialConfig.apiKey,
+      store.value.apiKey,
+      agent.worker.connections.runtime().apiKey,
+      agent.worker.connections.value.email.password,
+      agent.worker.connections.value.whatsapp.apiKey,
+    ].filter((secret): secret is string => !!secret);
   const monitor = registerAgentMonitor(
     app,
     agent.worker,
@@ -108,20 +139,40 @@ export function createApp(
     options.nemoclawSandbox,
     options.nemoclawReader,
   );
-  registerWorkspace(app, agent.worker.connections, providerFetch, {
-    workspaceFile: options.workspaceFile,
-    databaseUrl: options.databaseUrl,
-    readDatabaseUrl: options.readDatabaseUrl,
-    startWorker: options.startWorkspaceWorker,
-    listRuntimeAgentIds: async () =>
-      (await monitor.snapshot()).agents.map((runtimeAgent) => runtimeAgent.id),
-  });
-  registerAgentConfiguration(
+  const agentConfiguration = registerAgentConfiguration(
     app,
     agent.worker,
     options.nemoclawSandbox,
     options.nemoclawReader,
   );
+  const workspace = registerWorkspace(
+    app,
+    agent.worker.connections,
+    providerFetch,
+    {
+      workspaceFile: options.workspaceFile,
+      databaseUrl: options.databaseUrl,
+      readDatabaseUrl: options.readDatabaseUrl,
+      startWorker: options.startWorkspaceWorker,
+      expectedNvidiaModel: options.nvidiaModel ?? initialConfig.model,
+      traces: traceStore,
+      listRuntimeAgentIds: async () =>
+        (await monitor.snapshot()).agents.map(
+          (runtimeAgent) => runtimeAgent.id,
+        ),
+      listRuntimeAgentTargets: async () => {
+        const configuration = await agentConfiguration.manager.configuration();
+        if (!configuration.available) return [];
+        return configuration.agents.map(({ id, primary, fallbacks }) => ({
+          id,
+          model: primary,
+          fallbacks,
+        }));
+      },
+    },
+  );
+  app.locals.traceStore = traceStore;
+  void workspace.ready.then(() => agent.worker.recoverTraces());
   app.get("/api/settings", (_req, res) => res.json(store.public()));
   app.get("/api/models", async (req, res) => {
     try {

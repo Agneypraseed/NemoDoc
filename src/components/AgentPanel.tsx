@@ -1049,6 +1049,16 @@ function RunResult({
   onCitation: (c: Citation) => void;
   onSave: (a: Omit<StudyArtifact, "notebookId">) => void;
 }) {
+  const stageLabel: Record<string, string> = {
+    queued: "Queued",
+    retrieving: "Retrieving approved evidence",
+    awaiting_model_response: "Waiting for inference",
+    validating: "Validating citations",
+    synthesizing: "Preparing result",
+    completed: "Completed",
+    failed: "Failed",
+    interrupted: "Interrupted",
+  };
   return (
     <article className="agent-result">
       <div className="agent-section-title">
@@ -1059,7 +1069,11 @@ function RunResult({
         {run.connection.model} · {run.calls}/8 model calls
       </small>
       {run.status === "running" && (
-        <p role="status">Working… actions will appear below.</p>
+        <p role="status">
+          {stageLabel[run.stage || ""] || "Working"}
+          {run.stage !== "awaiting_model_response" && "…"} actions will appear
+          below.
+        </p>
       )}
       {run.error && <p className="form-error">{run.error}</p>}
       {run.answer && (

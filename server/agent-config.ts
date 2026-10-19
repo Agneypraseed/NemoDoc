@@ -485,4 +485,5 @@ export function registerAgentConfiguration(
   post("/api/agent/manage/create", (body) => manager.create(body));
   post("/api/agent/manage/restrict", (body) => manager.restrict(body));
   post("/api/agent/manage/select", (body) => manager.select(body));
+  return { manager };
 }

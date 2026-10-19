@@ -22,6 +22,8 @@ import {
   type SmtpTransportFactory,
   type SmtpConnection,
 } from "./smtp.ts";
+import type { ModelRequestObserver } from "./model-observer.ts";
+import { notifyModelObserver } from "./model-observer.ts";
 
 const secret = z.string().trim().max(2048).optional();
 export const connectionInput = z.discriminatedUnion("section", [
@@ -286,6 +288,7 @@ export class AgentConnectionStore {
     body: unknown,
     signal = AbortSignal.timeout(120000),
     agentId?: string,
+    observer?: ModelRequestObserver,
   ) {
     const c = this.runtime();
     if (
@@ -307,9 +310,20 @@ export class AgentConnectionStore {
     }
     if (!c.apiKey && !isLocal(c.baseUrl))
       throw new Error("Save an API key for the agent model.");
-    const response = await fetcher(
-      c.baseUrl.replace(/\/$/, "") + "/chat/completions",
-      {
+    const url = c.baseUrl.replace(/\/$/, "") + "/chat/completions";
+    const model = String((body as { model?: unknown })?.model ?? "");
+    await notifyModelObserver(() =>
+      observer?.onRequest?.({
+        url,
+        model,
+        target: agentId ? `openclaw/${agentId}` : undefined,
+        body,
+        at: Date.now(),
+      }),
+    );
+    let response: Response;
+    try {
+      response = await fetcher(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -318,15 +332,69 @@ export class AgentConnectionStore {
         body: JSON.stringify(body),
         signal,
         redirect: "error",
-      },
-    );
-    if (!response.ok)
+      });
+    } catch (error) {
+      await notifyModelObserver(() =>
+        observer?.onError?.((error as Error).message, Date.now()),
+      );
+      throw error;
+    }
+    const requestId =
+      response.headers.get("x-request-id") ||
+      response.headers.get("request-id") ||
+      response.headers.get("x-nvidia-request-id") ||
+      response.headers.get("x-openai-request-id") ||
+      undefined;
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => "");
+      await notifyModelObserver(() =>
+        observer?.onResponse?.({
+          status: response.status,
+          requestId,
+          errorBody,
+          at: Date.now(),
+        }),
+      );
       throw new Error(
         this.value.model.mode === "openclaw"
           ? `OpenClaw gateway returned HTTP ${response.status}. Check the gateway token, agent target and enabled Chat Completions endpoint.`
           : `Agent model returned HTTP ${response.status}. Check its connection and tool support.`,
       );
-    return response.json();
+    }
+    try {
+      const result: any = await response.json();
+      const usage = result?.usage;
+      await notifyModelObserver(() =>
+        observer?.onResponse?.({
+          status: response.status,
+          requestId,
+          returnedModel:
+            typeof result?.model === "string" ? result.model : undefined,
+          responseId: typeof result?.id === "string" ? result.id : undefined,
+          finishReason:
+            typeof result?.choices?.[0]?.finish_reason === "string"
+              ? result.choices[0].finish_reason
+              : undefined,
+          usage,
+          promptTokens:
+            typeof usage?.prompt_tokens === "number"
+              ? usage.prompt_tokens
+              : undefined,
+          completionTokens:
+            typeof usage?.completion_tokens === "number"
+              ? usage.completion_tokens
+              : undefined,
+          body: result,
+          at: Date.now(),
+        }),
+      );
+      return result;
+    } catch (error) {
+      await notifyModelObserver(() =>
+        observer?.onError?.((error as Error).message, Date.now()),
+      );
+      throw error;
+    }
   }
   async send(
     fetcher: typeof fetch,

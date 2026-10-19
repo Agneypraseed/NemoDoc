@@ -278,14 +278,24 @@ export class PostgresWorkspaceRepository implements WorkspaceRepository {
       "workspace_reviews",
       "workspace_email_outbox",
       "workspace_approvals",
+      "agent_traces",
+      "agent_trace_spans",
+      "agent_trace_events",
     ]) {
       const access = await this.reader.query(
-        "SELECT has_table_privilege(current_user,$1,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') AS writable",
+        `SELECT
+           has_table_privilege(current_user,$1,'SELECT') AS can_select,
+           has_table_privilege(current_user,$1,'INSERT') AS can_insert,
+           has_table_privilege(current_user,$1,'UPDATE') AS can_update,
+           has_table_privilege(current_user,$1,'DELETE') AS can_delete,
+           has_table_privilege(current_user,$1,'TRUNCATE') AS can_truncate`,
         [table],
       );
-      if (access.rows[0]?.writable)
+      if (Object.values(access.rows[0] || {}).some(Boolean))
         throw new Error(
-          "Agent SQL connection must not have table write permissions.",
+          table.startsWith("agent_trace_") || table === "agent_traces"
+            ? "Agent SQL connection must not be able to read or write trace storage."
+            : "Agent SQL connection must not have direct workspace table permissions.",
         );
     }
     await this.reader.query("SELECT * FROM agent_read_notes LIMIT 0");
