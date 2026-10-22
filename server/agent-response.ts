@@ -1,6 +1,7 @@
 import { z } from "zod";
 export const agentResponseSchema = z.object({
   id: z.string().max(200).optional(),
+  model: z.string().max(300).optional(),
   usage: z
     .object({
       prompt_tokens: z.number().nonnegative().optional(),

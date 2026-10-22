@@ -17,11 +17,7 @@ import type {
   WorkflowReport,
   WorkspaceState,
 } from "../workspace-types";
-import type {
-  AgentActivityStatus,
-  AgentDashboard,
-  RuntimeAgent,
-} from "../agent-monitor-types";
+import type { AgentActivityStatus } from "../agent-monitor-types";
 import type {
   TraceDetail,
   TraceEvent,
@@ -29,6 +25,12 @@ import type {
   TraceSummary,
 } from "../trace-types";
 import { activityLabels } from "../lib/agent-activity";
+import { ResearchPlanEditor } from "./ResearchPlanEditor";
+import {
+  researchPlanSchema,
+  researchLimits,
+  type ResearchPlan,
+} from "../workspace-types";
 import { AgentWorkScene } from "./AgentWorkScene";
 
 const root = "/api/agent/workspace";
@@ -38,7 +40,7 @@ const prompts = {
   research_synthesis:
     "Compare my selected papers in an evidence table. For each paper, report its finding, method or population, and cited page. Explain where findings support, qualify or conflict with one another; distinguish differences in study settings from direct disagreements. Flag conclusions these sources cannot establish, then propose an editable cited brief and follow-up reading tasks.",
   research_team:
-    "Research PCA in neural networks. Explain the PCA mathematics, connect PCA to linear autoencoders and neural-network representations, and assess what the selected sources do and do not establish about applying PCA to neural networks. Cite every factual claim to the approved pages and label any inference.",
+    "Investigate the main findings, compare approaches, and assess the strengths and limitations of the evidence for my research question. Cite supporting sources and distinguish inference.",
 };
 const sceneStatus = (
   agent: NonNullable<WorkspaceState["runs"][number]["researchTeam"]>[number],
@@ -46,7 +48,6 @@ const sceneStatus = (
   if (agent.status === "interrupted") return "interrupted";
   if (agent.status === "failed") return "failed";
   if (agent.status === "completed") return "completed";
-  if (agent.stage === "awaiting_model_response") return "waiting";
   if (agent.stage === "queued") return "queued";
   return "running";
 };
@@ -71,13 +72,8 @@ type ResearchPrerequisites = {
 const workflowNames = {
   study_revision: "Revision plan",
   research_synthesis: "Research synthesis",
-  research_team: "Three-agent research",
+  research_team: "Research team",
 } as const;
-const researchAgentLabels = [
-  "Foundations researcher",
-  "Neural networks researcher",
-  "Critical reviewer",
-];
 export function EvidenceWorkflows({
   notebookId,
   title,
@@ -100,8 +96,8 @@ export function EvidenceWorkflows({
     mode: string;
     model: string;
     tested: boolean;
+    runtimeRevision?: string;
   }>();
-  const [runtimeAgents, setRuntimeAgents] = useState<RuntimeAgent[]>([]);
   const [runtimeMessage, setRuntimeMessage] = useState("");
   const [prerequisites, setPrerequisites] = useState<ResearchPrerequisites>();
   const [traces, setTraces] = useState<TraceSummary[]>([]);
@@ -110,7 +106,13 @@ export function EvidenceWorkflows({
   const [traceDetail, setTraceDetail] = useState<TraceDetail>();
   const [traceEvents, setTraceEvents] = useState<TraceEvent[]>([]);
   const [traceCursor, setTraceCursor] = useState(0);
-  const [agentIds, setAgentIds] = useState<string[]>([]);
+  const [executionRoute, setExecutionRoute] = useState<
+    "application" | "nemoclaw"
+  >("application");
+  const [webEnabled, setWebEnabled] = useState(false);
+  const [teamPlan, setTeamPlan] = useState<ResearchPlan>();
+  const [planKey, setPlanKey] = useState("");
+  const [reviewed, setReviewed] = useState(false);
   const [workflow, setWorkflow] = useState<EvidenceWorkflow>("study_revision");
   const [motion, setMotion] = useState(true);
   const [prompt, setPrompt] = useState(prompts.study_revision);
@@ -172,62 +174,28 @@ export function EvidenceWorkflows({
     return () => controller.abort();
   }, [notebookId]);
   useEffect(() => {
-    if (workflow !== "research_team") {
-      setRuntimeAgents([]);
-      setRuntimeMessage("");
-      setPrerequisites(undefined);
-      setAgentIds([]);
-      return;
-    }
+    if (workflow !== "research_team" || executionRoute !== "nemoclaw") return;
     const controller = new AbortController();
-    setRuntimeMessage(
-      "Checking the tested NemoClaw gateway and NVIDIA routes…",
-    );
-    void Promise.all([
-      apiJSON<AgentDashboard>(
-        `/api/agent/overview?notebookId=${encodeURIComponent(notebookId)}`,
-        undefined,
-        controller.signal,
-      ),
-      apiJSON<ResearchPrerequisites>(
-        `${root}/research-prerequisites`,
-        undefined,
-        controller.signal,
-      ),
-    ])
-      .then(([dashboard, prerequisiteResult]) => {
-        if (controller.signal.aborted) return;
-        setPrerequisites(prerequisiteResult);
-        const configured = new Map(
-          prerequisiteResult.targets.map((target) => [target.id, target]),
-        );
-        const agents = dashboard.runtime.agents.map((agent) => ({
-          ...agent,
-          model: configured.get(agent.id)?.model,
-        }));
-        setRuntimeAgents(agents);
-        setRuntimeMessage(
-          prerequisiteResult.message || dashboard.runtime.message,
-        );
-        setAgentIds((previous) => {
-          const selected = previous.filter((id) =>
-            agents.some(
-              (agent) => agent.id === id && configured.get(id)?.verified,
-            ),
-          );
-          return selected.length === 3
-            ? selected
-            : agents
-                .filter((agent) => configured.get(agent.id)?.verified)
-                .slice(0, 3)
-                .map((agent) => agent.id);
-        });
+    void apiJSON<ResearchPrerequisites>(
+      `${root}/research-prerequisites`,
+      undefined,
+      controller.signal,
+    )
+      .then((result) => {
+        setPrerequisites(result);
+        setRuntimeMessage(result.message);
       })
       .catch((e) => {
         if (!controller.signal.aborted) setRuntimeMessage(e.message);
       });
     return () => controller.abort();
-  }, [connection?.mode, connection?.tested, notebookId, workflow]);
+  }, [
+    connection?.mode,
+    connection?.tested,
+    notebookId,
+    workflow,
+    executionRoute,
+  ]);
   useEffect(() => {
     const controller = new AbortController();
     const update = async () => {
@@ -337,6 +305,35 @@ export function EvidenceWorkflows({
   const approvedNotes = notes.filter(
     (n) => !n.references?.some((r) => !sourceIds.includes(r.sourceId)),
   );
+  const researchKey = JSON.stringify([
+    notebookId,
+    prompt,
+    sourceIds,
+    noteIds,
+    webEnabled,
+    executionRoute,
+    state?.revision,
+    connection?.mode,
+    connection?.model,
+    connection?.tested,
+    connection?.runtimeRevision,
+  ]);
+  const validPlan = teamPlan && researchPlanSchema.safeParse(teamPlan).success;
+  const runtimeIds = teamPlan?.agents.map((a) => a.agentId) ?? [];
+  const routeReady =
+    executionRoute === "application"
+      ? !!connection &&
+        connection.mode !== "openclaw" &&
+        (connection.mode === "notebook" || connection.tested)
+      : connection?.mode === "openclaw" &&
+        connection.tested &&
+        runtimeIds.every(Boolean) &&
+        new Set(runtimeIds).size === runtimeIds.length &&
+        runtimeIds.every((id) =>
+          prerequisites?.targets.some((t) => t.id === id && t.verified),
+        );
+  const researchReady =
+    validPlan && reviewed && planKey === researchKey && routeReady;
   return (
     <section className="evidence-workflows" aria-label="Evidence workflows">
       <div className="agent-section-title">
@@ -370,7 +367,7 @@ export function EvidenceWorkflows({
               ? "Plan revision"
               : w === "research_synthesis"
                 ? "Synthesize research"
-                : "Research with 3 agents"}
+                : "Research team"}
           </button>
         ))}
       </div>
@@ -480,72 +477,58 @@ export function EvidenceWorkflows({
         <div className="agent-form">
           <h4>2 · Run with approved evidence</h4>
           {workflow === "research_team" && (
-            <p className="agent-fine">
-              Three assigned NemoClaw agents research the approved pages in
-              parallel. The critical reviewer writes the final synthesis. Every
-              agent must use the verified NVIDIA model shown below; direct-model
-              fallback is disabled for this workflow.
-            </p>
-          )}
-          {workflow === "research_team" && connection?.mode !== "openclaw" && (
-            <p className="form-error" role="status">
-              Connect NemoDoc to the NemoClaw gateway in Connections, save its
-              separate gateway token, then test the connection before starting
-              three-agent research.
-            </p>
-          )}
-          {workflow === "research_team" && (
-            <fieldset className="research-agent-assignments">
-              <legend>
-                Assign three NemoClaw agents
-                {prerequisites?.configuredModel
-                  ? ` · ${prerequisites.configuredModel}`
-                  : ""}
-              </legend>
-              {researchAgentLabels.map((label, index) => (
-                <label className="field-label" key={label}>
-                  {label}
-                  <select
-                    aria-label={label}
-                    value={agentIds[index] ?? ""}
-                    onChange={(event) => {
-                      const next = [...agentIds];
-                      next[index] = event.target.value;
-                      setAgentIds(next);
-                    }}
-                  >
-                    <option value="">
-                      {runtimeAgents.some((agent) =>
-                        prerequisites?.targets.some(
-                          (target) => target.id === agent.id && target.verified,
-                        ),
-                      )
-                        ? "Choose a verified NVIDIA agent"
-                        : "No verified NVIDIA agents available"}
-                    </option>
-                    {runtimeAgents
-                      .filter((agent) =>
-                        prerequisites?.targets.some(
-                          (target) => target.id === agent.id && target.verified,
-                        ),
-                      )
-                      .map((agent) => (
-                        <option key={agent.id} value={agent.id}>
-                          {agent.name} · {agent.id} · {agent.model}
-                        </option>
-                      ))}
-                  </select>
-                </label>
-              ))}
-              <p className="agent-fine" role="status">
-                {runtimeMessage || "Checking the NVIDIA routes…"}
+            <>
+              <p>
+                Researchers work independently, then a critical reviewer checks
+                the evidence and writes the final report.
               </p>
-              {!connection?.tested && (
-                <p className="form-error" role="status">
-                  Test the saved NemoClaw gateway connection before dispatch.
+              <label className="field-label">
+                Execution route
+                <select
+                  aria-label="Research execution route"
+                  value={executionRoute}
+                  onChange={(e) => {
+                    setExecutionRoute(
+                      e.target.value as "application" | "nemoclaw",
+                    );
+                    setTeamPlan(undefined);
+                    setReviewed(false);
+                  }}
+                >
+                  <option value="application">
+                    NemoDoc · application-managed
+                  </option>
+                  <option value="nemoclaw">NemoClaw runtime</option>
+                </select>
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={webEnabled}
+                  onChange={(e) => setWebEnabled(e.target.checked)}
+                />
+                Enable web research
+              </label>
+              {webEnabled && (
+                <p className="agent-fine">
+                  Web research uses the tested Tavily connection. Generated
+                  search queries may contain information from your selected
+                  evidence and are sent to Tavily.
                 </p>
               )}
-            </fieldset>
+              {executionRoute === "application" &&
+                connection?.mode === "openclaw" && (
+                  <p role="status">
+                    Choose the notebook or a custom model connection in
+                    Connections to use application-managed research.
+                  </p>
+                )}
+              {executionRoute === "nemoclaw" && (
+                <p role="status">
+                  {runtimeMessage || "Checking NemoClaw routes…"}
+                </p>
+              )}
+            </>
           )}
           <fieldset>
             <legend>Approved documents</legend>
@@ -590,17 +573,73 @@ export function EvidenceWorkflows({
             />
             Use shared quiz progress ({state.attempts.length} attempts)
           </label>
+          {workflow === "research_team" && (
+            <>
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={
+                  busy || !prompt.trim() || (!sourceIds.length && !webEnabled)
+                }
+                onClick={() =>
+                  void act(async () => {
+                    const key = researchKey;
+                    const plan = await apiJSON<ResearchPlan>(
+                      `${root}/research-plan`,
+                      {
+                        notebookId,
+                        workflow,
+                        prompt,
+                        sourceIds,
+                        noteIds,
+                        webEnabled,
+                      },
+                    );
+                    setTeamPlan(plan);
+                    setPlanKey(key);
+                    setReviewed(false);
+                  })
+                }
+              >
+                {teamPlan ? "Regenerate team plan" : "Generate team plan"}
+              </button>
+              {teamPlan && (
+                <ResearchPlanEditor
+                  plan={teamPlan}
+                  route={executionRoute}
+                  targets={prerequisites?.targets ?? []}
+                  onChange={(plan) => {
+                    setTeamPlan(plan);
+                    setReviewed(false);
+                  }}
+                />
+              )}
+              {teamPlan && planKey !== researchKey && (
+                <p role="status">
+                  The request, evidence, or connection changed. Regenerate the
+                  team plan before starting.
+                </p>
+              )}
+              {teamPlan && (
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={reviewed}
+                    disabled={planKey !== researchKey}
+                    onChange={(e) => setReviewed(e.target.checked)}
+                  />
+                  I reviewed the team assignments
+                </label>
+              )}
+            </>
+          )}
           <button
             className="primary-button"
             disabled={
               busy ||
-              !sourceIds.length ||
-              (workflow === "research_team" &&
-                (connection?.mode !== "openclaw" ||
-                  !connection.tested ||
-                  !prerequisites?.available ||
-                  agentIds.length !== 3 ||
-                  new Set(agentIds).size !== 3)) ||
+              (!sourceIds.length &&
+                !(workflow === "research_team" && webEnabled)) ||
+              (workflow === "research_team" && !researchReady) ||
               (workflow === "research_synthesis" && sourceIds.length < 2) ||
               (workflow === "study_revision" && !noteIds.length) ||
               !prompt.trim() ||
@@ -617,32 +656,31 @@ export function EvidenceWorkflows({
                   sourceIds,
                   noteIds,
                   includeProgress: progress,
-                  ...(workflow === "research_team" ? { agentIds } : {}),
+                  ...(workflow === "research_team"
+                    ? { executionRoute, teamPlan, webEnabled }
+                    : {}),
                 }),
               )
             }
           >
             {workflow === "research_team"
-              ? "Start 3-agent research"
+              ? "Start research team"
               : "Create proposal"}
           </button>
           {workflow === "research_synthesis" && sourceIds.length < 2 ? (
             <p className="agent-fine" role="status">
               Select at least two sources to compare papers.
             </p>
-          ) : workflow === "research_team" && !sourceIds.length ? (
+          ) : workflow === "research_team" &&
+            !sourceIds.length &&
+            !webEnabled ? (
             <p className="agent-fine" role="status">
               Select at least one approved source for the research team.
             </p>
-          ) : workflow === "research_team" &&
-            (!prerequisites?.available ||
-              connection?.mode !== "openclaw" ||
-              !connection.tested ||
-              agentIds.length !== 3 ||
-              new Set(agentIds).size !== 3) ? (
+          ) : workflow === "research_team" && !researchReady ? (
             <p className="agent-fine" role="status">
-              {runtimeMessage ||
-                "Verify three different NemoClaw agents use the configured NVIDIA model and assign one to each role."}
+              Generate and review a valid team plan with an available model
+              connection before starting.
             </p>
           ) : workflow === "study_revision" && !noteIds.length ? (
             <p className="agent-fine" role="status">
@@ -659,6 +697,20 @@ export function EvidenceWorkflows({
           </h4>
           <p>{run.prompt}</p>
           {run.error && <p role="alert">{run.error}</p>}
+          {run.workflow === "research_team" &&
+            (run.status === "queued" || run.status === "running") && (
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() =>
+                  void act(() =>
+                    apiJSON(`${root}/cancel`, { notebookId, runId: run.id }),
+                  )
+                }
+              >
+                Cancel research
+              </button>
+            )}
           {run.workflow === "research_team" ? (
             <ResearchTeamRun
               run={run}
@@ -1035,11 +1087,11 @@ function ResearchTeamRun({
 }) {
   const team = run.researchTeam ?? [];
   return (
-    <section className="research-team" aria-label="Three-agent research run">
+    <section className="research-team" aria-label="Research team run">
       <div className="research-team-heading">
         <div>
           <h5>Research team</h5>
-          <p>Three specialist roles · one lead synthesis</p>
+          <p>{team.length} agents · one lead synthesis</p>
         </div>
         <button
           type="button"
@@ -1068,9 +1120,12 @@ function ResearchTeamRun({
                 {activityLabels[activity]}
               </span>
               <p className="research-agent-runtime">
-                Runtime agent: <code>{agent.agentId || "Unassigned"}</code>
+                {run.executionRoute === "application"
+                  ? "Application agent"
+                  : "Runtime agent"}
+                : <code>{agent.agentId || agent.id}</code>
                 <br />
-                NVIDIA model: <code>{agent.assignedModel || "Unverified"}</code>
+                Model: <code>{agent.assignedModel || "Unverified"}</code>
                 {agent.returnedModel && (
                   <>
                     <br />
@@ -1083,10 +1138,16 @@ function ResearchTeamRun({
                   ? stageLabels[agent.stage] || "Status unknown"
                   : "Status unknown"}
                 {agent.modelCalls !== undefined &&
-                  ` · ${agent.modelCalls}/3 model calls`}
+                  ` · ${agent.modelCalls}/${run.teamPlan ? researchLimits[agent.role === "reviewer" ? "reviewer" : "researcher"].modelCalls : 3} model calls`}
                 {agent.readActions !== undefined &&
-                  ` · ${agent.readActions}/6 reads`}
+                  ` · ${agent.readActions}/${run.teamPlan ? researchLimits[agent.role === "reviewer" ? "reviewer" : "researcher"].toolActions : 6} tool actions`}
               </p>
+              {agent.usage && (
+                <p>
+                  {agent.usage.promptTokens} input ·{" "}
+                  {agent.usage.completionTokens} output tokens
+                </p>
+              )}
               {agent.error && <p role="alert">{agent.error}</p>}
               {agent.answer && (
                 <details className="research-agent-findings">
@@ -1102,6 +1163,23 @@ function ResearchTeamRun({
           );
         })}
       </div>
+      {!!run.webEvidence?.length && (
+        <details>
+          <summary>Web evidence · {run.webEvidence.length} pages</summary>
+          {run.webEvidence.map((e) => (
+            <article key={e.id}>
+              <a href={e.url} target="_blank" rel="noreferrer">
+                [{e.id}] {e.title}
+              </a>
+              <p>
+                Retrieved {new Date(e.retrievedAt).toLocaleString()}
+                {e.publishedAt ? ` · Published ${e.publishedAt}` : ""}
+              </p>
+              <blockquote>{e.text}</blockquote>
+            </article>
+          ))}
+        </details>
+      )}
       {!!run.answer && (
         <section className="workflow-report research-team-synthesis">
           <h4>Lead synthesis</h4>
@@ -1138,9 +1216,25 @@ function ResearchMarkdown({
                 (item) => item.id === Number(href.slice("#citation-".length)),
               )
             : undefined;
+          const web = href?.startsWith("#citation-")
+            ? run.webEvidence?.find((e) => e.id === Number(href.slice(10)))
+            : undefined;
+          if (web)
+            return (
+              <a
+                className="inline-citation"
+                href={web.url}
+                title={`${web.title} · retrieved ${new Date(web.retrievedAt).toLocaleString()}\n${web.text}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {children}
+              </a>
+            );
           return citation ? (
             <button
               className="inline-citation"
+              aria-label={`Open ${citation.sourceName}, page ${citation.page}, citation ${citation.id}`}
               onClick={() =>
                 onCitation({
                   id: citation.id,
@@ -1161,7 +1255,10 @@ function ResearchMarkdown({
         },
       }}
     >
-      {citationMarkdown(content, run.citations)}
+      {citationMarkdown(content, [
+        ...run.citations,
+        ...(run.webEvidence ?? []),
+      ])}
     </ReactMarkdown>
   );
 }

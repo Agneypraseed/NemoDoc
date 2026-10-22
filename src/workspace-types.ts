@@ -161,6 +161,42 @@ export const proposalActionSchema = z.discriminatedUnion("kind", [
 ]);
 export type ProposalActionInput = z.infer<typeof proposalActionSchema>;
 export type ProposalAction = ProposalActionInput & { id: string };
+export const researchPlanSchema = z
+  .object({
+    agents: z
+      .array(
+        z
+          .object({
+            id: id,
+            name: z.string().trim().min(1).max(100),
+            assignment: z.string().trim().min(1).max(2000),
+            role: z.enum(["researcher", "reviewer"]),
+            agentId: z
+              .string()
+              .regex(/^[a-z0-9][a-z0-9_-]{0,63}$/)
+              .optional(),
+          })
+          .strict(),
+      )
+      .min(2)
+      .max(5),
+  })
+  .strict()
+  .refine(
+    (p) =>
+      new Set(p.agents.map((a) => a.id)).size === p.agents.length &&
+      p.agents.filter((a) => a.role === "reviewer").length === 1,
+    "Choose unique agent IDs and exactly one reviewer.",
+  );
+export type ResearchPlan = z.infer<typeof researchPlanSchema>;
+export const researchLimits = {
+  researcher: { modelCalls: 5, toolActions: 8 },
+  reviewer: { modelCalls: 4, toolActions: 6 },
+  concurrency: 3,
+  durationMs: 600000,
+  webSearches: 3,
+  webPages: 5,
+} as const;
 export const workflowTaskSchema = z
   .object({
     notebookId: id,
@@ -169,6 +205,9 @@ export const workflowTaskSchema = z
     sourceIds: z.array(id).max(30),
     noteIds: z.array(id).max(1000),
     includeProgress: z.boolean().default(false),
+    executionRoute: z.enum(["application", "nemoclaw"]).optional(),
+    teamPlan: researchPlanSchema.optional(),
+    webEnabled: z.boolean().optional(),
     agentIds: z
       .array(z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/))
       .length(3)
@@ -270,6 +309,8 @@ export interface WorkflowRun extends WorkflowTask {
   citations: AgentCitation[];
   evidence: QueryEvidence[];
   researchTeam?: ResearchTeamAgent[];
+  webEvidence?: WebEvidence[];
+  webConnectionRevision?: string;
   usage?: { promptTokens: number; completionTokens: number };
   stage?: ResearchStage;
 }
@@ -278,6 +319,8 @@ export interface ResearchTeamAgent {
   id: string;
   name: string;
   focus: string;
+  role?: "researcher" | "reviewer";
+  usage?: { promptTokens: number; completionTokens: number };
   agentId?: string;
   status: "queued" | "running" | "completed" | "failed" | "interrupted";
   stage: ResearchStage;
@@ -288,6 +331,14 @@ export interface ResearchTeamAgent {
   returnedModel?: string;
   modelCalls?: number;
   readActions?: number;
+}
+export interface WebEvidence {
+  id: number;
+  url: string;
+  title: string;
+  text: string;
+  retrievedAt: number;
+  publishedAt?: string;
 }
 export interface ActionProposal {
   id: string;

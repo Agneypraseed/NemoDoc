@@ -1,4 +1,4 @@
-import { normalizeCitations, usesCitation } from "../../src/lib/citations.ts";
+import { citationReferences, usesCitation } from "../../src/lib/citations.ts";
 import type {
   ProposalActionInput,
   WorkflowReport,
@@ -9,22 +9,10 @@ export function evidenceIds(run: WorkflowRun) {
   return new Set([...run.citations, ...run.evidence].map((c) => c.id));
 }
 export function textReferences(content: string, run: WorkflowRun) {
-  const normalized = normalizeCitations(content, run.citations);
-  return [
-    ...normalized.matchAll(
-      /\[([\d\s,;]+)(?:,\s*p(?:age)?\.?\s*(\d+))?\](?!\()/gi,
-    ),
-  ].flatMap((m) => {
-    const ids = m[1].split(/[,;]/).map((v) => Number(v.trim()));
-    if (
-      m[2] &&
-      ids.some(
-        (id) => run.citations.find((c) => c.id === id)?.page !== Number(m[2]),
-      )
-    )
-      return [-1];
-    return ids;
-  });
+  return citationReferences(content, [
+    ...run.citations,
+    ...(run.webEvidence ?? []),
+  ]);
 }
 export function validateActions(
   actions: ProposalActionInput[],

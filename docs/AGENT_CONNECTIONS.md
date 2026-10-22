@@ -66,3 +66,7 @@ Connection credentials are saved in `data/agent.json.connections.json`, with own
 Routine tests use deterministic inference/messaging responses and a private loopback SMTP server with test credentials. They verify real encrypted SMTP submission without contacting external inboxes. Live model availability, delivery from your mailbox and Meta account access need your configured credentials and a deliberate test from the app.
 
 References: [Gemma capabilities](https://ai.google.dev/gemma/docs/core), [Ollama API compatibility](https://github.com/ollama/ollama/blob/main/docs/api/openai-compatibility.mdx).
+
+## Web research
+
+Under **Connections → Web research**, save and test a Tavily API key. Tests make one search request. The key is stored server-side and is masked in the UI. Enable web access separately for each research run; generated queries may contain information from approved selected evidence. Without a tested key, notebook-only application-managed research remains available. Web access does not change the notebook model policy or enable arbitrary URL fetching.

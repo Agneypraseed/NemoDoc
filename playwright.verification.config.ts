@@ -7,6 +7,7 @@ export default defineConfig({
     "agent-overview.spec.ts",
     "agent-configuration.spec.ts",
     "research-team.spec.ts",
+    "research-team-live.spec.ts",
     "home.spec.ts",
     "library.spec.ts",
   ],

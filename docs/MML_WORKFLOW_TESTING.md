@@ -55,6 +55,28 @@ It follows MML upload → synthetic notes → explicit snapshot sharing → the 
 
 To exercise the live multi-paper research workflow, import both PDFs linked under [Research example sources](../README.md#research-example-sources), approve their snapshots in Agent, select both papers, and run **Synthesize research**. Do not use the one-book MML fixture as a research comparison.
 
+## Live multi-agent book research
+
+**Research team** can investigate complementary questions within one book; it does not claim that chapters are independent research papers. An optional acceptance journey uploads the real MML PDF, creates a topic-specific team plan, observes concurrent researchers in the UI, verifies that the reviewer runs after them, checks durable per-agent findings and traces, opens a local citation, and reloads the report.
+
+After explicitly authorizing transmission of retrieved book excerpts to the provider saved in `data/settings.json` and the associated model charges:
+
+```powershell
+$env:NEMODOC_MML_RESEARCH_LIVE='1'
+# Optional: $env:NEMODOC_MML_BOOK='D:\path\to\mml-book.pdf'
+npm run verify:agents -- research-team-live.spec.ts
+```
+
+The journey uses an isolated JSON workspace rather than the personal workspace or database. It leaves real request timings, UI observations, screenshots, video, run and server trace under a unique ignored `output/mml-research-live-*` directory. The browser trace remains in the standard `output/verification/` report. No provider output is fabricated; no original PDF is uploaded to the model provider. It sends only the evidence excerpts needed by the research agents. Ordinary verification skips this live test. Successful execution and valid citations still require a separate factual-support review.
+
+### Recorded live research run — 2026-10-22
+
+The live journey passed with the actual 417-page MML PDF and `nvidia/Nemotron-3_5-Lightning` through the saved Nebius connection. Two researchers worked concurrently, then the critical reviewer produced the synthesis. The researchers used five/four model calls and three source-read actions each; the reviewer used three model calls and two source-read actions. All three completed with findings and citations. The trace recorded overlapping researcher spans, subsequent reviewer execution, and 12 research calls (13 including planning). The browser observed both researchers working, opened the recorded findings and trace, navigated a supporting local PDF page, and recovered the completed report after reload. No browser errors were recorded. Evidence remains local under `output/mml-research-live-zKA7eX/`.
+
+The live run exposed two fixed workflow issues: agents could consume every call on retrieval without producing a report, and inference waits were mislabeled as requiring user input. Research now reserves report/repair turns inside the existing call budget and displays inference as active work with its specific waiting stage.
+
+This is execution and persistence evidence, not an accuracy score. Manual inspection still found overbroad whole-book absence claims and inconsistent model-written page/reference descriptions. The UI's citation buttons use the stored source/page mapping; syntactically valid references do not guarantee that every generated claim or quotation is supported. Review the original passages before relying on the research report. The original PDF, excerpts, model output, credentials, screenshots and recordings are not committed.
+
 Full regression: `npm test`, `npm run check`, `npm run test:postgres`, `npm run test:e2e`, and `npm run build`. Docker startup still requires a machine with Docker; having these scripts does not verify container startup or a hosted CI run.
 
 [Recorded results and known failures](MML_EVALUATION_RESULTS.md) distinguish model completion, instruction adherence, source support and concurrency guarantees. `node --import tsx scripts/summarize-mml.ts` regenerates the redacted report from retained local outputs; it refuses an incomplete final batch. Raw book text and provider traces remain ignored.

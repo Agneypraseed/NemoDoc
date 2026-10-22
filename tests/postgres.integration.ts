@@ -25,6 +25,83 @@ import {
   fixedDate,
 } from "./fixtures/evidence-workspace.ts";
 
+test("PostgreSQL preserves planned research assignments, web evidence and per-agent usage", async () => {
+  if (!process.env.TEST_DATABASE_URL || !process.env.TEST_READ_DATABASE_URL)
+    throw new Error(
+      "Use isolated TEST_DATABASE_URL and TEST_READ_DATABASE_URL values.",
+    );
+  const repo = new PostgresWorkspaceRepository(
+    process.env.TEST_DATABASE_URL,
+    process.env.TEST_READ_DATABASE_URL,
+  );
+  try {
+    await repo.initialize();
+    const notebookId = `research-${randomUUID()}`;
+    const service = new WorkspaceService(
+      repo,
+      new AgentConnectionStore(
+        new SettingsStore({
+          apiKey: "fixture-key",
+          baseUrl: "https://model.example.test/v1",
+          model: "nvidia/test-nemotron",
+        }),
+      ),
+    );
+    await service.snapshot({ ...snapshot, notebookId });
+    const teamPlan = {
+      agents: [
+        {
+          id: "researcher",
+          name: "Researcher",
+          assignment: "Compare methods",
+          role: "researcher",
+        },
+        {
+          id: "reviewer",
+          name: "Reviewer",
+          assignment: "Check sources",
+          role: "reviewer",
+        },
+      ],
+    };
+    const run = await service.queue({
+      notebookId,
+      workflow: "research_team",
+      prompt: "Compare methods",
+      sourceIds: ["book"],
+      noteIds: [],
+      executionRoute: "application",
+      teamPlan,
+    });
+    await repo.transaction(notebookId, (state) => {
+      const saved = state.runs.find((r) => r.id === run.id)!;
+      saved.status = "completed";
+      saved.stage = "completed";
+      saved.webEnabled = true;
+      saved.webConnectionRevision = "synthetic-revision";
+      saved.webEvidence = [
+        {
+          id: 2,
+          url: "https://example.com/synthetic",
+          title: "Synthetic evidence",
+          text: "Original synthetic fixture excerpt.",
+          retrievedAt: fixedDate,
+        },
+      ];
+      saved.researchTeam![0].usage = { promptTokens: 5, completionTokens: 3 };
+      saved.researchTeam![0].answer = "Synthetic finding [2].";
+    });
+    const restored = (await repo.read(notebookId)).runs[0];
+    assert.deepEqual(restored.teamPlan, teamPlan);
+    assert.equal(restored.executionRoute, "application");
+    assert.equal(restored.webEvidence?.[0].retrievedAt, fixedDate);
+    assert.equal(restored.researchTeam?.[0].usage?.promptTokens, 5);
+    assert.deepEqual((await repo.readActivity(notebookId)).runs[0], restored);
+  } finally {
+    await repo.close();
+  }
+});
+
 test("PostgreSQL 17: migrations, SQL filters/aggregates, role boundary, approval race, rollback and recovery", async () => {
   if (!process.env.TEST_DATABASE_URL || !process.env.TEST_READ_DATABASE_URL)
     throw new Error(

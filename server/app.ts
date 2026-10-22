@@ -19,6 +19,7 @@ import { isNemotron } from "../src/lib/model-policy.ts";
 import { registerAgentMonitor, type NemoClawReader } from "./agent-monitor.ts";
 import { registerAgentConfiguration } from "./agent-config.ts";
 import { TraceStore } from "./trace-store.ts";
+import { WebResearch } from "./workspace/web-research.ts";
 
 export interface Config {
   apiKey: string;
@@ -79,6 +80,12 @@ export function createApp(
   const providerFetch = fetcher;
   // Chat is restricted below; vision and embeddings use separate capability models.
   const app = express();
+  const webResearch = new WebResearch(
+    options.workspaceFile
+      ? `${options.workspaceFile}.web-connection.json`
+      : undefined,
+    providerFetch,
+  );
   const store = new SettingsStore(initialConfig, options.settingsFile);
   const environmentSecrets = [
     process.env.NVIDIA_API_KEY,
@@ -87,9 +94,12 @@ export function createApp(
     process.env.AGENT_READ_DATABASE_URL,
   ];
   let traceSecrets = () =>
-    [...environmentSecrets, initialConfig.apiKey, store.value.apiKey].filter(
-      (secret): secret is string => !!secret,
-    );
+    [
+      ...environmentSecrets,
+      initialConfig.apiKey,
+      store.value.apiKey,
+      webResearch.value.apiKey,
+    ].filter((secret): secret is string => !!secret);
   const traceStore = new TraceStore(
     options.databaseUrl,
     options.traceSpoolFile ??
@@ -131,6 +141,7 @@ export function createApp(
       agent.worker.connections.runtime().apiKey,
       agent.worker.connections.value.email.password,
       agent.worker.connections.value.whatsapp.apiKey,
+      webResearch.value.apiKey,
     ].filter((secret): secret is string => !!secret);
   const monitor = registerAgentMonitor(
     app,
@@ -151,6 +162,7 @@ export function createApp(
     providerFetch,
     {
       workspaceFile: options.workspaceFile,
+      web: webResearch,
       databaseUrl: options.databaseUrl,
       readDatabaseUrl: options.readDatabaseUrl,
       startWorker: options.startWorkspaceWorker,

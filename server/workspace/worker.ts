@@ -4,7 +4,11 @@ import { executeReadTool, readSchemas } from "./read-tools.ts";
 import { agentResponseSchema } from "../agent-response.ts";
 import { VisibleAnswerStream } from "../visible-answer.ts";
 import { DeliveryRejected } from "../agent-connections.ts";
-import { proposeSchema, type WorkflowRun } from "../../src/workspace-types.ts";
+import {
+  proposeSchema,
+  researchLimits,
+  type WorkflowRun,
+} from "../../src/workspace-types.ts";
 import { evidenceIds, textReferences } from "./evidence.ts";
 import { WorkspaceService } from "./service.ts";
 import { canonical } from "./canonical.ts";
@@ -16,6 +20,7 @@ import type {
 } from "../trace-store.ts";
 import type { ModelRequestObserver } from "../model-observer.ts";
 import { executeResearchTeam as runResearchTeam } from "./research-team.ts";
+import { executePlannedResearch } from "./application-research.ts";
 
 const traceModelObserver = (
   span: TraceSpanHandle,
@@ -67,6 +72,7 @@ export class WorkspaceWorker {
   private timer?: ReturnType<typeof setInterval>;
   private ticking = false;
   private active?: AbortController;
+  private activeRun?: { notebookId: string; id: string };
   private readonly saveQueues = new Map<string, Promise<unknown>>();
   constructor(
     readonly service: WorkspaceService,
@@ -84,6 +90,12 @@ export class WorkspaceWorker {
             r.error =
               "Server stopped. Review retrieved evidence before running again.";
             r.stage = "interrupted";
+            for (const agent of r.researchTeam ?? [])
+              if (agent.status === "running" || agent.status === "queued") {
+                agent.status = "interrupted";
+                agent.stage = "interrupted";
+                agent.error = r.error;
+              }
             if (r.traceId) traceIds.push(r.traceId);
             for (const p of s.proposals)
               if (p.runId === r.id && p.status === "pending")
@@ -125,6 +137,11 @@ export class WorkspaceWorker {
       this.service.repository.transaction(run.notebookId, (s) => {
         const i = s.runs.findIndex((r) => r.id === run.id);
         if (i < 0) throw new Error("Run was removed.");
+        if (s.runs[i].status === "interrupted") {
+          run.status = "interrupted";
+          run.stage = "interrupted";
+          run.error = s.runs[i].error;
+        }
         s.runs[i] = structuredClone(run);
       }),
     );
@@ -133,6 +150,39 @@ export class WorkspaceWorker {
       next.catch(() => {}),
     );
     await next;
+  }
+  async cancel(notebookId: string, runId: string) {
+    const queuedTrace = await this.service.repository.transaction(
+      notebookId,
+      (state) => {
+        const run = state.runs.find((r) => r.id === runId);
+        if (!run) throw new Error("Run not found in this notebook.");
+        if (run.status !== "queued" && run.status !== "running") return;
+        const traceId = run.status === "queued" ? run.traceId : undefined;
+        run.status = "interrupted";
+        run.stage = "interrupted";
+        run.error = "Research cancelled. Completed findings are retained.";
+        run.finishedAt = Date.now();
+        for (const agent of run.researchTeam ?? [])
+          if (agent.status === "queued" || agent.status === "running") {
+            agent.status = "interrupted";
+            agent.stage = "interrupted";
+          }
+        return traceId;
+      },
+    );
+    if (queuedTrace)
+      await this.traces?.markInterrupted(
+        queuedTrace,
+        notebookId,
+        "Research cancelled before dispatch.",
+      );
+    if (
+      this.activeRun?.id === runId &&
+      this.activeRun.notebookId === notebookId
+    )
+      this.active?.abort("cancelled");
+    return { ok: true };
   }
   async tick(now = Date.now()) {
     if (this.ticking) return;
@@ -194,12 +244,15 @@ export class WorkspaceWorker {
     if (!claimed) return;
     const controller = new AbortController();
     this.active = controller;
-    const deadline = Date.now() + 180000;
+    this.activeRun = { notebookId: run.notebookId, id: run.id };
+    const duration =
+      run.workflow === "research_team" ? researchLimits.durationMs : 180000;
+    const deadline = Date.now() + duration;
     let timedOut = false;
     const timeout = setTimeout(() => {
       timedOut = true;
       controller.abort("timeout");
-    }, 180000);
+    }, duration);
     run.status = "running";
     run.startedAt = now;
     run.traceId ||= run.id;
@@ -217,6 +270,9 @@ export class WorkspaceWorker {
       }
       controller.signal.throwIfAborted();
       const s = await this.service.repository.read(run.notebookId);
+      if (s.runs.find((r) => r.id === run.id)?.status === "interrupted")
+        controller.abort("cancelled");
+      controller.signal.throwIfAborted();
       this.service.checkRun(s, run);
       return s;
     };
@@ -235,10 +291,11 @@ export class WorkspaceWorker {
               startedAt: run.startedAt,
               metadata: {
                 workflow: run.workflow,
+                executionRoute: run.executionRoute,
                 connectionMode: run.connection.mode,
                 gatewayTarget: run.connection.model,
                 assignedAgents: run.researchTeam?.map((agent) => ({
-                  id: agent.agentId,
+                  id: agent.agentId ?? agent.id,
                   model: agent.assignedModel,
                 })),
               },
@@ -554,6 +611,7 @@ export class WorkspaceWorker {
     } finally {
       clearTimeout(timeout);
       this.active = undefined;
+      this.activeRun = undefined;
       run.finishedAt = Date.now();
       if (run.status !== "completed") {
         for (const specialist of run.researchTeam ?? [])
@@ -604,7 +662,7 @@ export class WorkspaceWorker {
     >,
     trace?: TraceHandle,
   ) {
-    return runResearchTeam({
+    return (run.teamPlan ? executePlannedResearch : runResearchTeam)({
       run,
       state,
       signal,

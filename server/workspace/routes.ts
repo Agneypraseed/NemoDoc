@@ -10,6 +10,7 @@ import { scopeId, WorkspaceService } from "./service.ts";
 import { WorkspaceWorker } from "./worker.ts";
 import type { RuntimeResearchTarget } from "./service.ts";
 import type { TraceStore } from "../trace-store.ts";
+import { WebResearch } from "./web-research.ts";
 
 export function registerWorkspace(
   app: express.Express,
@@ -25,6 +26,7 @@ export function registerWorkspace(
     listRuntimeAgentTargets?: () => Promise<RuntimeResearchTarget[]>;
     expectedNvidiaModel?: string;
     traces?: TraceStore;
+    web?: WebResearch;
   } = {},
 ) {
   if (options.databaseUrl && !options.readDatabaseUrl)
@@ -46,6 +48,7 @@ export function registerWorkspace(
       options.listRuntimeAgentTargets,
       options.expectedNvidiaModel,
       options.traces,
+      options.web,
     ),
     worker = new WorkspaceWorker(service, fetcher, options.traces);
   const ready = repository
@@ -206,6 +209,27 @@ export function registerWorkspace(
   route("/api/agent/workspace/snapshot", (body) => service.snapshot(body));
   route("/api/agent/workspace/progress", (body) => service.recordAttempt(body));
   route("/api/agent/workspace/run", (body) => service.queue(body));
+  route("/api/agent/workspace/research-plan", (body) =>
+    service.researchPlan(body, fetcher),
+  );
+  route("/api/agent/workspace/cancel", (body) => {
+    const input = z
+      .object({ notebookId: scopeId, runId: scopeId })
+      .strict()
+      .parse(body);
+    return worker.cancel(input.notebookId, input.runId);
+  });
+  app.get("/api/agent/workspace/web-connection", (_req, res) =>
+    res.json(options.web?.public() ?? { hasApiKey: false, tested: false }),
+  );
+  route("/api/agent/workspace/web-connection", async (body) => {
+    if (!options.web) throw new Error("Web research is unavailable.");
+    return options.web.save(body);
+  });
+  route("/api/agent/workspace/web-connection/test", async () => {
+    if (!options.web) throw new Error("Web research is unavailable.");
+    return options.web.test();
+  });
   route("/api/agent/workspace/revoke", (body) =>
     service.revoke(
       z

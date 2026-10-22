@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import type { AgentConnections as Connections } from "../agent-types";
 import { apiJSON } from "../lib/api";
+import { WebResearchConnection } from "./WebResearchConnection";
 
 export function AgentConnections() {
   const [data, setData] = useState<Connections>();
@@ -334,6 +335,7 @@ export function AgentConnections() {
   return (
     <div>
       <h3>Model & delivery connections</h3>
+      <WebResearchConnection />
       <p className="agent-intro">
         Choose the model your agent uses and where completed results can go.
         Credentials stay on your local server and are excluded from exports.

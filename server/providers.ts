@@ -18,7 +18,9 @@ export function credentialAllowed(url: string, settings: RuntimeSettings) {
       providerKind(settings.baseUrl) === "nvidia")
   );
 }
-export function chatOptions(settings: RuntimeSettings) {
+export function chatOptions(
+  settings: Pick<RuntimeSettings, "baseUrl" | "model">,
+) {
   // Nemotron's template defaults to thinking on. Token Factory accepts the
   // same template control; answer detail is independent of private reasoning.
   // https://docs.nvidia.com/nim/large-language-models/2.0.10/get-started/advanced/get-started-nemotron-3.5-lightning.html

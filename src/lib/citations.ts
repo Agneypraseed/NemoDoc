@@ -1,8 +1,12 @@
 import type { Citation } from "../types";
+type CitationReference = { id: number; page?: number };
 
 // Accept common model formatting without inventing or correcting references.
 // Page-qualified citations must agree with the retrieved ID's original page.
-export function normalizeCitations(content: string, citations: Citation[]) {
+export function normalizeCitations(
+  content: string,
+  citations: CitationReference[],
+) {
   const known = new Map(citations.map((c) => [c.id, c]));
   return content
     .replace(
@@ -30,7 +34,10 @@ export function usesCitation(
     normalizeCitations(content, citations),
   );
 }
-export function citationMarkdown(content: string, citations: Citation[]) {
+export function citationMarkdown(
+  content: string,
+  citations: CitationReference[],
+) {
   return normalizeCitations(content, citations).replace(
     /\[(\d+)\](?!\()/g,
     (original, id: string) =>
@@ -38,4 +45,24 @@ export function citationMarkdown(content: string, citations: Citation[]) {
         ? `[${id}](#citation-${id})`
         : original,
   );
+}
+/** Unknown and invalid page-qualified references remain visible to validation. */
+export function citationReferences(
+  content: string,
+  citations: CitationReference[],
+) {
+  const normalized = normalizeCitations(content, citations);
+  return [
+    ...normalized.matchAll(
+      /\[([\d\s,;]+)(?:,\s*p(?:age)?\.?\s*(\d+))?\](?!\()/gi,
+    ),
+  ].flatMap((m) => {
+    const ids = m[1].split(/[,;]/).map((v) => Number(v.trim()));
+    return m[2] &&
+      ids.some(
+        (id) => citations.find((c) => c.id === id)?.page !== Number(m[2]),
+      )
+      ? [-1]
+      : ids;
+  });
 }

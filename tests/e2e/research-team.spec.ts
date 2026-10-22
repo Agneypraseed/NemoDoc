@@ -8,7 +8,29 @@ import { PDFDocument, StandardFonts } from "pdf-lib";
 import type { NemoClawReader } from "../../server/agent-monitor.ts";
 
 const modelId = "nvidia/test-nemotron";
-const gateway = "http://127.0.0.1:18789/v1";
+const webURL = "https://93.184.216.34/research";
+const assignments = {
+  agents: [
+    {
+      id: "definitions",
+      name: "Definitions researcher",
+      assignment: "Investigate definitions",
+      role: "researcher",
+    },
+    {
+      id: "comparisons",
+      name: "Comparison researcher",
+      assignment: "Compare methods",
+      role: "researcher",
+    },
+    {
+      id: "reviewer",
+      name: "Reviewer",
+      assignment: "Check evidence and limits",
+      role: "reviewer",
+    },
+  ],
+};
 const roster = [
   { id: "foundations", name: "Foundations researcher", model: modelId },
   { id: "neural-networks", name: "Neural networks researcher", model: modelId },
@@ -32,7 +54,7 @@ function modelResponse(message: unknown) {
   );
 }
 
-test("fixture browser journey routes three agents, shows inference waits, and inspects the persisted trace", async ({
+test("application research edits a plan, reads notebook and web evidence, and inspects durable traces", async ({
   browser,
 }, testInfo) => {
   const directory = mkdtempSync(path.join(tmpdir(), "nemodoc-research-team-"));
@@ -86,31 +108,72 @@ test("fixture browser journey routes three agents, shows inference waits, and in
   let selectedNotebookId = "";
   const modelFetcher: typeof fetch = async (_url, init) => {
     const body = JSON.parse(String(init?.body));
+    if (String(_url).includes("api.tavily.com/search"))
+      return new Response(
+        JSON.stringify({
+          results: [
+            {
+              url: webURL,
+              title: "Synthetic web research",
+              content: "Unread search snippet",
+            },
+          ],
+        }),
+      );
+    if (String(_url).includes("api.tavily.com/extract"))
+      return new Response(
+        JSON.stringify({
+          results: [
+            {
+              url: webURL,
+              raw_content:
+                "SYNTHETIC WEB FIXTURE. This comparison does not establish empirical performance.",
+            },
+          ],
+          failed_results: [],
+        }),
+      );
     const target = String(body.model);
     modelRequests.push(target);
     const system = String(body.messages[0]?.content ?? "");
+    if (system.includes("Plan research assignments only"))
+      return modelResponse({ content: JSON.stringify(assignments) });
     if (
       system.includes(
         "You are NemoDoc's critical reviewer and final synthesis author.",
       )
     ) {
       const input = JSON.parse(body.messages[1].content);
-      const citation = input.approvedEvidence[0].citation.match(/\d+/)?.[0];
+      const citation = input.evidence[0].id;
       return modelResponse({
-        content: `The synthetic MML page describes PCA [${citation}]. It cannot establish how neural networks are trained or generalize.`,
+        content: `The synthetic MML page describes PCA [${citation}]. The web comparison [${input.evidence.find((e: any) => e.url).id}] cannot establish how neural networks are trained or generalize.`,
       });
     }
     const toolMessages = body.messages.filter(
       (message: any) => message.role === "tool",
     );
+    if (toolMessages.length === 2)
+      return modelResponse({
+        content: null,
+        tool_calls: [
+          {
+            id: "web-read",
+            type: "function",
+            function: {
+              name: "read_web_page",
+              arguments: JSON.stringify({ url: webURL }),
+            },
+          },
+        ],
+      });
     if (toolMessages.length) {
-      const output = JSON.parse(toolMessages.at(-1).content);
+      const output = JSON.parse(toolMessages[0].content);
       return modelResponse({
         content: `The selected PCA passage supports this finding [${output[0].id}].`,
       });
     }
-    firstTargets.add(target);
-    if (firstTargets.size === 3) reportInferenceStarted();
+    firstTargets.add(JSON.parse(body.messages[1].content).assignment);
+    if (firstTargets.size === 2) reportInferenceStarted();
     await release;
     const agentId = target.split("/").at(-1);
     return modelResponse({
@@ -122,6 +185,14 @@ test("fixture browser journey routes three agents, shows inference waits, and in
           function: {
             name: "read_passage",
             arguments: JSON.stringify({ sourceId: selectedSourceId, page: 1 }),
+          },
+        },
+        {
+          id: "web-search",
+          type: "function",
+          function: {
+            name: "search_web",
+            arguments: JSON.stringify({ query: "PCA research" }),
           },
         },
       ],
@@ -143,14 +214,6 @@ test("fixture browser journey routes three agents, shows inference waits, and in
       nemoclawReader: nativeReader,
     },
   );
-  const connection = app.locals.agent.connections.value.model;
-  Object.assign(connection, {
-    mode: "openclaw",
-    baseUrl: gateway,
-    model: "openclaw/foundations",
-    apiKey: "fixture-gateway-token",
-    tested: true,
-  });
   await app.locals.workspace.ready;
   const server = app.listen(0, "127.0.0.1");
   await new Promise<void>((resolve) => server.once("listening", resolve));
@@ -174,7 +237,12 @@ test("fixture browser journey routes three agents, shows inference waits, and in
       const request = route.request();
       const requestUrl = new URL(request.url());
       const body = request.postDataJSON() as any;
-      if (requestUrl.pathname === "/api/agent/workspace/run") {
+      if (
+        [
+          "/api/agent/workspace/run",
+          "/api/agent/workspace/research-plan",
+        ].includes(requestUrl.pathname)
+      ) {
         selectedSourceId = body.sourceIds[0];
         selectedNotebookId = body.notebookId;
       }
@@ -198,6 +266,18 @@ test("fixture browser journey routes three agents, shows inference waits, and in
       .getByLabel("Upload sources", { exact: true })
       .setInputFiles(pdfPath);
     await pageUI.getByRole("button", { name: "Agent", exact: true }).click();
+    await pageUI
+      .getByRole("button", { name: "Connections", exact: true })
+      .click();
+    const web = pageUI.getByRole("region", { name: "Web research connection" });
+    await web.getByLabel("Tavily API key").fill("fixture-tavily-key");
+    await web
+      .getByRole("button", { name: "Save web connection", exact: true })
+      .click();
+    await web
+      .getByRole("button", { name: "Test web connection", exact: true })
+      .click();
+    await expect(web).toContainText("Tavily connection test passed.");
     await pageUI.getByRole("button", { name: "Tasks", exact: true }).click();
     const flow = pageUI.getByRole("region", { name: "Evidence workflows" });
     await expect(flow).toBeVisible();
@@ -213,22 +293,40 @@ test("fixture browser journey routes three agents, shows inference waits, and in
       .getByRole("button", { name: "Approve snapshots", exact: true })
       .click();
     await flow
-      .getByRole("button", { name: "Research with 3 agents", exact: true })
+      .getByRole("button", { name: "Research team", exact: true })
       .click();
-    await expect(flow.getByLabel("Foundations researcher")).toHaveValue(
-      "foundations",
+    await flow.getByLabel("Enable web research", { exact: true }).check();
+    await flow
+      .getByRole("button", { name: "Generate team plan", exact: true })
+      .click();
+    await expect(flow.getByLabel("Agent 1 name", { exact: true })).toHaveValue(
+      "Definitions researcher",
     );
-    await expect(flow.getByLabel("Neural networks researcher")).toHaveValue(
-      "neural-networks",
-    );
-    await expect(flow.getByLabel("Critical reviewer")).toHaveValue(
-      "critical-review",
-    );
-    expect(modelRequests).toEqual([]);
+    await flow
+      .getByLabel("Agent 1 assignment", { exact: true })
+      .fill("Investigate definitions and assumptions");
+    await flow
+      .getByRole("button", { name: "Add researcher", exact: true })
+      .click();
+    await expect(
+      flow.getByRole("article", { name: /^Assignment/ }),
+    ).toHaveCount(4);
+    await flow
+      .getByRole("article", { name: "Assignment 3", exact: true })
+      .getByRole("button", { name: "Remove researcher" })
+      .click();
+    await flow.getByLabel("I reviewed the team assignments").check();
     const start = flow.getByRole("button", {
-      name: "Start 3-agent research",
+      name: "Start research team",
       exact: true,
     });
+    const originalRequest = await flow
+      .getByLabel("Request", { exact: true })
+      .inputValue();
+    await flow.getByLabel("Request", { exact: true }).fill("Changed request");
+    await expect(start).toBeDisabled();
+    await expect(flow).toContainText("Regenerate the team plan");
+    await flow.getByLabel("Request", { exact: true }).fill(originalRequest);
     await expect(start).toBeEnabled();
     await start.click();
     await expect(flow.locator("article[data-run-id]")).toHaveCount(1);
@@ -237,13 +335,15 @@ test("fixture browser journey routes three agents, shows inference waits, and in
     await expect(flow).toContainText("Waiting for inference", {
       timeout: 8000,
     });
-    expect(firstTargets).toEqual(
-      new Set([
-        "openclaw/foundations",
-        "openclaw/neural-networks",
-        "openclaw/critical-review",
-      ]),
-    );
+    await expect(
+      flow
+        .locator(".research-agent-card .agent-monitor-status")
+        .filter({ hasText: "Working" }),
+    ).toHaveCount(2);
+    expect(firstTargets.size).toBe(2);
+    await expect(
+      flow.getByRole("button", { name: "Cancel research" }),
+    ).toBeVisible();
     releaseInference();
     await workerRun;
     const run = app.locals.workspace.repository
@@ -257,12 +357,37 @@ test("fixture browser journey routes three agents, shows inference waits, and in
     );
     expect(completed.answer).toContain("cannot establish how neural networks");
     await expect(flow).toContainText("Lead synthesis");
+    await expect(flow).toContainText("3/5 model calls");
+    await expect(flow).toContainText("1/4 model calls");
     await expect(flow).toContainText("Run history and trace inspection");
     await expect(flow).toContainText("tool · call");
-    expect(modelRequests).toHaveLength(7);
-    expect(
-      modelRequests.every((target) => target.startsWith("openclaw/")),
-    ).toBe(true);
+    expect(modelRequests).toHaveLength(8);
+    expect(completed.executionRoute).toBe("application");
+    expect(completed.webEvidence).toHaveLength(1);
+    await expect(
+      flow.locator(`.research-team-synthesis a[href="${webURL}"]`),
+    ).toHaveCount(1);
+    await flow
+      .getByText(`Web evidence · ${completed.webEvidence.length} pages`, {
+        exact: true,
+      })
+      .click();
+    await expect(flow).toContainText("SYNTHETIC WEB FIXTURE");
+    await expect(flow).toContainText("Retrieved");
+    const documentCitation = completed.citations[0];
+    await flow
+      .locator(".research-team-synthesis")
+      .getByRole("button", {
+        name: `Open ${documentCitation.sourceName}, page ${documentCitation.page}, citation ${documentCitation.id}`,
+        exact: true,
+      })
+      .click();
+    await expect(pageUI.locator('[data-page="1"] canvas')).toBeVisible();
+    await pageUI.screenshot({
+      path: "output/research-team.png",
+      fullPage: true,
+    });
+    expect(modelRequests.every((target) => target === modelId)).toBe(true);
     expect(errors).toEqual([]);
   } finally {
     releaseInference();

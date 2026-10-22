@@ -21,6 +21,70 @@ const targets: RuntimeResearchTarget[] = [
 ];
 const gateway = "http://127.0.0.1:18789/v1";
 
+test("an edited team plan uses verified NemoClaw targets and runs its reviewer after researchers", async () => {
+  const { repo, service } = await setup();
+  const requested: string[] = [];
+  const fetcher: typeof fetch = async (_url, init) => {
+    const body = JSON.parse(String(init?.body));
+    requested.push(body.model);
+    const input = JSON.parse(body.messages[1].content);
+    if (
+      body.messages[0].content.includes("critical reviewer and final synthesis")
+    ) {
+      assert.equal(input.reports.length, 2);
+      assert.ok(input.reports.every((r: any) => r.findings));
+      return response({
+        content: `The methods have evidence limitations [${input.evidence[0].id}].`,
+      });
+    }
+    const tools = body.messages.filter((m: any) => m.role === "tool");
+    if (tools.length)
+      return response({
+        content: `The source defines the method [${JSON.parse(tools[0].content)[0].id}].`,
+      });
+    return response({
+      content: null,
+      tool_calls: [
+        {
+          id: "read",
+          type: "function",
+          function: {
+            name: "read_passage",
+            arguments: JSON.stringify({ sourceId: "book", page: 1 }),
+          },
+        },
+      ],
+    });
+  };
+  try {
+    await service.queue({
+      notebookId: "fixture",
+      workflow: "research_team",
+      prompt: "Research generic methods",
+      sourceIds: ["book"],
+      noteIds: [],
+      executionRoute: "nemoclaw",
+      teamPlan: {
+        agents: targets.map((target, index) => ({
+          id: `role-${index}`,
+          name: `Assigned role ${index}`,
+          assignment: `Compare method ${index}`,
+          role: index === 2 ? "reviewer" : "researcher",
+          agentId: target.id,
+        })),
+      },
+    });
+    await new WorkspaceWorker(service, fetcher).tick();
+    const run = (await repo.read("fixture")).runs[0];
+    assert.equal(run.status, "completed", run.error);
+    assert.equal(run.calls, 5);
+    assert.equal(requested.at(-1), "openclaw/critical-review");
+    assert.equal(run.researchTeam?.[0].name, "Assigned role 0");
+  } finally {
+    await repo.close();
+  }
+});
+
 async function setup(configuredTargets = targets, traces?: TraceStore) {
   const repo = new JsonWorkspaceRepository();
   await repo.initialize();
