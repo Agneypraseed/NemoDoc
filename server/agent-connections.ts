@@ -289,8 +289,20 @@ export class AgentConnectionStore {
     signal = AbortSignal.timeout(120000),
     agentId?: string,
     observer?: ModelRequestObserver,
+    connectionOverride?: { baseUrl: string; model: string; apiKey: string },
   ) {
-    const c = this.runtime();
+    if (connectionOverride && agentId)
+      throw new Error(
+        "Choose either a research model profile or a runtime agent.",
+      );
+    if (connectionOverride) {
+      endpoint.parse(connectionOverride.baseUrl);
+      if ((body as { model?: unknown })?.model !== connectionOverride.model)
+        throw new Error(
+          "Research requests must use the approved profile model.",
+        );
+    }
+    const c = connectionOverride ?? this.runtime();
     if (
       agentId &&
       (this.value.model.mode !== "openclaw" ||
@@ -298,7 +310,7 @@ export class AgentConnectionStore {
     )
       throw new Error("Choose an agent from the connected OpenClaw runtime.");
     const target = agentId ? `openclaw/${agentId}` : c.model;
-    if (this.value.model.mode === "openclaw") {
+    if (!connectionOverride && this.value.model.mode === "openclaw") {
       if (!c.apiKey)
         throw new Error(
           "Save the dedicated OpenClaw gateway token in Connections. Your NVIDIA API key is configured inside NemoClaw, not used as a gateway token.",
@@ -356,9 +368,11 @@ export class AgentConnectionStore {
         }),
       );
       throw new Error(
-        this.value.model.mode === "openclaw"
+        !connectionOverride && this.value.model.mode === "openclaw"
           ? `OpenClaw gateway returned HTTP ${response.status}. Check the gateway token, agent target and enabled Chat Completions endpoint.`
-          : `Agent model returned HTTP ${response.status}. Check its connection and tool support.`,
+          : response.status >= 500
+            ? `Agent model returned HTTP ${response.status}. The provider could not complete the request. Test this model again or choose another tested model in a new reviewed plan.`
+            : `Agent model returned HTTP ${response.status}. Check its connection and tool support.`,
       );
     }
     try {

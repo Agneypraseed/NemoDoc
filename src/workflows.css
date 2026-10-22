@@ -4,6 +4,9 @@
   margin-bottom: 32px;
   min-width: 0;
 }
+.workspace-chat[hidden] {
+  display: none;
+}
 .workflow-templates,
 .workflow-buttons {
   display: flex;
@@ -88,7 +91,7 @@
 }
 .research-agent-card {
   min-width: 0;
-  padding: 10px;
+  padding: 16px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: color-mix(in srgb, var(--panel, transparent) 72%, transparent);
@@ -97,6 +100,34 @@
   margin: 8px 0 4px;
   font-size: 0.98em;
 }
+.research-agent-model {
+  margin: 6px 0;
+  color: var(--muted);
+  font-size: 0.85em;
+  overflow-wrap: anywhere;
+}
+.research-options,
+.research-diagnostics,
+.agent-secondary-tasks {
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+.research-options > summary,
+.research-diagnostics > summary,
+.agent-secondary-tasks > summary {
+  cursor: pointer;
+  color: var(--muted);
+  padding: 8px 0;
+}
+.research-agent-details {
+  font-size: 0.88em;
+}
+.research-compose > summary {
+  font-weight: 600;
+}
+.research-report-actions {
+  margin-bottom: 12px;
+}
 .research-agent-card .agent-work-scene {
   margin: 0 0 8px;
 }
@@ -104,9 +135,227 @@
   margin-top: 3px;
 }
 .research-agent-focus {
-  min-height: 3.6em;
   margin: 0 0 8px;
   line-height: 1.45;
+}
+.research-heading {
+  margin: 4px 0 10px;
+}
+.research-heading h2 {
+  font-size: 27px;
+}
+.research-heading p {
+  max-width: 46ch;
+  font-size: 13px;
+}
+.workflow-templates {
+  gap: 4px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 8px;
+}
+.agent-panel .workflow-templates button {
+  font-size: 11px;
+  padding: 8px;
+  min-height: 36px;
+  box-shadow: none;
+}
+.research-evidence > summary,
+.research-compose > summary {
+  font-size: 14px;
+  font-weight: 600;
+}
+.research-selection-count {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--sage-dark);
+  margin-left: 10px;
+}
+.research-run {
+  border: 0 !important;
+  padding: 8px 0 !important;
+}
+.research-request {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 8px 0 14px;
+}
+.research-request p {
+  color: var(--text);
+  line-height: 1.6;
+}
+.research-progress {
+  display: flex;
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 12px 0 16px;
+  border-bottom: 1px solid var(--line);
+}
+.research-progress li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 1;
+  font-size: 11px;
+  color: var(--muted);
+}
+.research-progress li:not(:last-child)::after {
+  content: "";
+  height: 1px;
+  background: var(--line);
+  flex: 1;
+  margin: 0 8px;
+}
+.research-progress li > span {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+}
+.research-progress .is-current {
+  color: var(--accent);
+  font-weight: 600;
+}
+.research-progress .is-current > span {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+}
+.research-progress .is-complete {
+  color: var(--sage-dark);
+}
+.research-progress .is-complete > span {
+  background: var(--sage-soft);
+  border-color: transparent;
+}
+.research-agent-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.research-agent-heading > div:nth-child(2) {
+  min-width: 0;
+  flex: 1;
+}
+.research-agent-heading h6 {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.research-agent-role {
+  color: var(--muted);
+  font-size: 11px;
+  margin: 2px 0 0;
+}
+.research-agent-indicator {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 10px;
+  color: var(--muted);
+  background: var(--surface-quiet);
+}
+.research-agent-indicator.is-running {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.research-agent-indicator.is-completed {
+  background: var(--sage-soft);
+  color: var(--sage-dark);
+}
+.research-agent-indicator.is-failed {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.research-agent-indicator.is-running svg {
+  animation: agent-spin 1.4s linear infinite;
+}
+.research-agent-card[data-activity="running"] {
+  border-color: var(--accent-line);
+}
+.research-agent-card {
+  transition:
+    border-color 220ms ease,
+    background-color 220ms ease;
+}
+.research-agent-heading .agent-monitor-status {
+  flex: none;
+  font-size: 10px;
+  padding: 3px 6px;
+}
+.research-agent-model {
+  font-size: 11px;
+  margin: 12px 0 4px;
+}
+.research-agent-stage {
+  font-size: 12px;
+  margin: 4px 0 10px;
+  font-weight: 500;
+}
+.research-agent-assignment,
+.research-agent-details,
+.research-agent-findings {
+  font-size: 12px;
+}
+.research-agent-assignment p {
+  font-size: 12px;
+  line-height: 1.65;
+  padding-top: 4px;
+}
+.research-team-grid {
+  grid-template-columns: 1fr;
+}
+.research-team-synthesis {
+  border: 0;
+  padding: 12px 0;
+  background: transparent;
+}
+.research-team-synthesis .agent-fine {
+  font-size: 11px;
+}
+.research-team-synthesis > div {
+  font-size: 14px;
+  line-height: 1.7;
+}
+.research-agent-card[open],
+.research-plan-editor,
+.research-team-synthesis {
+  animation: agent-reveal 220ms ease-out;
+}
+@keyframes agent-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes agent-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.agent-panel[data-reduced-motion="true"] *,
+.agent-panel[data-reduced-motion="true"] *::before,
+.agent-panel[data-reduced-motion="true"] *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent-panel *,
+  .agent-panel *::before,
+  .agent-panel *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
 }
 .research-agent-findings {
   margin-top: 10px;

@@ -45,7 +45,46 @@ export const test = base.extend({
           json:
             id === "status"
               ? { backend: "json", ready: true }
-              : emptyWorkspace(id),
+              : id === "model-profiles"
+                ? {
+                    profiles: [],
+                    plannerProfileId: "default",
+                    priority: "balanced",
+                    revision: "fixture",
+                  }
+                : id === "dashboard"
+                  ? {
+                      notebookId: "fixture",
+                      since: Date.now() - 30 * 86400000,
+                      until: Date.now(),
+                      generatedAt: Date.now(),
+                      persistence: "degraded",
+                      truncated: false,
+                      traces: [],
+                    }
+                  : id === "traces"
+                    ? { traces: [], persistence: "degraded" }
+                    : id === "metrics"
+                      ? {
+                          since: 0,
+                          totalRuns: 0,
+                          completedRuns: 0,
+                          failedRuns: 0,
+                          interruptedRuns: 0,
+                          completionRate: null,
+                          failureRate: null,
+                          interruptionRate: null,
+                          latencyMs: { p50: null, p95: null },
+                          modelCalls: 0,
+                          toolCalls: 0,
+                          promptTokens: null,
+                          completionTokens: null,
+                          citationChecks: 0,
+                          citationChecksPassed: 0,
+                          citationChecksFailed: 0,
+                          persistence: "degraded",
+                        }
+                      : emptyWorkspace(id),
         });
       });
       await page.route("**/api/prompt/rewrite", (route) =>

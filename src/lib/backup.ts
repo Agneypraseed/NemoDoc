@@ -46,6 +46,7 @@ const manifest = z.object({
         createdAt: z.number(),
         notes: z.string(),
         notesUpdatedAt: z.number().nonnegative().optional(),
+        savedResearchRuns: z.array(z.string().max(100)).max(10000).optional(),
         messages: z.array(message),
         passageNotes: z
           .array(

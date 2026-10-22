@@ -183,6 +183,7 @@ test("live Nebius document and personal agent workflow", async ({
       page.getByRole("button", { name: "Progress remembered", exact: true }),
     ).toBeVisible();
     await page.getByRole("button", { name: "Agent", exact: true }).click();
+    await page.locator(".agent-more-nav > summary").click();
     await page.getByRole("button", { name: "Memory", exact: true }).click();
     await page.getByRole("button", { name: "Add memory", exact: true }).click();
     await page
@@ -193,9 +194,10 @@ test("live Nebius document and personal agent workflow", async ({
       .getByRole("button", { name: "Save memory", exact: true })
       .click();
     await expect(page.locator(".agent-memory")).toHaveCount(2);
+    await page.locator(".agent-more-nav > summary").click();
     await page.getByRole("button", { name: "Sources", exact: true }).click();
-    await page.locator(".agent-panel input[type=checkbox]").first().check();
-    await page.locator(".agent-panel input[type=checkbox]").last().check();
+    await page.locator(".agent-panel").getByRole("checkbox").first().check();
+    await page.locator(".agent-panel").getByRole("checkbox").last().check();
     await page
       .getByRole("button", { name: "Save source permissions", exact: true })
       .click();
@@ -211,7 +213,10 @@ test("live Nebius document and personal agent workflow", async ({
     expect(semantic.citations.some((c: any) => c.page === 2)).toBe(true);
     evidence.semantic =
       "Keyword retrieval found the experiment on page 2 without an embedding inference call.";
-    await page.getByRole("button", { name: "Tasks", exact: true }).click();
+    await page.getByRole("button", { name: "Research", exact: true }).click();
+    await page
+      .getByText("Scheduled tasks & activity inbox", { exact: true })
+      .click();
     await page.getByRole("button", { name: "New task", exact: true }).click();
     await page
       .getByLabel("Task name", { exact: true })
@@ -334,7 +339,7 @@ test("live Nebius document and personal agent workflow", async ({
     const next = await context.newPage();
     await next.goto("/");
     await next.getByRole("button", { name: "Agent", exact: true }).click();
-    await next.getByRole("button", { name: "Tasks", exact: true }).click();
+    await next.getByRole("button", { name: "Research", exact: true }).click();
     await expect(next.locator("article.agent-result")).toContainText(
       closedRun.answer.slice(0, 40),
       { timeout: 10000 },

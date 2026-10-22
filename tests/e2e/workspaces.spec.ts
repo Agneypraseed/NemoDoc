@@ -95,7 +95,7 @@ test("both evidence workflows: explicit snapshot, inspect queries, edit, approve
         "Attention is finite. Keep source evidence beside the ideas I save.",
       );
     await page.getByRole("button", { name: "Agent", exact: true }).click();
-    await page.getByRole("button", { name: "Tasks", exact: true }).click();
+    await page.getByRole("button", { name: "Research", exact: true }).click();
     const flow = page.getByRole("region", { name: "Evidence workflows" });
     await expect(flow).toBeVisible();
     const sourceChoices = flow
@@ -116,7 +116,7 @@ test("both evidence workflows: explicit snapshot, inspect queries, edit, approve
       .getByRole("button", { name: "Approve snapshots", exact: true })
       .click();
     await expect(
-      flow.getByRole("button", { name: "Create proposal", exact: true }),
+      flow.getByRole("button", { name: "Generate team plan", exact: true }),
     ).toBeVisible();
     for (const name of ["Plan revision", "Synthesize research"]) {
       await flow.getByRole("button", { name, exact: true }).click();

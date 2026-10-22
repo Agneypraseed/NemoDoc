@@ -96,6 +96,11 @@ test("PostgreSQL preserves planned research assignments, web evidence and per-ag
     assert.equal(restored.executionRoute, "application");
     assert.equal(restored.webEvidence?.[0].retrievedAt, fixedDate);
     assert.equal(restored.researchTeam?.[0].usage?.promptTokens, 5);
+    assert.equal(restored.researchTeam?.[0].modelRoute?.profileId, "default");
+    assert.equal(
+      restored.researchTeam?.[0].modelRoute?.model,
+      "nvidia/test-nemotron",
+    );
     assert.deepEqual((await repo.readActivity(notebookId)).runs[0], restored);
   } finally {
     await repo.close();
@@ -133,6 +138,10 @@ test("PostgreSQL 17: migrations, SQL filters/aggregates, role boundary, approval
         createdAt: Date.now(),
       });
       const span = await trace.span("fixture agent", "agent");
+      await span.event("model.request", {
+        model: "nvidia/test-nemotron",
+        url: "https://model.example.test/v1/chat/completions",
+      });
       await span.event("model.response", {
         httpStatus: 200,
         returnedModel: "nvidia/test-nemotron",
@@ -155,14 +164,30 @@ test("PostgreSQL 17: migrations, SQL filters/aggregates, role boundary, approval
       const events = await online.events(`trace-${traceId}`, traceId);
       assert.equal(
         events.events.length,
-        5,
+        6,
         "duplicate JSONL replay must be idempotent",
       );
       const row = await repo.pool.query(
         "SELECT count(*)::int AS count FROM agent_trace_events WHERE trace_id=$1",
         [traceId],
       );
-      assert.equal(row.rows[0].count, 5);
+      assert.equal(row.rows[0].count, 6);
+      const dashboard = await online.dashboard(
+        `trace-${traceId}`,
+        0,
+        Date.now(),
+      );
+      assert.equal(dashboard.persistence, "persisted");
+      assert.equal(dashboard.truncated, false);
+      assert.equal(dashboard.traces.length, 1);
+      assert.equal(dashboard.traces[0].models[0].calls, 1);
+      assert.equal(dashboard.traces[0].models[0].promptTokens, 7);
+      assert.equal(dashboard.traces[0].models[0].completionTokens, 3);
+      assert.equal(
+        (await online.dashboard("different-notebook", 0, Date.now())).traces
+          .length,
+        0,
+      );
       await assert.rejects(
         repo.pool.query(
           "UPDATE agent_trace_events SET payload='{}' WHERE trace_id=$1",

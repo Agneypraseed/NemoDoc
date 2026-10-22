@@ -13,6 +13,16 @@ To use the NVIDIA Nemotron model you already use in notebook chat, keep **Use no
 
 Existing notebook Chat and Studio generation keep their Nemotron policy. Switching an agent connection does not change them. Agent study materials can still be saved to Studio.
 
+## Research models and automatic task routing
+
+Under **Agent → Connections → Research models & task routing**, add named OpenAI-compatible model profiles with their endpoint, exact model ID and credential. Declare their capabilities (planning, research, mathematics, review), strengths and cost tier. Save each profile and **Test model**: the test makes two inference requests to verify both a tool call and consumption of its result. Only tested profiles can be assigned. These hints describe your preferences; NemoDoc does not benchmark models or retrieve current prices.
+
+Select a **Planner model** and **Routing priority** (balanced, cost or quality), then save preferences. Generating a research plan asks that planner to match each assignment to the available tested models and explain its choices. Review or override each **Assigned model** before starting. One model can still handle the whole team using the current notebook/custom connection; additional installations are unnecessary. Custom profiles can use different providers or models on the same provider. Notebook Chat and Studio retain their existing policy.
+
+Runs snapshot their planner, assignments, selected profiles, configured model IDs and selection reasons. Agent cards show those choices, provider-reported model IDs when returned, progress, findings and usage. Changing evidence, requests or routing configuration invalidates a draft. Editing/removing a selected connection prevents queued work or subsequent requests from using a changed route; errors never silently switch models. This routing applies to application-managed research. NemoClaw keeps its separately verified native agent routes.
+
+Profile credentials remain in the local server settings beside the workspace file (`*.model-profiles.json`), with masked API/UI responses and trace redaction. Back up this settings file securely alongside other connection settings; it is separate from PostgreSQL workspace records and browser ZIP backups. Changing provider origin clears the old key unless explicitly replaced. Each configured provider receives the task context and retrieved evidence needed for its assignment.
+
 ## Sandboxed OpenClaw through NemoClaw
 
 Choose **OpenClaw agent through NemoClaw** to route tasks and evidence workflows to a dedicated agent in NVIDIA's OpenShell sandbox. Save its private gateway URL, `openclaw/nemodoc` target and gateway token, then run **Test gateway tool support**. The NVIDIA inference key belongs in NemoClaw. Follow the [NemoClaw setup guide](NEMOCLAW.md) for the agent manifest, host checks and isolation boundary. The app test verifies a tool-call/result round trip; verify the actual sandbox separately on its host.

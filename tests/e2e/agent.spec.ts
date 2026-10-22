@@ -70,6 +70,7 @@ test("personal agent remembers preferences, reuses skills, runs while browser is
     await page.goto("/app");
     await expect(page.locator('[data-page="1"] canvas')).toBeVisible();
     await page.getByRole("button", { name: "Agent", exact: true }).click();
+    await page.locator(".agent-more-nav > summary").click();
     await page.getByRole("button", { name: "Memory", exact: true }).click();
     await page.getByRole("button", { name: "Add memory", exact: true }).click();
     await page
@@ -90,6 +91,7 @@ test("personal agent remembers preferences, reuses skills, runs while browser is
       .getByRole("button", { name: "Save memory", exact: true })
       .click();
     await expect(page.locator(".agent-memory")).toContainText("25-minute");
+    await page.locator(".agent-more-nav > summary").click();
     await page.getByRole("button", { name: "Skills", exact: true }).click();
     await page.getByRole("button", { name: "New skill", exact: true }).click();
     await page
@@ -104,8 +106,9 @@ test("personal agent remembers preferences, reuses skills, runs while browser is
     await expect(page.locator(".agent-skill").last()).toContainText(
       "My focused review",
     );
+    await page.locator(".agent-more-nav > summary").click();
     await page.getByRole("button", { name: "Sources", exact: true }).click();
-    const checkboxes = page.locator(".agent-panel input[type=checkbox]");
+    const checkboxes = page.locator(".agent-panel").getByRole("checkbox");
     await checkboxes.first().check();
     await checkboxes.last().check();
     await page
@@ -114,7 +117,10 @@ test("personal agent remembers preferences, reuses skills, runs while browser is
     await expect(page.locator(".agent-source-cache")).toContainText(
       "Currently approved",
     );
-    await page.getByRole("button", { name: "Tasks", exact: true }).click();
+    await page.getByRole("button", { name: "Research", exact: true }).click();
+    await page
+      .getByText("Scheduled tasks & activity inbox", { exact: true })
+      .click();
     await page.getByRole("button", { name: "New task", exact: true }).click();
     await page
       .getByLabel("Task name", { exact: true })
@@ -142,9 +148,12 @@ test("personal agent remembers preferences, reuses skills, runs while browser is
       .toBe("completed");
     expect(inferenceCalls).toBe(4);
     const next = await context.newPage();
-    await next.goto("/");
+    await next.goto("/app");
     await next.getByRole("button", { name: "Agent", exact: true }).click();
-    await next.getByRole("button", { name: "Tasks", exact: true }).click();
+    await next.getByRole("button", { name: "Research", exact: true }).click();
+    await next
+      .getByText("Scheduled tasks & activity inbox", { exact: true })
+      .click();
     await expect(next.locator("article.agent-result")).toContainText(
       "Your study guide and plan are saved.",
     );
@@ -162,17 +171,19 @@ test("personal agent remembers preferences, reuses skills, runs while browser is
       next.getByText("Personal study guide", { exact: true }).first(),
     ).toBeVisible();
     await next.getByRole("button", { name: "Agent", exact: true }).click();
+    await next.locator(".agent-more-nav > summary").click();
     await next.getByRole("button", { name: "Sources", exact: true }).click();
     await next
       .getByRole("button", { name: "Revoke all notebook sources", exact: true })
       .click();
     expect(app.locals.agent.data.state.sources.length).toBe(0);
+    await next.locator(".agent-more-nav > summary").click();
     await next.getByRole("button", { name: "Memory", exact: true }).click();
     await next
       .getByRole("button", { name: "Delete memory", exact: true })
       .click();
     await expect(next.locator(".agent-memory")).toHaveCount(0);
-    await next.getByRole("button", { name: "Tasks", exact: true }).click();
+    await next.getByRole("button", { name: "Research", exact: true }).click();
     await next.screenshot({
       path: "test-results/agent-desktop.png",
       fullPage: true,

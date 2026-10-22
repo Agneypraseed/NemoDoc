@@ -5,6 +5,7 @@ import type {
   DeliveryTarget,
 } from "./agent-types";
 import type { ResearchStage } from "./trace-types";
+import type { ResearchModelRoute } from "./research-model-types";
 
 const id = z
   .string()
@@ -171,6 +172,14 @@ export const researchPlanSchema = z
             name: z.string().trim().min(1).max(100),
             assignment: z.string().trim().min(1).max(2000),
             role: z.enum(["researcher", "reviewer"]),
+            modelProfileId: z
+              .string()
+              .regex(/^[a-z0-9][a-z0-9_-]{0,63}$/)
+              .optional(),
+            modelReason: z.string().trim().max(600).optional(),
+            modelSelection: z
+              .enum(["automatic", "manual", "default"])
+              .optional(),
             agentId: z
               .string()
               .regex(/^[a-z0-9][a-z0-9_-]{0,63}$/)
@@ -180,6 +189,9 @@ export const researchPlanSchema = z
       )
       .min(2)
       .max(5),
+    routingRevision: z.string().max(100).optional(),
+    plannerProfileId: z.string().max(64).optional(),
+    planningTraceId: z.string().uuid().optional(),
   })
   .strict()
   .refine(
@@ -311,6 +323,7 @@ export interface WorkflowRun extends WorkflowTask {
   researchTeam?: ResearchTeamAgent[];
   webEvidence?: WebEvidence[];
   webConnectionRevision?: string;
+  plannerModel?: ResearchModelRoute;
   usage?: { promptTokens: number; completionTokens: number };
   stage?: ResearchStage;
 }
@@ -328,6 +341,7 @@ export interface ResearchTeamAgent {
   error?: string;
   citationIds: number[];
   assignedModel?: string;
+  modelRoute?: ResearchModelRoute;
   returnedModel?: string;
   modelCalls?: number;
   readActions?: number;

@@ -88,9 +88,13 @@ test("open model reads approved notebook notes and previews email before deliver
       .getByRole("button", { name: "Connections", exact: true })
       .click();
     await expect(
-      page.getByText("nvidia/test-nemotron", { exact: true }),
+      page
+        .getByRole("form", { name: "Agent model connection", exact: true })
+        .getByText("nvidia/test-nemotron", { exact: true }),
     ).toBeVisible();
-    await page.getByLabel("Model connection").selectOption("custom");
+    await page
+      .getByLabel("Model connection", { exact: true })
+      .selectOption("custom");
     await page
       .getByRole("button", { name: "Use local Gemma 4 / Ollama", exact: true })
       .click();
@@ -100,9 +104,11 @@ test("open model reads approved notebook notes and previews email before deliver
     await page
       .getByRole("button", { name: "Test saved model", exact: true })
       .click();
-    await expect(page.getByRole("status")).toContainText(
-      "successfully returned a tool call",
-    );
+    await expect(
+      page
+        .getByRole("status")
+        .filter({ hasText: "successfully returned a tool call" }),
+    ).toContainText("successfully returned a tool call");
     await page
       .getByLabel("SMTP host", { exact: true })
       .fill("smtp.example.com");
@@ -167,9 +173,9 @@ test("open model reads approved notebook notes and previews email before deliver
     await page
       .getByRole("button", { name: "Test saved SMTP connection", exact: true })
       .click();
-    await expect(page.getByRole("status")).toContainText(
-      "SMTP connection verified.",
-    );
+    await expect(
+      page.getByRole("status").filter({ hasText: "SMTP connection verified" }),
+    ).toContainText("SMTP connection verified.");
     expect(sends).toBe(0);
     await page.locator(".agent-panel").evaluate((el) => {
       el.scrollTop = 0;
@@ -178,6 +184,7 @@ test("open model reads approved notebook notes and previews email before deliver
       path: "test-results/agent-connections-desktop.png",
       fullPage: true,
     });
+    await page.locator(".agent-more-nav > summary").click();
     await page.getByRole("button", { name: "Sources", exact: true }).click();
     await page
       .getByLabel("Notebook notes, saved answers and annotations")
@@ -189,7 +196,10 @@ test("open model reads approved notebook notes and previews email before deliver
     await expect(page.locator(".agent-source-cache")).toContainText(
       "Notebook notes",
     );
-    await page.getByRole("button", { name: "Tasks", exact: true }).click();
+    await page.getByRole("button", { name: "Research", exact: true }).click();
+    await page
+      .getByText("Scheduled tasks & activity inbox", { exact: true })
+      .click();
     await page.getByRole("button", { name: "New task", exact: true }).click();
     await page
       .getByLabel("Task name", { exact: true })
@@ -242,16 +252,23 @@ test("open model reads approved notebook notes and previews email before deliver
     await page
       .getByRole("button", { name: "Connections", exact: true })
       .click();
-    await page.getByLabel("Model connection").selectOption("notebook");
+    await page
+      .getByLabel("Model connection", { exact: true })
+      .selectOption("notebook");
     await page
       .getByRole("button", { name: "Save model connection", exact: true })
       .click();
     await expect(
-      page.locator(".agent-panel").getByText("nvidia/test-nemotron", {
-        exact: true,
-      }),
+      page
+        .getByRole("form", { name: "Agent model connection", exact: true })
+        .getByText("nvidia/test-nemotron", {
+          exact: true,
+        }),
     ).toBeVisible();
-    await page.getByRole("button", { name: "Tasks", exact: true }).click();
+    await page.getByRole("button", { name: "Research", exact: true }).click();
+    await page
+      .getByText("Scheduled tasks & activity inbox", { exact: true })
+      .click();
     await page.getByRole("button", { name: "New task", exact: true }).click();
     await page
       .getByLabel("Task name", { exact: true })

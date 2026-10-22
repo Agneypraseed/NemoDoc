@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import {
-  Bot,
   Clock3,
   Play,
   Pause,
@@ -23,6 +22,9 @@ import { AgentConfiguration } from "./AgentConfiguration";
 import type { AgentRoleDrafts } from "../agent-config-types";
 import { AgentDelivery } from "./AgentDelivery";
 import { EvidenceWorkflows } from "./EvidenceWorkflows";
+import { AgentDashboard } from "./AgentDashboard";
+import { ChevronDown } from "lucide-react";
+import type { WorkflowRun } from "../workspace-types";
 import type { SearchNote } from "../lib/search-notes";
 import type {
   AgentChannel,
@@ -56,6 +58,8 @@ export function AgentPanel({
   notes,
   onCitation,
   onSave,
+  onSaveResearch,
+  savedResearchRuns,
   onSettings,
   roleDrafts,
 }: {
@@ -66,19 +70,31 @@ export function AgentPanel({
   notes: string;
   onCitation: (c: Citation) => void;
   onSave: (a: StudyArtifact) => void;
+  onSaveResearch: (run: WorkflowRun) => Promise<void>;
+  savedResearchRuns: string[];
   onSettings: () => void;
   roleDrafts: AgentRoleDrafts;
 }) {
   const [data, setData] = useState<Overview>();
   const [view, setView] = useState<
     | "agents"
+    | "dashboard"
     | "tasks"
     | "memory"
     | "skills"
     | "access"
     | "connections"
     | "settings"
-  >("agents");
+  >("tasks");
+  const [inspectionTraceId, setInspectionTraceId] = useState("");
+  const [startNewResearch, setStartNewResearch] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(() => {
+    try {
+      return localStorage.getItem("nemodoc.agent-reduced-motion") === "true";
+    } catch {
+      return false;
+    }
+  });
   const [configureAgentId, setConfigureAgentId] = useState("");
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
@@ -206,46 +222,74 @@ export function AgentPanel({
     }
   };
   return (
-    <section className="agent-panel" aria-label="Personal agent">
-      <header className="agent-heading">
-        <div className="agent-avatar">
-          <Bot size={23} />
-        </div>
-        <div>
-          <div className="eyebrow">WORKING WITH YOU</div>
-          <h2>Your agents</h2>
-        </div>
-      </header>
-      <p className="agent-intro">
-        See what your agents are doing, review their work, and manage tasks,
-        memory and connections.
-      </p>
-      <div className="agent-subtabs" aria-label="Agent sections">
-        {(
-          [
-            "agents",
-            "tasks",
-            "memory",
-            "skills",
-            "access",
-            "connections",
-            "settings",
-          ] as const
-        ).map((v) => (
+    <section
+      className="agent-panel"
+      aria-label="Personal agent"
+      data-dashboard={view === "dashboard"}
+      data-reduced-motion={reducedMotion}
+    >
+      <nav
+        className="agent-subtabs agent-primary-nav"
+        aria-label="Agent sections"
+      >
+        {(["tasks", "dashboard", "connections"] as const).map((v) => (
           <button
             key={v}
             className={view === v ? "active" : ""}
+            aria-current={view === v ? "page" : undefined}
             onClick={() => {
               setView(v);
-              if (v === "access") setSelected(approved.map((s) => s.id));
+              setInspectionTraceId("");
               setError("");
               setMessage("");
             }}
           >
-            {v === "access" ? "Sources" : v[0].toUpperCase() + v.slice(1)}
+            {v === "tasks" ? "Research" : v[0].toUpperCase() + v.slice(1)}
           </button>
         ))}
-      </div>
+        <details className="agent-more-nav">
+          <summary>
+            More <ChevronDown size={13} />
+          </summary>
+          <div>
+            {(
+              ["agents", "memory", "skills", "access", "settings"] as const
+            ).map((v) => (
+              <button
+                key={v}
+                className={view === v ? "active" : ""}
+                onClick={(e) => {
+                  setView(v);
+                  setError("");
+                  setMessage("");
+                  if (v === "access") setSelected(approved.map((s) => s.id));
+                  e.currentTarget.closest("details")?.removeAttribute("open");
+                }}
+              >
+                {v === "access" ? "Sources" : v[0].toUpperCase() + v.slice(1)}
+              </button>
+            ))}
+            <label>
+              <input
+                type="checkbox"
+                checked={reducedMotion}
+                onChange={(e) => {
+                  setReducedMotion(e.target.checked);
+                  try {
+                    localStorage.setItem(
+                      "nemodoc.agent-reduced-motion",
+                      String(e.target.checked),
+                    );
+                  } catch {
+                    /* Session setting still works. */
+                  }
+                }}
+              />
+              Reduce motion
+            </label>
+          </div>
+        </details>
+      </nav>
       {error && (
         <p className="form-error" role="alert">
           {error}
@@ -258,6 +302,18 @@ export function AgentPanel({
         </p>
       )}
       {view === "connections" && <AgentConnections />}
+      {view === "dashboard" && (
+        <AgentDashboard
+          notebookId={notebookId}
+          onResearch={(traceId) => {
+            setInspectionTraceId(traceId ?? "");
+            setStartNewResearch(!traceId);
+            setView("tasks");
+            const matching = runs.find((r) => r.traceId === traceId);
+            if (matching) setRunId(matching.id);
+          }}
+        />
+      )}
       {view === "settings" && (
         <AgentConfiguration
           initialAgentId={configureAgentId}
@@ -286,361 +342,376 @@ export function AgentPanel({
             notes={workspaceNotes}
             onCitation={onCitation}
             onSave={onSave}
+            onSaveResearch={onSaveResearch}
+            savedResearchRuns={savedResearchRuns}
+            onConnections={() => setView("connections")}
+            inspectionTraceId={inspectionTraceId}
+            startNewResearch={startNewResearch}
           />
-          <div className="agent-section-title">
-            <h3>Tasks & reviews</h3>
-            <button
-              className="secondary-button"
-              disabled={busy}
-              onClick={() => {
-                setForm(!form);
-                setSelected(approved.map((s) => s.id));
-              }}
-            >
-              <Plus size={14} />
-              New task
-            </button>
-          </div>
-          {!approved.length && (
-            <div className="agent-empty">
-              <ShieldCheck size={24} />
-              <p>
-                Choose which documents your agent can access before creating a
-                task.
-              </p>
+          <details
+            className="agent-secondary-tasks"
+            open={
+              !!inspectionTraceId &&
+              runs.some((r) => r.traceId === inspectionTraceId)
+            }
+          >
+            <summary>Scheduled tasks & activity inbox</summary>
+            <div className="agent-section-title">
+              <h3>Tasks & reviews</h3>
               <button
                 className="secondary-button"
+                disabled={busy}
                 onClick={() => {
-                  setView("access");
-                  setSelected(sources.map((s) => s.id));
+                  setForm(!form);
+                  setSelected(approved.map((s) => s.id));
                 }}
               >
-                Choose sources
+                <Plus size={14} />
+                New task
               </button>
             </div>
-          )}
-          {form && (
-            <form
-              className="agent-form"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void submitTask();
-              }}
-            >
-              <label className="field-label">
-                Task name
-                <input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  required
-                  maxLength={150}
-                />
-              </label>
-              <label className="field-label">
-                Reusable skill
-                <select
-                  value={skillId}
-                  onChange={(e) => setSkillId(e.target.value)}
+            {!approved.length && (
+              <div className="agent-empty">
+                <ShieldCheck size={24} />
+                <p>
+                  Choose which documents your agent can access before creating a
+                  task.
+                </p>
+                <button
+                  className="secondary-button"
+                  onClick={() => {
+                    setView("access");
+                    setSelected(sources.map((s) => s.id));
+                  }}
                 >
-                  <option value="" disabled>
-                    Select a skill
-                  </option>
-                  {data.skills.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="field-label">
-                What should I do?
-                <textarea
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  placeholder="Prepare a study plan for my exam using these PDFs. Focus on the topics I struggle with."
-                  required
-                  maxLength={8000}
-                  rows={4}
-                />
-              </label>
-              <fieldset>
-                <legend>Sources for this task</legend>
-                {approved.map((s) => (
-                  <label className="check-field" key={s.id}>
-                    <input
-                      type="checkbox"
-                      checked={selected.includes(s.id)}
-                      onChange={(e) =>
-                        setSelected(
-                          e.target.checked
-                            ? [...selected, s.id]
-                            : selected.filter((id) => id !== s.id),
-                        )
-                      }
-                    />
-                    {s.name}
-                  </label>
-                ))}
-              </fieldset>
-              {repeat !== "weekdays" && (
+                  Choose sources
+                </button>
+              </div>
+            )}
+            {form && (
+              <form
+                className="agent-form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void submitTask();
+                }}
+              >
                 <label className="field-label">
-                  Start time (leave blank to run now)
+                  Task name
                   <input
-                    type="datetime-local"
-                    value={when}
-                    onChange={(e) => setWhen(e.target.value)}
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    required
+                    maxLength={150}
                   />
                 </label>
-              )}
-              <label className="field-label">
-                Repeat
-                <select
-                  aria-label="Repeat"
-                  value={repeat}
-                  onChange={(e) =>
-                    setRepeat(
-                      e.target.value === "weekdays"
-                        ? "weekdays"
-                        : Number(e.target.value),
-                    )
-                  }
-                >
-                  <option value={0}>Once</option>
-                  <option value={24}>Daily</option>
-                  <option value={168}>Weekly</option>
-                  <option value="weekdays">Weekdays (Monday–Friday)</option>
-                </select>
-              </label>
-              {repeat === "weekdays" && (
-                <>
+                <label className="field-label">
+                  Reusable skill
+                  <select
+                    value={skillId}
+                    onChange={(e) => setSkillId(e.target.value)}
+                  >
+                    <option value="" disabled>
+                      Select a skill
+                    </option>
+                    {data.skills.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field-label">
+                  What should I do?
+                  <textarea
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    placeholder="Prepare a study plan for my exam using these PDFs. Focus on the topics I struggle with."
+                    required
+                    maxLength={8000}
+                    rows={4}
+                  />
+                </label>
+                <fieldset>
+                  <legend>Sources for this task</legend>
+                  {approved.map((s) => (
+                    <label className="check-field" key={s.id}>
+                      <input
+                        type="checkbox"
+                        checked={selected.includes(s.id)}
+                        onChange={(e) =>
+                          setSelected(
+                            e.target.checked
+                              ? [...selected, s.id]
+                              : selected.filter((id) => id !== s.id),
+                          )
+                        }
+                      />
+                      {s.name}
+                    </label>
+                  ))}
+                </fieldset>
+                {repeat !== "weekdays" && (
                   <label className="field-label">
-                    Weekday delivery time
+                    Start time (leave blank to run now)
                     <input
-                      type="time"
-                      required
-                      value={weekdayTime}
-                      onChange={(e) => setWeekdayTime(e.target.value)}
+                      type="datetime-local"
+                      value={when}
+                      onChange={(e) => setWhen(e.target.value)}
                     />
                   </label>
-                  <label className="field-label">
-                    Schedule time zone
-                    <input
-                      required
-                      value={timeZone}
-                      onChange={(e) => setTimeZone(e.target.value)}
-                      placeholder="Europe/Berlin"
-                    />
-                  </label>
-                  <p className="agent-fine">
-                    Run Monday–Friday at this local time, including
-                    daylight-saving changes. Delivery follows generation; keep
-                    the server running.
-                  </p>
-                </>
-              )}
-              <label className="check-field">
-                <input
-                  type="checkbox"
-                  checked={allowMemory}
-                  onChange={(e) => setAllowMemory(e.target.checked)}
-                />
-                Allow progress memory updates
-              </label>
-              <label className="check-field">
-                <input
-                  type="checkbox"
-                  checked={allowSchedule}
-                  onChange={(e) => setAllowSchedule(e.target.checked)}
-                />
-                Allow one follow-up review per run
-              </label>
-              <fieldset>
-                <legend>Automatically deliver the completed answer</legend>
-                {(["email", "whatsapp"] as const).map((channel) => (
-                  <label className="check-field" key={channel}>
-                    <input
-                      type="checkbox"
-                      checked={channels.includes(channel)}
-                      disabled={
-                        !connectionSummary?.[channel].recipient ||
-                        (channel === "email"
-                          ? !connectionSummary.email.hasPassword
-                          : !connectionSummary.whatsapp.hasApiKey)
-                      }
-                      onChange={(e) =>
-                        setChannels(
-                          e.target.checked
-                            ? [...channels, channel]
-                            : channels.filter((c) => c !== channel),
-                        )
-                      }
-                    />
-                    {channel === "email" ? "Email" : "WhatsApp"} to{" "}
-                    {connectionSummary?.[channel].recipient ||
-                      "a recipient you configure in Connections"}
-                  </label>
-                ))}
-                <p className="agent-fine">
-                  Selecting a channel authorizes delivery after each successful
-                  run of this task. Follow-up reviews stay in the app. Leave
-                  unchecked to preview and send manually.
-                </p>
-              </fieldset>
-              <p className="agent-fine">
-                This task sends its prompt, skill, this notebook’s memory and
-                plan, source names and retrieved passages to the saved provider.
-                Up to 8 model calls and 20 tool actions. Repeat tasks keep using
-                that provider and model; failed tasks pause.
-              </p>
-              <button
-                className="primary-button"
-                disabled={
-                  busy ||
-                  !selected.length ||
-                  !data.skills.some((s) => s.id === skillId)
-                }
-                type="submit"
-              >
-                <Play size={14} />
-                {when || repeat === "weekdays" ? "Schedule task" : "Run task"}
-              </button>
-            </form>
-          )}
-          {tasks.map((t) => (
-            <article className="agent-task" key={t.id}>
-              <div>
-                <h4>{t.title}</h4>
-                <span className={`agent-status ${t.status}`}>{t.status}</span>
-              </div>
-              <p>
-                {t.schedule
-                  ? `Mon–Fri ${t.schedule.time} (${t.schedule.timeZone}) · `
-                  : t.repeatHours
-                    ? `Every ${t.repeatHours} hours · `
-                    : ""}
-                {t.status === "active" && t.dueAt !== Number.MAX_SAFE_INTEGER
-                  ? `Due ${at(t.dueAt)}`
-                  : t.status === "active"
-                    ? "Queued / running"
-                    : `Created ${at(t.createdAt)}`}
-              </p>
-              <small>
-                {t.deliveries
-                  ?.map((d) => `${d.channel} → ${d.recipient}`)
-                  .join(" · ")}
-                {!!t.deliveries?.length && <br />}
-                {t.connection.model} · {t.sourceIds.length} approved source
-                {t.sourceIds.length === 1 ? "" : "s"}
-              </small>
-              <div className="agent-task-actions">
-                {t.status !== "cancelled" && (
+                )}
+                <label className="field-label">
+                  Repeat
+                  <select
+                    aria-label="Repeat"
+                    value={repeat}
+                    onChange={(e) =>
+                      setRepeat(
+                        e.target.value === "weekdays"
+                          ? "weekdays"
+                          : Number(e.target.value),
+                      )
+                    }
+                  >
+                    <option value={0}>Once</option>
+                    <option value={24}>Daily</option>
+                    <option value={168}>Weekly</option>
+                    <option value="weekdays">Weekdays (Monday–Friday)</option>
+                  </select>
+                </label>
+                {repeat === "weekdays" && (
                   <>
-                    <button
-                      disabled={
-                        busy ||
-                        runs.some(
-                          (r) => r.taskId === t.id && r.status === "running",
-                        )
-                      }
-                      onClick={() =>
-                        void act(
-                          () =>
-                            apiJSON("/api/agent/task/action", {
-                              id: t.id,
-                              action: "run",
-                            }),
-                          "Queued for another run.",
-                        )
-                      }
-                    >
-                      <Play size={13} />
-                      Run now
-                    </button>
-                    <button
-                      disabled={busy}
-                      onClick={() =>
-                        void act(() =>
-                          apiJSON("/api/agent/task/action", {
-                            id: t.id,
-                            action: t.status === "active" ? "pause" : "resume",
-                          }),
-                        )
-                      }
-                    >
-                      {t.status === "active" ? (
-                        <Pause size={13} />
-                      ) : (
-                        <Play size={13} />
-                      )}{" "}
-                      {t.status === "active" ? "Pause" : "Resume"}
-                    </button>
-                    <button
-                      disabled={busy}
-                      onClick={() =>
-                        void act(
-                          () =>
-                            apiJSON("/api/agent/task/action", {
-                              id: t.id,
-                              action: "cancel",
-                            }),
-                          "Task cancelled.",
-                        )
-                      }
-                    >
-                      <X size={13} />
-                      Cancel
-                    </button>
+                    <label className="field-label">
+                      Weekday delivery time
+                      <input
+                        type="time"
+                        required
+                        value={weekdayTime}
+                        onChange={(e) => setWeekdayTime(e.target.value)}
+                      />
+                    </label>
+                    <label className="field-label">
+                      Schedule time zone
+                      <input
+                        required
+                        value={timeZone}
+                        onChange={(e) => setTimeZone(e.target.value)}
+                        placeholder="Europe/Berlin"
+                      />
+                    </label>
+                    <p className="agent-fine">
+                      Run Monday–Friday at this local time, including
+                      daylight-saving changes. Delivery follows generation; keep
+                      the server running.
+                    </p>
                   </>
                 )}
-              </div>
-            </article>
-          ))}
-          {plan && (
-            <details className="agent-result">
-              <summary>Your current study plan</summary>
-              <div className="markdown">
-                <ReactMarkdown
-                  disallowedElements={["img"]}
-                  remarkPlugins={[remarkGfm]}
-                >
-                  {plan.text}
-                </ReactMarkdown>
-              </div>
-            </details>
-          )}
-          {!!runs.length && (
-            <>
-              <h3>Activity inbox</h3>
-              <label className="field-label">
-                Run history
-                <select
-                  value={run?.id || ""}
-                  onChange={(e) => setRunId(e.target.value)}
-                >
-                  {runs.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.title} · {r.status} · {at(r.startedAt)}
-                    </option>
+                <label className="check-field">
+                  <input
+                    type="checkbox"
+                    checked={allowMemory}
+                    onChange={(e) => setAllowMemory(e.target.checked)}
+                  />
+                  Allow progress memory updates
+                </label>
+                <label className="check-field">
+                  <input
+                    type="checkbox"
+                    checked={allowSchedule}
+                    onChange={(e) => setAllowSchedule(e.target.checked)}
+                  />
+                  Allow one follow-up review per run
+                </label>
+                <fieldset>
+                  <legend>Automatically deliver the completed answer</legend>
+                  {(["email", "whatsapp"] as const).map((channel) => (
+                    <label className="check-field" key={channel}>
+                      <input
+                        type="checkbox"
+                        checked={channels.includes(channel)}
+                        disabled={
+                          !connectionSummary?.[channel].recipient ||
+                          (channel === "email"
+                            ? !connectionSummary.email.hasPassword
+                            : !connectionSummary.whatsapp.hasApiKey)
+                        }
+                        onChange={(e) =>
+                          setChannels(
+                            e.target.checked
+                              ? [...channels, channel]
+                              : channels.filter((c) => c !== channel),
+                          )
+                        }
+                      />
+                      {channel === "email" ? "Email" : "WhatsApp"} to{" "}
+                      {connectionSummary?.[channel].recipient ||
+                        "a recipient you configure in Connections"}
+                    </label>
                   ))}
-                </select>
-              </label>
-              {run && (
-                <RunResult
-                  run={run}
-                  onCitation={onCitation}
-                  onSave={(a) => {
-                    onSave({ ...a, notebookId });
-                    setMessage("Saved to this notebook’s Studio.");
-                  }}
-                />
-              )}
-            </>
-          )}
-          <p className="agent-fine">
-            <Clock3 size={13} /> Keep the local server running for scheduled
-            tasks. When it’s stopped, overdue tasks run once on restart;
-            interrupted runs are never replayed automatically.
-          </p>
+                  <p className="agent-fine">
+                    Selecting a channel authorizes delivery after each
+                    successful run of this task. Follow-up reviews stay in the
+                    app. Leave unchecked to preview and send manually.
+                  </p>
+                </fieldset>
+                <p className="agent-fine">
+                  This task sends its prompt, skill, this notebook’s memory and
+                  plan, source names and retrieved passages to the saved
+                  provider. Up to 8 model calls and 20 tool actions. Repeat
+                  tasks keep using that provider and model; failed tasks pause.
+                </p>
+                <button
+                  className="primary-button"
+                  disabled={
+                    busy ||
+                    !selected.length ||
+                    !data.skills.some((s) => s.id === skillId)
+                  }
+                  type="submit"
+                >
+                  <Play size={14} />
+                  {when || repeat === "weekdays" ? "Schedule task" : "Run task"}
+                </button>
+              </form>
+            )}
+            {tasks.map((t) => (
+              <article className="agent-task" key={t.id}>
+                <div>
+                  <h4>{t.title}</h4>
+                  <span className={`agent-status ${t.status}`}>{t.status}</span>
+                </div>
+                <p>
+                  {t.schedule
+                    ? `Mon–Fri ${t.schedule.time} (${t.schedule.timeZone}) · `
+                    : t.repeatHours
+                      ? `Every ${t.repeatHours} hours · `
+                      : ""}
+                  {t.status === "active" && t.dueAt !== Number.MAX_SAFE_INTEGER
+                    ? `Due ${at(t.dueAt)}`
+                    : t.status === "active"
+                      ? "Queued / running"
+                      : `Created ${at(t.createdAt)}`}
+                </p>
+                <small>
+                  {t.deliveries
+                    ?.map((d) => `${d.channel} → ${d.recipient}`)
+                    .join(" · ")}
+                  {!!t.deliveries?.length && <br />}
+                  {t.connection.model} · {t.sourceIds.length} approved source
+                  {t.sourceIds.length === 1 ? "" : "s"}
+                </small>
+                <div className="agent-task-actions">
+                  {t.status !== "cancelled" && (
+                    <>
+                      <button
+                        disabled={
+                          busy ||
+                          runs.some(
+                            (r) => r.taskId === t.id && r.status === "running",
+                          )
+                        }
+                        onClick={() =>
+                          void act(
+                            () =>
+                              apiJSON("/api/agent/task/action", {
+                                id: t.id,
+                                action: "run",
+                              }),
+                            "Queued for another run.",
+                          )
+                        }
+                      >
+                        <Play size={13} />
+                        Run now
+                      </button>
+                      <button
+                        disabled={busy}
+                        onClick={() =>
+                          void act(() =>
+                            apiJSON("/api/agent/task/action", {
+                              id: t.id,
+                              action:
+                                t.status === "active" ? "pause" : "resume",
+                            }),
+                          )
+                        }
+                      >
+                        {t.status === "active" ? (
+                          <Pause size={13} />
+                        ) : (
+                          <Play size={13} />
+                        )}{" "}
+                        {t.status === "active" ? "Pause" : "Resume"}
+                      </button>
+                      <button
+                        disabled={busy}
+                        onClick={() =>
+                          void act(
+                            () =>
+                              apiJSON("/api/agent/task/action", {
+                                id: t.id,
+                                action: "cancel",
+                              }),
+                            "Task cancelled.",
+                          )
+                        }
+                      >
+                        <X size={13} />
+                        Cancel
+                      </button>
+                    </>
+                  )}
+                </div>
+              </article>
+            ))}
+            {plan && (
+              <details className="agent-result">
+                <summary>Your current study plan</summary>
+                <div className="markdown">
+                  <ReactMarkdown
+                    disallowedElements={["img"]}
+                    remarkPlugins={[remarkGfm]}
+                  >
+                    {plan.text}
+                  </ReactMarkdown>
+                </div>
+              </details>
+            )}
+            {!!runs.length && (
+              <>
+                <h3>Activity inbox</h3>
+                <label className="field-label">
+                  Run history
+                  <select
+                    value={run?.id || ""}
+                    onChange={(e) => setRunId(e.target.value)}
+                  >
+                    {runs.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.title} · {r.status} · {at(r.startedAt)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {run && (
+                  <RunResult
+                    run={run}
+                    onCitation={onCitation}
+                    onSave={(a) => {
+                      onSave({ ...a, notebookId });
+                      setMessage("Saved to this notebook’s Studio.");
+                    }}
+                  />
+                )}
+              </>
+            )}
+            <p className="agent-fine">
+              <Clock3 size={13} /> Keep the local server running for scheduled
+              tasks. When it’s stopped, overdue tasks run once on restart;
+              interrupted runs are never replayed automatically.
+            </p>
+          </details>
         </>
       )}
       {view === "memory" && (

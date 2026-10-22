@@ -3,6 +3,7 @@ import { Eye, EyeOff } from "lucide-react";
 import type { AgentConnections as Connections } from "../agent-types";
 import { apiJSON } from "../lib/api";
 import { WebResearchConnection } from "./WebResearchConnection";
+import { ResearchModelConnections } from "./ResearchModelConnections";
 
 export function AgentConnections() {
   const [data, setData] = useState<Connections>();
@@ -336,6 +337,7 @@ export function AgentConnections() {
     <div>
       <h3>Model & delivery connections</h3>
       <WebResearchConnection />
+      <ResearchModelConnections />
       <p className="agent-intro">
         Choose the model your agent uses and where completed results can go.
         Credentials stay on your local server and are excluded from exports.
@@ -352,6 +354,7 @@ export function AgentConnections() {
       )}
       <form
         className="agent-form"
+        aria-label="Agent model connection"
         onSubmit={(e) => {
           e.preventDefault();
           void save("model");

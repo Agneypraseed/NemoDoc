@@ -13,6 +13,8 @@ import {
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
+import { dashboardTraces } from "./trace-dashboard.ts";
+import type { AgentDashboardData } from "../src/agent-dashboard-types.ts";
 import type {
   TraceDetail,
   TraceEvent,
@@ -674,6 +676,69 @@ export class TraceStore {
       nextCursor: page.at(-1)?.sequence ?? after,
       hasMore,
       persistence: this.persistence,
+    };
+  }
+
+  async dashboard(
+    notebookId: string,
+    since: number,
+    until: number,
+  ): Promise<AgentDashboardData> {
+    const recent = await this.list(notebookId, 5001);
+    const found = recent.filter(
+      (t) => t.createdAt >= since && t.createdAt <= until,
+    );
+    const traces = found.slice(0, 5000);
+    const ids = new Set(traces.map((t) => t.traceId));
+    const types = [
+      "model.request",
+      "model.response",
+      "tool.call",
+      "citation.validation",
+    ];
+    let rows: TraceEvent[] = [];
+    let queryFailed = false;
+    if (this.pool && ids.size) {
+      try {
+        const result = await this.pool.query(
+          `SELECT event_id,trace_id,sequence,notebook_id,span_id,at,event_type,attempt,
+            jsonb_build_object('model',payload->'model','url',payload->'url',
+              'httpStatus',payload->'httpStatus','promptTokens',payload->'promptTokens',
+              'completionTokens',payload->'completionTokens','valid',payload->'valid') AS payload
+           FROM agent_trace_events WHERE notebook_id=$1 AND trace_id=ANY($2::uuid[])
+             AND event_type=ANY($3::text[]) ORDER BY at,event_id LIMIT 100001`,
+          [notebookId, [...ids], types],
+        );
+        rows = result.rows.map((row) => this.eventFromRow(row));
+      } catch {
+        this.persistence = "degraded";
+        queryFailed = true;
+      }
+    }
+    const events = new Map(rows.map((event) => [event.eventId, event]));
+    for (const event of this.readSpool()) {
+      if (
+        event.notebookId === notebookId &&
+        ids.has(event.traceId) &&
+        types.includes(event.type)
+      )
+        events.set(event.eventId, event);
+    }
+    return {
+      notebookId,
+      since,
+      until,
+      generatedAt: Date.now(),
+      persistence: this.persistence,
+      truncated:
+        queryFailed ||
+        recent.length > 5000 ||
+        events.size > 100000 ||
+        (!!this.pool && this.persistence === "degraded"),
+      traces: dashboardTraces(
+        traces,
+        [...events.values()].sort((a, b) => a.at - b.at).slice(0, 100000),
+      ),
     };
   }
 

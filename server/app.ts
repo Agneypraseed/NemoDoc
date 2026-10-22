@@ -20,6 +20,7 @@ import { registerAgentMonitor, type NemoClawReader } from "./agent-monitor.ts";
 import { registerAgentConfiguration } from "./agent-config.ts";
 import { TraceStore } from "./trace-store.ts";
 import { WebResearch } from "./workspace/web-research.ts";
+import { ResearchModels } from "./workspace/model-routing.ts";
 
 export interface Config {
   apiKey: string;
@@ -133,6 +134,12 @@ export function createApp(
     options.smtpTransportFactory,
     traceStore,
   );
+  const researchModels = new ResearchModels(
+    agent.worker.connections,
+    options.workspaceFile
+      ? `${options.workspaceFile}.model-profiles.json`
+      : undefined,
+  );
   traceSecrets = () =>
     [
       ...environmentSecrets,
@@ -142,6 +149,7 @@ export function createApp(
       agent.worker.connections.value.email.password,
       agent.worker.connections.value.whatsapp.apiKey,
       webResearch.value.apiKey,
+      ...researchModels.secrets(),
     ].filter((secret): secret is string => !!secret);
   const monitor = registerAgentMonitor(
     app,
@@ -163,6 +171,7 @@ export function createApp(
     {
       workspaceFile: options.workspaceFile,
       web: webResearch,
+      models: researchModels,
       databaseUrl: options.databaseUrl,
       readDatabaseUrl: options.readDatabaseUrl,
       startWorker: options.startWorkspaceWorker,

@@ -67,6 +67,11 @@ async function setup(page: Page) {
 async function openSettings(page: Page) {
   await page.goto("/app");
   await page.getByRole("button", { name: "Agent", exact: true }).click();
+  await page.locator(".agent-more-nav > summary").click();
+  await page
+    .getByLabel("Agent sections", { exact: true })
+    .getByRole("button", { name: "Agents", exact: true })
+    .click();
   await page
     .getByRole("button", { name: "Configure roles & models", exact: true })
     .click();
@@ -170,6 +175,11 @@ test("agent settings assign separate models, ordered fallbacks and native Markdo
     expect(h.native.files.get("nemodoc:AGENTS.md")).toBe(draft);
     await page.reload();
     await page.getByRole("button", { name: "Agent", exact: true }).click();
+    await page.locator(".agent-more-nav > summary").click();
+    await page
+      .getByLabel("Agent sections", { exact: true })
+      .getByRole("button", { name: "Agents", exact: true })
+      .click();
     await page
       .getByRole("button", { name: "Configure roles & models", exact: true })
       .click();

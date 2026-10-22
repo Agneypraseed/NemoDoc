@@ -217,7 +217,20 @@ async function setup(
 test("planner proposes assignments; 2–5 agents validate with exactly one reviewer", async () => {
   const fake = fixture();
   const { service, input } = await setup(fake.fetcher);
-  assert.deepEqual(await service.researchPlan(input, fake.fetcher), plan);
+  const generated = await service.researchPlan(input, fake.fetcher);
+  assert.deepEqual(
+    generated.agents.map(
+      ({
+        modelProfileId: _profile,
+        modelReason: _reason,
+        modelSelection: _selection,
+        ...agent
+      }) => agent,
+    ),
+    plan.agents,
+  );
+  assert.ok(generated.agents.every((a) => a.modelProfileId === "default"));
+  assert.equal(generated.plannerProfileId, "default");
   assert.equal(fake.stats().plannerCalls, 1);
   for (const count of [1, 6])
     assert.equal(
@@ -533,6 +546,52 @@ test("researchers and reviewer receive an explicit final report turn after repea
   assert.equal(run.citations.length, 1);
 });
 
+test("research citation repair receives exact page mappings and corrects mismatched page-qualified IDs", async () => {
+  let repairs = 0;
+  const fetcher: typeof fetch = async (_url, init) => {
+    const body = JSON.parse(String(init?.body));
+    const read = body.messages.find((m: any) => m.role === "tool");
+    const reviewer = String(body.messages[0].content).includes(
+      "critical reviewer",
+    );
+    const evidence = reviewer
+      ? JSON.parse(body.messages[1].content).evidence
+      : read
+        ? JSON.parse(read.content)
+        : [];
+    if (!evidence.length)
+      return response({
+        tool_calls: [tool("read_passage", { sourceId: "book", page: 1 })],
+      });
+    if (
+      String(body.messages.at(-1).content).startsWith(
+        "Citation validation failed",
+      )
+    ) {
+      repairs++;
+      assert.match(body.messages.at(-1).content, /is PDF page 1, not page 2/);
+      assert.ok(
+        body.messages
+          .at(-1)
+          .content.includes(`"id":${evidence[0].id},"page":1`),
+      );
+      return response({
+        content: `The source supports the finding [${evidence[0].id}].`,
+      });
+    }
+    return response({
+      content: `Wrong page qualifier [${evidence[0].id}, p.2].`,
+    });
+  };
+  const { service, worker, repository, input } = await setup(fetcher);
+  await service.queue(input);
+  await worker.tick();
+  const run = (await repository.read("fixture")).runs[0];
+  assert.equal(run.status, "completed", run.error);
+  assert.equal(repairs, 3);
+  assert.equal(run.calls, 8);
+});
+
 test("web-only research works without notebook sources; arbitrary undiscovered URLs cannot become evidence", async () => {
   const fake = fixture({ web: true });
   const { service, worker, repository, input, web } = await setup(fake.fetcher);
@@ -641,7 +700,18 @@ test("HTTP research APIs validate scope and plans, mask web credentials and canc
     };
     const planned = await post("/research-plan", input);
     assert.equal(planned.status, 200);
-    assert.deepEqual(await planned.json(), plan);
+    const generated = (await planned.json()) as ResearchPlan;
+    assert.deepEqual(
+      generated.agents.map(
+        ({
+          modelProfileId: _profile,
+          modelReason: _reason,
+          modelSelection: _selection,
+          ...agent
+        }) => agent,
+      ),
+      plan.agents,
+    );
     assert.equal(
       (
         await post("/research-plan", {

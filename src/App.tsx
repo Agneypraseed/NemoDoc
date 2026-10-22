@@ -46,6 +46,8 @@ import { streamChat } from "./lib/chat";
 import { citationMarkdown, usesCitation } from "./lib/citations";
 import { exportNotebookNotes } from "./lib/notes-export";
 import { mergeStreamMessages, saveAnswerToNotes } from "./lib/save-answer";
+import { saveResearchToNotes } from "./lib/research-report";
+import type { WorkflowRun } from "./workspace-types";
 import { createBackup, readBackup } from "./lib/backup";
 import { apiJSON } from "./lib/api";
 import { ConnectionSettings } from "./components/ConnectionSettings";
@@ -1015,6 +1017,24 @@ export default function App() {
         return updated;
       }),
     );
+  };
+  const saveResearch = async (run: WorkflowRun) => {
+    const current = notebooks.find((n) => n.id === run.notebookId);
+    if (!current)
+      throw new Error("Open the original notebook before saving this report.");
+    const updated = saveResearchToNotes(current, run, sources);
+    if (!updated) return;
+    await storage.notebook(updated);
+    setNotebooks((list) =>
+      list.map((n) => {
+        if (n.id !== updated.id) return n;
+        const merged = saveResearchToNotes(n, run, sources);
+        if (!merged) return n;
+        void storage.notebook(merged).catch(reportStorageError);
+        return merged;
+      }),
+    );
+    notify("Research report saved to Notes");
   };
   const setPassageNote = (
     notebookId: string,
@@ -2211,6 +2231,8 @@ export default function App() {
                 }
                 onCitation={showCitation}
                 onSave={saveArtifact}
+                onSaveResearch={saveResearch}
+                savedResearchRuns={notebook?.savedResearchRuns ?? []}
                 onSettings={() => setModal("settings")}
               />
             ) : tab === "studio" ? (
@@ -2766,6 +2788,7 @@ export default function App() {
           ref={chatDock}
           className="workspace-chat chat-composer-area"
           aria-label="Notebook chat"
+          hidden={panelOpen && tab === "agent"}
         >
           {suggestionsOpen && (
             <section

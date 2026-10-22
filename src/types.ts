@@ -101,6 +101,7 @@ export interface Notebook {
   createdAt: number;
   notes: string;
   notesUpdatedAt?: number;
+  savedResearchRuns?: string[];
   messages: Message[];
   passageNotes?: PassageNote[];
 }

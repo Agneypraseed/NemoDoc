@@ -1,5 +1,7 @@
 import type { Citation } from "../types";
 type CitationReference = { id: number; page?: number };
+const referencePattern = () =>
+  /\[([\d\s,;]+)(?:,\s*p(?:age)?\.?\s*(\d+))?\](?!\()/gi;
 
 // Accept common model formatting without inventing or correcting references.
 // Page-qualified citations must agree with the retrieved ID's original page.
@@ -52,11 +54,7 @@ export function citationReferences(
   citations: CitationReference[],
 ) {
   const normalized = normalizeCitations(content, citations);
-  return [
-    ...normalized.matchAll(
-      /\[([\d\s,;]+)(?:,\s*p(?:age)?\.?\s*(\d+))?\](?!\()/gi,
-    ),
-  ].flatMap((m) => {
+  return [...normalized.matchAll(referencePattern())].flatMap((m) => {
     const ids = m[1].split(/[,;]/).map((v) => Number(v.trim()));
     return m[2] &&
       ids.some(
@@ -65,4 +63,28 @@ export function citationReferences(
       ? [-1]
       : ids;
   });
+}
+
+/** Repair feedback uses the same interpretation as rendering and validation. */
+export function citationIssues(
+  content: string,
+  citations: CitationReference[],
+) {
+  const known = new Map(citations.map((c) => [c.id, c]));
+  const issues: string[] = [];
+  for (const m of normalizeCitations(content, citations).matchAll(
+    referencePattern(),
+  )) {
+    for (const id of m[1].split(/[,;]/).map((v) => Number(v.trim()))) {
+      const source = known.get(id);
+      if (!source) issues.push(`Citation [${id}] was not retrieved.`);
+      else if (m[2] && source.page !== Number(m[2]))
+        issues.push(
+          source.page === undefined
+            ? `Citation [${id}] is web evidence and cannot have a PDF page qualifier.`
+            : `Citation [${id}] is PDF page ${source.page}, not page ${m[2]}.`,
+        );
+    }
+  }
+  return [...new Set(issues)];
 }

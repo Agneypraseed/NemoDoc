@@ -86,6 +86,11 @@ test("agent overview shows multiple agents, filters live work and refreshes with
     await expect(page).toHaveTitle(/NemoDoc/i);
     await expect(page.locator('[data-page="1"] canvas')).toBeVisible();
     await page.getByRole("button", { name: "Agent", exact: true }).click();
+    await page.locator(".agent-more-nav > summary").click();
+    await page
+      .getByLabel("Agent sections", { exact: true })
+      .getByRole("button", { name: "Agents", exact: true })
+      .click();
     const overview = page.getByRole("region", { name: "Agent overview" });
     await expect(
       overview.getByText("NemoClaw connected", { exact: true }),
@@ -261,7 +266,9 @@ test("agent overview shows multiple agents, filters live work and refreshes with
     await overview
       .getByRole("button", { name: "Set up agent connection", exact: true })
       .click();
-    await expect(page.getByLabel("Model connection")).toBeVisible();
+    await expect(
+      page.getByLabel("Model connection", { exact: true }),
+    ).toBeVisible();
     expect(inference).toBe(0);
     expect(
       calls.every(
@@ -287,6 +294,11 @@ test("agent overview displays an API error without a fake connected state", asyn
   );
   await page.goto("/app");
   await page.getByRole("button", { name: "Agent", exact: true }).click();
+  await page.locator(".agent-more-nav > summary").click();
+  await page
+    .getByLabel("Agent sections", { exact: true })
+    .getByRole("button", { name: "Agents", exact: true })
+    .click();
   const overview = page.getByRole("region", { name: "Agent overview" });
   await expect(overview.getByRole("alert")).toContainText(
     "Runtime status is temporarily unavailable",
@@ -344,6 +356,11 @@ test("work animation stops when the last runtime snapshot becomes stale", async 
   );
   await page.goto("/app");
   await page.getByRole("button", { name: "Agent", exact: true }).click();
+  await page.locator(".agent-more-nav > summary").click();
+  await page
+    .getByLabel("Agent sections", { exact: true })
+    .getByRole("button", { name: "Agents", exact: true })
+    .click();
   const overview = page.getByRole("region", { name: "Agent overview" });
   const scene = overview.getByRole("figure");
   await expect(scene).toHaveAttribute("data-state", "running");

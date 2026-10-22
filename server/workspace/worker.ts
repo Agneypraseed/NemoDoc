@@ -292,11 +292,14 @@ export class WorkspaceWorker {
               metadata: {
                 workflow: run.workflow,
                 executionRoute: run.executionRoute,
+                plannerModel: run.plannerModel,
+                planningTraceId: run.teamPlan?.planningTraceId,
                 connectionMode: run.connection.mode,
                 gatewayTarget: run.connection.model,
                 assignedAgents: run.researchTeam?.map((agent) => ({
                   id: agent.agentId ?? agent.id,
                   model: agent.assignedModel,
+                  modelRoute: agent.modelRoute,
                 })),
               },
             });
