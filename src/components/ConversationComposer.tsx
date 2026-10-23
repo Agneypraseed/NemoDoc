@@ -1,8 +1,7 @@
 import type { RefObject } from "react";
 import {
-  Sparkles,
+  ArrowUp,
   Square,
-  MessageSquare,
   ChevronDown,
   ChevronRight,
   NotebookPen,
@@ -14,7 +13,6 @@ import { AnswerModeControl, type AnswerMode } from "./AnswerMode";
 import { modelName } from "../lib/appearance";
 import type { AIStatus } from "../types";
 interface Props {
-  preparingPrompt: boolean;
   answerMode: AnswerMode;
   status: AIStatus;
   composer: RefObject<HTMLTextAreaElement | null>;
@@ -42,7 +40,6 @@ interface Props {
   enabledSources: unknown[];
 }
 export function ConversationComposer({
-  preparingPrompt,
   answerMode,
   status,
   composer,
@@ -77,13 +74,6 @@ export function ConversationComposer({
         void send();
       }}
     >
-      {preparingPrompt && (
-        <div className="prompt-rewrite-status" role="status">
-          <Sparkles size={13} aria-hidden="true" />
-          Refining your {answerMode === "quick" ? "Quick" : "Deep"} request with{" "}
-          {modelName(status.model)}…
-        </div>
-      )}
       <div className="composer-input-row">
         <textarea
           ref={composer}
@@ -91,7 +81,6 @@ export function ConversationComposer({
           placeholder="Ask about your sources…"
           value={draft}
           maxLength={8000}
-          disabled={preparingPrompt}
           onFocus={() => {
             if (activePassageNote) openConversation();
           }}
@@ -118,16 +107,6 @@ export function ConversationComposer({
           >
             <Square size={14} fill="currentColor" />
           </button>
-        ) : preparingPrompt ? (
-          <button
-            type="button"
-            className="send-button prompt-preparing"
-            aria-label="Refining prompt"
-            title="Refining your prompt with Nemotron"
-            disabled
-          >
-            <Sparkles size={16} />
-          </button>
         ) : (
           <button
             type="submit"
@@ -136,7 +115,7 @@ export function ConversationComposer({
             title="Send question"
             disabled={!draft.trim() || !notebookSources.length}
           >
-            <MessageSquare size={18} />
+            <ArrowUp size={18} />
           </button>
         )}
       </div>
@@ -215,7 +194,6 @@ export function ConversationComposer({
             compact
             value={answerMode}
             onChange={setAnswerMode}
-            disabled={preparingPrompt}
           />
           <span className="composer-source-count sr-only">
             <Layers size={13} />

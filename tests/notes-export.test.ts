@@ -19,7 +19,12 @@ test("Markdown export includes authored notes without exporting the source or ch
     createdAt: 1,
     notes: "My own study notes.",
     messages: [
-      { id: "q1", role: "user", content: "What is a basis?" },
+      {
+        id: "q1",
+        role: "user",
+        content: "Expanded basis request",
+        originalPrompt: "What is a basis?",
+      },
       {
         id: "a1",
         role: "assistant",
@@ -96,6 +101,7 @@ test("Markdown export includes authored notes without exporting the source or ch
   assert.match(markdown, /Highlights & annotations/);
   assert.match(markdown, /Review this definition before the exam\./);
   assert.doesNotMatch(markdown, /Unrelated private chat/);
+  assert.doesNotMatch(markdown, /Expanded basis request/);
   assert.doesNotMatch(markdown, /unsaved chat/);
   // The passage answer appears once under its passage note, not twice as a saved answer.
   assert.equal(

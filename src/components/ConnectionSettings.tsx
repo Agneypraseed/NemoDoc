@@ -237,11 +237,6 @@ export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
           ))}
         </select>
       </label>
-      <p className="model-role-hint">
-        {modelModality(settings.model) === "Vision"
-          ? "Vision model selected for chat and study. Choose it separately for OCR & images below if this provider supports image input."
-          : "Text model selected for chat, passage answers, summaries and study tools."}
-      </p>
       <button
         className="secondary-button"
         disabled={busy}
@@ -262,8 +257,8 @@ export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
       </button>
       <p className="modal-description">
         {catalogStatus === "loaded"
-          ? `${models.length} chat models available from this provider. Vision in the list means the model accepts images on a compatible endpoint.`
-          : "Save your provider key, then refresh to see its available models. The current selection stays visible."}
+          ? `${models.length} models available.`
+          : "Save a key to load available models."}
       </p>
       <label className="field-label">
         API key
@@ -292,125 +287,130 @@ export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
         </label>
       )}
       <section className="capability-settings" aria-label="OCR and images">
-        <h4>OCR & images</h4>
-        <p className="modal-description">
-          Uses the image model below for scanned-page text and questions about
-          diagrams. Chat keeps the model selected above.
-        </p>
-        <label className="field-label">
-          Image model
-          <select
-            value={settings.visionModel}
-            disabled={busy}
-            onChange={(e) => {
-              setVisionTestStatus("");
-              setSettings({ ...settings, visionModel: e.target.value });
-            }}
-          >
-            {[...new Set([settings.visionModel, ...visionModels])].map((id) => (
-              <option key={id} value={id}>
-                {id
-                  ? modelOptionLabel(id, modelName(id))
-                  : "Choose an image model"}
-              </option>
-            ))}
-          </select>
-        </label>
-        <p className="model-role-hint" role="status">
-          {visionCatalogMessage}
-        </p>
-        <div className="capability-actions">
-          <button
-            type="button"
-            className="secondary-button"
-            disabled={busy || visionCatalogStatus === "loading"}
-            onClick={async () => {
-              setError("");
-              setVisionCatalogStatus("loading");
-              try {
-                const data = await apiJSON<{ models: string[] }>(
-                  "/api/models?capability=vision",
-                );
-                setVisionModels(data.models);
-                setVisionCatalogStatus("loaded");
-              } catch (e) {
-                setVisionCatalogStatus("unavailable");
-                setError((e as Error).message);
-              }
-            }}
-          >
-            {visionCatalogStatus === "loading"
-              ? "Loading image models…"
-              : "Refresh image models"}
-          </button>
-          <button
-            type="button"
-            className="secondary-button"
-            disabled={busy || !settings.visionModel}
-            onClick={() => void save("vision")}
-          >
-            {busy && <LoaderCircle size={15} className="spin" />}Save & test
-            image model
-          </button>
-        </div>
-        {visionTestStatus && (
-          <p
-            className={
-              visionTestStatus.startsWith("Image model test failed")
-                ? "form-error"
-                : "form-success"
-            }
-            role="status"
-          >
-            {visionTestStatus}
+        <details>
+          <summary>OCR & images</summary>
+          <p className="modal-description">
+            For scanned pages and image questions.
           </p>
-        )}
-        <details className="capability-custom-model">
-          <summary>Custom image endpoint or model ID</summary>
-          {field("visionBaseUrl", "Vision API base URL")}
-          {field("visionModel", "Vision model ID")}
+          <label className="field-label">
+            Image model
+            <select
+              value={settings.visionModel}
+              disabled={busy}
+              onChange={(e) => {
+                setVisionTestStatus("");
+                setSettings({ ...settings, visionModel: e.target.value });
+              }}
+            >
+              {[...new Set([settings.visionModel, ...visionModels])].map(
+                (id) => (
+                  <option key={id} value={id}>
+                    {id
+                      ? modelOptionLabel(id, modelName(id))
+                      : "Choose an image model"}
+                  </option>
+                ),
+              )}
+            </select>
+          </label>
+          <p className="model-role-hint" role="status">
+            {visionCatalogMessage}
+          </p>
+          <div className="capability-actions">
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={busy || visionCatalogStatus === "loading"}
+              onClick={async () => {
+                setError("");
+                setVisionCatalogStatus("loading");
+                try {
+                  const data = await apiJSON<{ models: string[] }>(
+                    "/api/models?capability=vision",
+                  );
+                  setVisionModels(data.models);
+                  setVisionCatalogStatus("loaded");
+                } catch (e) {
+                  setVisionCatalogStatus("unavailable");
+                  setError((e as Error).message);
+                }
+              }}
+            >
+              {visionCatalogStatus === "loading"
+                ? "Loading image models…"
+                : "Refresh image models"}
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={busy || !settings.visionModel}
+              onClick={() => void save("vision")}
+            >
+              {busy && <LoaderCircle size={15} className="spin" />}Save & test
+              image model
+            </button>
+          </div>
+          {visionTestStatus && (
+            <p
+              className={
+                visionTestStatus.startsWith("Image model test failed")
+                  ? "form-error"
+                  : "form-success"
+              }
+              role="status"
+            >
+              {visionTestStatus}
+            </p>
+          )}
+          <details className="capability-custom-model">
+            <summary>Custom image endpoint or model ID</summary>
+            {field("visionBaseUrl", "Vision API base URL")}
+            {field("visionModel", "Vision model ID")}
+          </details>
         </details>
       </section>
       <section
         className="capability-settings"
         aria-label="Search and embeddings"
       >
-        <h4>Search & embeddings</h4>
-        <p className="modal-description">
-          Search sources and your saved notes by meaning. Chat continues to use
-          the chat model above; embeddings use a separate model.
-        </p>
-        <button
-          type="button"
-          className="secondary-button"
-          disabled={busy}
-          onClick={() =>
-            setSettings({
-              ...settings,
-              embeddingBaseUrl: "http://127.0.0.1:11434/v1",
-              embeddingModel: "embeddinggemma-2:270m",
-            })
-          }
-        >
-          Use EmbeddingGemma 2 locally
-        </button>
-        {/embeddinggemma/i.test(settings.embeddingModel) && (
+        <details>
+          <summary>Source search</summary>
           <p className="modal-description">
-            Start Ollama with <code>ollama pull {settings.embeddingModel}</code>
-            , then test the connection below.
+            Use an embedding model to search sources and notes by meaning.
           </p>
-        )}
-        {field("embeddingBaseUrl", "Embedding API base URL")}
-        {field("embeddingModel", "Embedding model ID")}
-        <button
-          type="button"
-          className="secondary-button"
-          disabled={busy || !settings.embeddingModel}
-          onClick={() => void save("embeddings")}
-        >
-          {busy && <LoaderCircle size={15} className="spin" />}Save & test
-          embeddings
-        </button>
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={busy}
+            onClick={() =>
+              setSettings({
+                ...settings,
+                embeddingBaseUrl: "http://127.0.0.1:11434/v1",
+                embeddingModel: "embeddinggemma-2:270m",
+              })
+            }
+          >
+            Use EmbeddingGemma 2 locally
+          </button>
+          {/embeddinggemma/i.test(settings.embeddingModel) && (
+            <p className="modal-description">
+              Start Ollama with{" "}
+              <code>ollama pull {settings.embeddingModel}</code>, then test the
+              connection below.
+            </p>
+          )}
+          {field("embeddingBaseUrl", "Embedding API base URL")}
+          {field("embeddingModel", "Embedding model ID")}
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={busy || !settings.embeddingModel}
+            onClick={() => void save("embeddings")}
+          >
+            {busy && <LoaderCircle size={15} className="spin" />}Save & test
+            embeddings
+          </button>
+        </details>
       </section>
       <details>
         <summary>Advanced capabilities</summary>
@@ -441,8 +441,8 @@ export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
         {field("rerankModel", "Reranking model ID")}
       </details>
       <p className="connection-disclosure">
-        Your key stays on this device. Selected source content is sent to your
-        provider when you use AI.
+        API keys stay on the server. Selected source text is sent to your model
+        provider.
       </p>
       {error && (
         <p className="form-error" role="alert">

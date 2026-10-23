@@ -54,7 +54,8 @@ function appendAnswer(
 
 function previousQuestion(messages: Message[], answerIndex: number) {
   for (let index = answerIndex - 1; index >= 0; index -= 1) {
-    if (messages[index].role === "user") return messages[index].content.trim();
+    if (messages[index].role === "user")
+      return (messages[index].originalPrompt ?? messages[index].content).trim();
   }
   return "";
 }
@@ -76,7 +77,7 @@ function appendPassageNote(
   let wroteAnswer = false;
   for (const message of note.messages) {
     if (message.role === "user") {
-      question = message.content.trim() || question;
+      question = (message.originalPrompt ?? message.content).trim() || question;
       continue;
     }
     if (!message.content.trim() || message.incomplete || message.cancelled)

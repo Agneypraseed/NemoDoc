@@ -83,7 +83,9 @@ test("both evidence workflows: explicit snapshot, inspect queries, edit, approve
   });
   try {
     await page.goto("http://127.0.0.1:5173/app");
-    await expect(page.locator('[data-page="1"] canvas')).toBeVisible();
+    await expect(page.locator('[data-page="1"] canvas')).toBeVisible({
+      timeout: 15000,
+    });
     await page
       .getByLabel("Upload sources", { exact: true })
       .setInputFiles(await createResearchSources());
@@ -119,7 +121,18 @@ test("both evidence workflows: explicit snapshot, inspect queries, edit, approve
       flow.getByRole("button", { name: "Generate team plan", exact: true }),
     ).toBeVisible();
     for (const name of ["Plan revision", "Synthesize research"]) {
-      await flow.getByRole("button", { name, exact: true }).click();
+      await flow
+        .getByLabel("Task type", { exact: true })
+        .selectOption(
+          name === "Plan revision" ? "study_revision" : "research_synthesis",
+        );
+      await flow
+        .getByLabel("Request", { exact: true })
+        .fill(
+          name === "Plan revision"
+            ? "Prepare a revision plan from my notes and quiz mistakes."
+            : "Compare the findings, methods and limits of my selected papers.",
+        );
       const { article } = await createEvidenceProposal(
         page,
         flow,

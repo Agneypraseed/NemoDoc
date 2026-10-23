@@ -320,14 +320,11 @@ for (const multiModel of [false, true]) {
       const web = pageUI.getByRole("region", {
         name: "Web research connection",
       });
-      await web.getByLabel("Tavily API key").fill("fixture-tavily-key");
+      await web.getByLabel("Search API key").fill("fixture-tavily-key");
       await web
-        .getByRole("button", { name: "Save web connection", exact: true })
+        .getByRole("button", { name: "Save & test search", exact: true })
         .click();
-      await web
-        .getByRole("button", { name: "Test web connection", exact: true })
-        .click();
-      await expect(web).toContainText("Tavily connection test passed.");
+      await expect(web.getByRole("status")).toHaveText("Tavily connected.");
       if (multiModel) {
         const models = pageUI.getByRole("region", {
           name: "Research model connections",
@@ -411,8 +408,20 @@ for (const multiModel of [false, true]) {
         .getByRole("button", { name: "Approve snapshots", exact: true })
         .click();
       await flow
-        .getByRole("button", { name: "Research team", exact: true })
-        .click();
+        .getByLabel("Task type", { exact: true })
+        .selectOption("research_team");
+      await flow
+        .getByLabel("Request", { exact: true })
+        .fill("Compare the PCA evidence and its limitations.");
+      await flow
+        .getByLabel("Task type", { exact: true })
+        .selectOption("study_revision");
+      await expect(flow.getByLabel("Request", { exact: true })).toHaveValue(
+        "Compare the PCA evidence and its limitations.",
+      );
+      await flow
+        .getByLabel("Task type", { exact: true })
+        .selectOption("research_team");
       await flow.getByLabel("Enable web research", { exact: true }).check();
       await flow
         .getByRole("button", { name: "Generate team plan", exact: true })

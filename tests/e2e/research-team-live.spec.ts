@@ -370,8 +370,8 @@ test("real Nemotron MML research team records concurrent agents and their work i
       .getByRole("button", { name: "Approve snapshots", exact: true })
       .click();
     await flow
-      .getByRole("button", { name: "Research team", exact: true })
-      .click();
+      .getByLabel("Task type", { exact: true })
+      .selectOption("research_team");
     await flow.getByLabel("Request", { exact: true }).fill(prompt);
     await expect(flow.getByLabel("Research execution route")).toHaveValue(
       "application",

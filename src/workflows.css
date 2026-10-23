@@ -7,7 +7,6 @@
 .workspace-chat[hidden] {
   display: none;
 }
-.workflow-templates,
 .workflow-buttons {
   display: flex;
   align-items: center;
@@ -148,42 +147,8 @@
   max-width: 46ch;
   font-size: 13px;
 }
-.workflow-templates {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 8px;
-}
-.agent-panel .workflow-choice {
-  display: grid;
-  justify-items: start;
-  gap: 4px;
-  width: 100%;
-  min-height: 0;
-  padding: 11px 13px;
-  text-align: left;
-  color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  box-shadow: none;
-}
-.agent-panel .workflow-choice[aria-pressed="true"] {
-  background: var(--accent-soft);
-  border-color: var(--accent-line);
-}
-.agent-panel .workflow-choice:hover:not(:disabled) {
-  border-color: var(--accent-line);
-}
-.workflow-choice-title {
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.4;
-}
-.workflow-choice-description {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 1.5;
+.research-task-type {
+  max-width: 320px;
 }
 .research-evidence > summary,
 .research-compose > summary {

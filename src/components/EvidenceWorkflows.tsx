@@ -44,14 +44,6 @@ import {
 } from "../workspace-types";
 
 const root = "/api/agent/workspace";
-const prompts = {
-  study_revision:
-    "Prepare a targeted revision plan from my selected notes and recorded quiz mistakes. Connect each focus to the relevant note, mistake and cited book page. Propose editable practice materials and a review session. If no quiz history is shared or recorded, say the learning gaps are unknown.",
-  research_synthesis:
-    "Compare my selected papers in an evidence table. For each paper, report its finding, method or population, and cited page. Explain where findings support, qualify or conflict with one another; distinguish differences in study settings from direct disagreements. Flag conclusions these sources cannot establish, then propose an editable cited brief and follow-up reading tasks.",
-  research_team:
-    "Investigate the main findings, compare approaches, and assess the strengths and limitations of the evidence for my research question. Cite supporting sources and distinguish inference.",
-};
 const sceneStatus = (
   agent: NonNullable<WorkspaceState["runs"][number]["researchTeam"]>[number],
 ): AgentActivityStatus => {
@@ -84,26 +76,6 @@ const workflowNames = {
   research_synthesis: "Research synthesis",
   research_team: "Research team",
 } as const;
-const workflowChoices = [
-  {
-    id: "research_team",
-    title: "Research team",
-    description:
-      "Explore a question with parallel researchers, then a reviewer checks the evidence.",
-  },
-  {
-    id: "study_revision",
-    title: "Plan revision",
-    description:
-      "Turn selected notes and quiz results into a focused study plan.",
-  },
-  {
-    id: "research_synthesis",
-    title: "Synthesize research",
-    description:
-      "Compare at least two sources in a cited evidence table.",
-  },
-] as const;
 export function EvidenceWorkflows({
   notebookId,
   title,
@@ -445,36 +417,28 @@ export function EvidenceWorkflows({
       aria-label="Evidence workflows"
     >
       <div className="research-heading">
-        <h2>Choose a workflow</h2>
-        <p>Pick the kind of help you need. You can change it before you start.</p>
+        <h2>Research</h2>
       </div>
       {error && (
         <p className="form-error" role="alert">
           {error}
         </p>
       )}
-      <div
-        className="workflow-templates"
-        role="group"
-        aria-label="Choose a workflow"
-      >
-        {workflowChoices.map(({ id, title, description }) => (
-          <button
-            key={id}
-            type="button"
-            className="workflow-choice"
-            aria-pressed={workflow === id}
-            onClick={() => {
-              setWorkflow(id);
-              setPrompt(prompts[id]);
-              setComposeOpen(true);
-            }}
-          >
-            <span className="workflow-choice-title">{title}</span>
-            <span className="workflow-choice-description">{description}</span>
-          </button>
-        ))}
-      </div>
+      <label className="field-label research-task-type">
+        Task type
+        <select
+          aria-label="Task type"
+          value={workflow}
+          onChange={(e) => {
+            setWorkflow(e.target.value as EvidenceWorkflow);
+            setComposeOpen(true);
+          }}
+        >
+          <option value="research_team">Research team</option>
+          <option value="study_revision">Revision plan</option>
+          <option value="research_synthesis">Research synthesis</option>
+        </select>
+      </label>
       <details className="agent-form research-evidence" open={!state?.revision}>
         <summary>
           1 · Choose your evidence
@@ -642,9 +606,8 @@ export function EvidenceWorkflows({
               </label>
               {webEnabled && (
                 <p className="agent-fine">
-                  Web research uses the tested Tavily connection. Generated
-                  search queries may contain information from your selected
-                  evidence and are sent to Tavily.
+                  Queries based on your selected sources are sent to your search
+                  provider.
                 </p>
               )}
               {executionRoute === "application" &&

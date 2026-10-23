@@ -99,7 +99,7 @@ export function createApp(
       ...environmentSecrets,
       initialConfig.apiKey,
       store.value.apiKey,
-      webResearch.value.apiKey,
+      ...webResearch.secrets(),
     ].filter((secret): secret is string => !!secret);
   const traceStore = new TraceStore(
     options.databaseUrl,
@@ -148,7 +148,7 @@ export function createApp(
       agent.worker.connections.runtime().apiKey,
       agent.worker.connections.value.email.password,
       agent.worker.connections.value.whatsapp.apiKey,
-      webResearch.value.apiKey,
+      ...webResearch.secrets(),
       ...researchModels.secrets(),
     ].filter((secret): secret is string => !!secret);
   const monitor = registerAgentMonitor(

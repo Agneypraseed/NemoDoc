@@ -232,29 +232,30 @@ export function AgentPanel({
         className="agent-subtabs agent-primary-nav"
         aria-label="Agent sections"
       >
-        {(["tasks", "dashboard", "connections"] as const).map((v) => (
-          <button
-            key={v}
-            className={view === v ? "active" : ""}
-            aria-current={view === v ? "page" : undefined}
-            onClick={() => {
-              setView(v);
-              setInspectionTraceId("");
-              setError("");
-              setMessage("");
-            }}
-          >
-            {v === "tasks" ? "Research" : v[0].toUpperCase() + v.slice(1)}
-          </button>
-        ))}
+        {(["tasks", "settings", "dashboard", "connections"] as const).map(
+          (v) => (
+            <button
+              key={v}
+              aria-label={v === "settings" ? "Agent settings" : undefined}
+              className={view === v ? "active" : ""}
+              aria-current={view === v ? "page" : undefined}
+              onClick={() => {
+                setView(v);
+                setInspectionTraceId("");
+                setError("");
+                setMessage("");
+              }}
+            >
+              {v === "tasks" ? "Research" : v[0].toUpperCase() + v.slice(1)}
+            </button>
+          ),
+        )}
         <details className="agent-more-nav">
           <summary>
             More <ChevronDown size={13} />
           </summary>
           <div>
-            {(
-              ["agents", "memory", "skills", "access", "settings"] as const
-            ).map((v) => (
+            {(["agents", "memory", "skills", "access"] as const).map((v) => (
               <button
                 key={v}
                 className={view === v ? "active" : ""}

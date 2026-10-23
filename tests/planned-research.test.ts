@@ -616,7 +616,12 @@ test("web-only research works without notebook sources; arbitrary undiscovered U
     });
   };
   const second = await setup(malicious);
-  second.web.value = { apiKey: "key", tested: true, revision: "fixture" };
+  second.web.value = {
+    provider: "tavily",
+    apiKey: "key",
+    tested: true,
+    revision: "fixture",
+  };
   await second.service.queue({ ...second.input, webEnabled: true });
   await second.worker.tick();
   const failed = (await second.repository.read("fixture")).runs[0];

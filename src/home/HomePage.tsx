@@ -18,38 +18,38 @@ import "./home.css";
 const features = [
   {
     icon: Highlighter,
-    title: "Leave your mark.",
-    text: "Highlight, underline, draw, and bookmark. Read PDFs and lecture slides in the layout that feels right to you.",
+    title: "Read and annotate",
+    text: "Highlight text, add notes, draw and bookmark pages.",
     tag: "READ & ANNOTATE",
   },
   {
     icon: Quote,
-    title: "Follow the thread.",
-    text: "Ask about a passage or your whole notebook. Follow citations back to the source and inspect the supporting excerpts.",
+    title: "Ask about your sources",
+    text: "Ask about a passage or notebook. Open citations in the source.",
     tag: "GROUNDED ANSWERS",
   },
   {
     icon: Layers,
-    title: "Turn notes into knowing.",
-    text: "Make flashcards, quizzes, study guides, and mind maps from your sources. Give good ideas another way to stick.",
+    title: "Study tools",
+    text: "Create flashcards, quizzes, guides and mind maps from selected sources.",
     tag: "STUDY STUDIO",
   },
   {
     icon: Workflow,
-    title: "A little help with the work.",
-    text: "Share selected notes with an agent, plan revision or synthesize research, and review proposed actions before approval.",
+    title: "Research tasks",
+    text: "Assign research, review results and schedule tasks.",
     tag: "AGENTS, WITH CONTROL",
   },
   {
     icon: Sparkles,
-    title: "Build your own team.",
-    text: "Connect a NemoClaw runtime to manage agents, assign models and Markdown roles, and see what each one is doing.",
+    title: "Agent settings",
+    text: "Choose models and write instructions for each agent.",
     tag: "MODELS & ROLES",
   },
   {
     icon: LockKeyhole,
-    title: "Keep your work close.",
-    text: "Notebooks stay in your browser. Export your notes as Markdown, or back up and restore your whole notebook as a ZIP.",
+    title: "Export and backup",
+    text: "Export notes as Markdown. Back up and restore notebooks as ZIP files.",
     tag: "LOCAL NOTEBOOKS",
   },
 ];
@@ -109,42 +109,19 @@ export default function HomePage() {
       </header>
       <main id="home-main">
         <section className="home-hero">
-          <div className="home-hero-eyebrow">
-            <span />A little space for deeper thinking
-          </div>
-          <h1>
-            Less collecting.
-            <br />
-            More <em>understanding.</em>
-          </h1>
-          <p>
-            Your PDFs, your questions, your next good idea.
-            <br className="home-desktop-break" /> Read, connect the dots, and
-            keep what matters — all in one notebook.
-          </p>
+          <h1>A notebook for your documents.</h1>
+          <p>Read PDFs and slides, ask questions, and save notes.</p>
           <div className="home-hero-actions">
             <a className="home-primary-link" href="/app">
               Open your notebook <ArrowRight size={17} />
             </a>
             <a className="home-secondary-link" href="#explore">
-              Take a look inside <ArrowDown size={15} />
+              Preview <ArrowDown size={15} />
             </a>
           </div>
           <span className="home-hero-note">
-            <LockKeyhole size={12} /> Start reading without an account. Connect
-            AI when you’re ready.
+            <LockKeyhole size={12} /> Reading and notes work without an account.
           </span>
-          <div className="home-hero-doodle" aria-hidden="true">
-            <svg viewBox="0 0 130 95">
-              <path d="M10 30q45-40 57 7t43 3m-2-14 10 16-18 5" />
-              <path d="m8 65 18 6m-15 6 10-5" />
-            </svg>
-            <span>
-              Make room
-              <br />
-              for the good stuff.
-            </span>
-          </div>
         </section>
         <ProductPreview />
         <section
@@ -154,27 +131,22 @@ export default function HomePage() {
         >
           <div className="home-section-heading">
             <div>
-              <span className="home-eyebrow">From a document to an idea</span>
-              <h2 id="home-how-title">Find your flow.</h2>
+              <h2 id="home-how-title">Get started</h2>
             </div>
-            <p>
-              A few simple steps.
-              <br />A much better way to read.
-            </p>
           </div>
           <div className="home-steps">
             {[
               {
-                title: "Bring a good read.",
-                text: "Add a PDF or lecture slides to your notebook. Your sources stay together, ready when you are.",
+                title: "Add documents",
+                text: "Upload PDFs or lecture slides.",
               },
               {
-                title: "Stay curious.",
-                text: "Select a word, a sentence, a passage. Highlight it, leave a note, or ask a question in context.",
+                title: "Read and annotate",
+                text: "Select text to highlight, annotate or ask a question.",
               },
               {
-                title: "Take something with you.",
-                text: "Save useful answers, return to their sources, and turn what you’ve learned into study material.",
+                title: "Save notes",
+                text: "Save answers and create study material.",
               },
             ].map((item, index) => (
               <article key={item.title}>
@@ -184,9 +156,7 @@ export default function HomePage() {
               </article>
             ))}
           </div>
-          <p className="home-how-foot">
-            Pick up where you left off. Your notebook stays on this device.
-          </p>
+          <p className="home-how-foot">Notebooks are stored in this browser.</p>
         </section>
         <section
           className="home-features home-section"
@@ -195,18 +165,8 @@ export default function HomePage() {
         >
           <div className="home-section-heading">
             <div>
-              <span className="home-eyebrow">Everything has its place</span>
-              <h2 id="home-features-title">
-                Made for the way
-                <br />
-                your mind works.
-              </h2>
+              <h2 id="home-features-title">Features</h2>
             </div>
-            <p>
-              A reader, a thinking partner, a study space.
-              <br />
-              One less place to lose a good idea.
-            </p>
           </div>
           <div className="home-feature-grid">
             {features.map(({ icon: Icon, title, text, tag }) => (
@@ -226,7 +186,7 @@ export default function HomePage() {
             <ShieldCheck size={29} strokeWidth={1.3} />
           </div>
           <div>
-            <h2>A notebook of your own.</h2>
+            <h2>Storage and sharing</h2>
             <p>
               Reading and annotation work without AI credentials. When you
               connect a hosted model, relevant text or selected page images are
@@ -234,7 +194,7 @@ export default function HomePage() {
             </p>
           </div>
           <a href="/app">
-            Make yourself at home <ArrowRight size={16} />
+            Open notebook <ArrowRight size={16} />
           </a>
         </section>
         <section
@@ -242,8 +202,7 @@ export default function HomePage() {
           aria-labelledby="home-faq-title"
         >
           <div>
-            <span className="home-eyebrow">A few things you might wonder</span>
-            <h2 id="home-faq-title">Good questions.</h2>
+            <h2 id="home-faq-title">FAQ</h2>
           </div>
           <div className="home-faq-items">
             {[
@@ -278,16 +237,6 @@ export default function HomePage() {
             ))}
           </div>
         </section>
-        <section className="home-last-call">
-          <span className="home-eyebrow">
-            Your next good idea is in there somewhere
-          </span>
-          <h2>Give it a little room.</h2>
-          <a className="home-primary-link" href="/app">
-            Open your notebook <ArrowRight size={17} />
-          </a>
-          <p>Start with the sample. Make it your own.</p>
-        </section>
       </main>
       <footer className="home-footer">
         <a className="home-logo" href="/" aria-label="NemoDoc home">
@@ -296,13 +245,13 @@ export default function HomePage() {
           </span>
           NemoDoc<span className="home-logo-period">.</span>
         </a>
-        <span>A quiet space for your ideas.</span>
+        <span>PDFs, notes and source-linked answers.</span>
         <a
           href="https://github.com/Agneypraseed/NemoDoc"
           target="_blank"
           rel="noreferrer"
         >
-          Explore the source <ArrowRight size={13} />
+          Source code <ArrowRight size={13} />
         </a>
       </footer>
     </div>

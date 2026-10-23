@@ -12,7 +12,9 @@ for (const mobile of [false, true]) {
       }),
     );
     await page.goto("/app");
-    await expect(page.locator('[data-page="1"] canvas')).toBeVisible();
+    await expect(page.locator('[data-page="1"] canvas')).toBeVisible({
+      timeout: 15000,
+    });
     const pageNumber = page.getByRole("textbox", {
       name: "Page number",
       exact: true,

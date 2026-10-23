@@ -7,6 +7,8 @@ import "./components/agent.css";
 import "./chat-dock.css";
 import "./appearance.css";
 import "./reading-space.css";
+import "./chat-rendering.css";
+import "./settings.css";
 
 const App = lazy(() => import("./App"));
 

@@ -20,8 +20,8 @@ export function AnswerModeControl({
         className="answer-mode-picker"
         title={
           value === "quick"
-            ? "A concise rewritten request and brief cited answer"
-            : "An expanded request and detailed cited explanation"
+            ? "A brief answer with source citations"
+            : "A detailed explanation with source citations"
         }
       >
         <Icon size={15} aria-hidden="true" />
@@ -39,16 +39,12 @@ export function AnswerModeControl({
     );
   }
   return (
-    <div
-      className="answer-mode"
-      role="group"
-      aria-label="Prompt rewrite and answer detail"
-    >
+    <div className="answer-mode" role="group" aria-label="Answer detail">
       <button
         type="button"
         disabled={disabled}
         aria-pressed={value === "quick"}
-        title="Nemotron rewrites your request to be concise, then gives a brief cited answer."
+        title="Give a brief answer with source citations."
         onClick={() => onChange("quick")}
       >
         Quick
@@ -57,7 +53,7 @@ export function AnswerModeControl({
         type="button"
         disabled={disabled}
         aria-pressed={value === "deep"}
-        title="Nemotron expands your request for a thorough explanation, then gives a detailed cited answer."
+        title="Give a detailed explanation with source citations."
         onClick={() => onChange("deep")}
       >
         Deep

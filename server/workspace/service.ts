@@ -539,7 +539,7 @@ export class WorkspaceService {
     }
     if (input.webEnabled && (!this.web?.value.tested || !this.web.value.apiKey))
       throw new WorkspaceConflict(
-        "Save and test the Tavily connection before enabling web research.",
+        "Connect a search provider in Settings before enabling web research.",
       );
     let researchTargets: RuntimeResearchTarget[] = [];
     if (input.workflow === "research_team" && !application) {

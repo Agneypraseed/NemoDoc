@@ -1166,3 +1166,10 @@
   font-size: 9px;
   padding: 5px 0;
 }
+.home-page .home-hero h1 {
+  max-width: 720px;
+  font-family: inherit;
+  font-size: clamp(32px, 5vw, 52px);
+  font-weight: 600;
+  line-height: 1.15;
+}

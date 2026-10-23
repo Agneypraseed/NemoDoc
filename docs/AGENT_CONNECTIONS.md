@@ -79,4 +79,8 @@ References: [Gemma capabilities](https://ai.google.dev/gemma/docs/core), [Ollama
 
 ## Web research
 
-Under **Connections → Web research**, save and test a Tavily API key. Tests make one search request. The key is stored server-side and is masked in the UI. Enable web access separately for each research run; generated queries may contain information from approved selected evidence. Without a tested key, notebook-only application-managed research remains available. Web access does not change the notebook model policy or enable arbitrary URL fetching.
+Open **Settings → Search** (or **Agent → Connections → Web search**). Choose Tavily, Exa or Firecrawl, enter the provider’s API key, and select **Save & test search**. Endpoints and authentication are configured automatically. Testing runs one search and reads one public page; both must succeed. Saved keys remain separate when switching providers and are never returned by the API. **Disconnect search** removes the selected provider’s key. Existing Tavily settings are retained.
+
+Enable web access separately for each research run. Queries can contain information from selected sources. Notebook-only research remains available without a search provider. Search results become citable only after their page text is read; the same public-URL validation applies to every provider.
+
+Provider API references: [Exa search](https://exa.ai/docs/reference/search), [Exa contents](https://exa.ai/docs/reference/get-contents), [Firecrawl search](https://docs.firecrawl.dev/api-reference/endpoint/search), and [Firecrawl scrape](https://docs.firecrawl.dev/api-reference/endpoint/scrape).

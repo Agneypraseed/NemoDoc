@@ -113,7 +113,11 @@ test("real Nemotron MML study workflow: upload, share, run, inspect, edit, appro
       flow.getByRole("button", { name: "Create proposal", exact: true }),
     ).toBeVisible();
     for (const [name, caseId] of [["Plan revision", "study-01"]]) {
-      await flow.getByRole("button", { name, exact: true }).click();
+      await flow
+        .getByLabel("Task type", { exact: true })
+        .selectOption(
+          name === "Plan revision" ? "study_revision" : "research_synthesis",
+        );
       await flow.getByRole("textbox", { name: "Request", exact: true }).fill(
         mmlPrompt(
           mmlCases.find((c) => c.id === caseId)!,

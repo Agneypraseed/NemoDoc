@@ -87,7 +87,7 @@ export function saveAnswerToNotes(
       : []),
     "### Question",
     "",
-    question.content.trim(),
+    (question.originalPrompt ?? question.content).trim(),
     "",
     "### Answer",
     "",
@@ -100,7 +100,9 @@ export function saveAnswerToNotes(
       ? `${notes.trimEnd()}\n\n${section}\n`
       : `${section}\n`,
     messages: messages.map((message) =>
-      message.id === answerId ? { ...message, savedToNotes: true, savedAt: Date.now() } : message,
+      message.id === answerId
+        ? { ...message, savedToNotes: true, savedAt: Date.now() }
+        : message,
     ),
   };
 }

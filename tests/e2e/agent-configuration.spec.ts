@@ -67,13 +67,8 @@ async function setup(page: Page) {
 async function openSettings(page: Page) {
   await page.goto("/app");
   await page.getByRole("button", { name: "Agent", exact: true }).click();
-  await page.locator(".agent-more-nav > summary").click();
   await page
-    .getByLabel("Agent sections", { exact: true })
-    .getByRole("button", { name: "Agents", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Configure roles & models", exact: true })
+    .getByRole("button", { name: "Agent settings", exact: true })
     .click();
   return page.getByRole("region", { name: "Agent configuration" });
 }
@@ -87,6 +82,13 @@ test("agent settings assign separate models, ordered fallbacks and native Markdo
     await expect(
       settings.getByLabel("Configure agent", { exact: true }),
     ).toHaveValue("nemodoc");
+    await expect(
+      settings.getByLabel("AGENTS.md content", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      settings.getByLabel("Primary model", { exact: true }),
+    ).toBeHidden();
+    await settings.getByRole("button", { name: "Models", exact: true }).click();
     await settings
       .getByLabel("Primary model", { exact: true })
       .selectOption("nvidia/research");
@@ -121,10 +123,11 @@ test("agent settings assign separate models, ordered fallbacks and native Markdo
       .getByRole("button", { name: "Reload applied models", exact: true })
       .click();
     await settings
-      .getByRole("button", { name: "Edit role files", exact: true })
+      .getByRole("button", { name: "Instructions", exact: true })
       .click();
     const text = settings.getByLabel("AGENTS.md content", { exact: true });
     await expect(text).toHaveValue(/Keep existing local conventions/);
+    await settings.getByText("Start from a template", { exact: true }).click();
     await settings
       .getByLabel("Role template", { exact: true })
       .selectOption("Reviewer");
@@ -135,6 +138,12 @@ test("agent settings assign separate models, ordered fallbacks and native Markdo
     const draft =
       (await text.inputValue()) + "\nKeep the draft across agent switches.\n";
     await text.fill(draft);
+    await settings.getByRole("button", { name: "Models", exact: true }).click();
+    await expect(text).toBeHidden();
+    await settings
+      .getByRole("button", { name: "Instructions", exact: true })
+      .click();
+    await expect(text).toHaveValue(draft);
     await settings
       .getByLabel("Configure agent", { exact: true })
       .selectOption("research");
@@ -175,15 +184,11 @@ test("agent settings assign separate models, ordered fallbacks and native Markdo
     expect(h.native.files.get("nemodoc:AGENTS.md")).toBe(draft);
     await page.reload();
     await page.getByRole("button", { name: "Agent", exact: true }).click();
-    await page.locator(".agent-more-nav > summary").click();
     await page
-      .getByLabel("Agent sections", { exact: true })
-      .getByRole("button", { name: "Agents", exact: true })
-      .click();
-    await page
-      .getByRole("button", { name: "Configure roles & models", exact: true })
+      .getByRole("button", { name: "Agent settings", exact: true })
       .click();
     await expect(text).toHaveValue(draft);
+    await settings.getByText("Add an agent", { exact: true }).click();
     await settings
       .getByLabel("New agent name", { exact: true })
       .fill("Paper reviewer");
@@ -196,6 +201,7 @@ test("agent settings assign separate models, ordered fallbacks and native Markdo
     expect((h.native.agents["paper-reviewer"].tools as any).profile).toBe(
       "minimal",
     );
+    await settings.getByRole("button", { name: "Models", exact: true }).click();
     await settings
       .getByLabel("Primary model", { exact: true })
       .selectOption("__exact__");
@@ -278,6 +284,46 @@ test("a stale role save preserves the draft and a disconnected runtime offers co
     await expect(
       settings.getByLabel("Configure agent", { exact: true }),
     ).toHaveCount(0);
+  } finally {
+    await h.close();
+  }
+});
+
+test("mobile settings create instructions in the selected agent's own workspace", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const h = await setup(page);
+  h.native.files.delete("research:AGENTS.md");
+  const sibling = h.native.files.get("nemodoc:AGENTS.md");
+  try {
+    const settings = await openSettings(page);
+    await settings
+      .getByLabel("Configure agent", { exact: true })
+      .selectOption("research");
+    const instructions = settings.getByLabel("AGENTS.md content", {
+      exact: true,
+    });
+    await expect(instructions).toHaveValue("");
+    await expect(
+      settings.getByText("This file does not exist yet.", { exact: false }),
+    ).toBeVisible();
+    const content =
+      "# Research reviewer\n\nCheck every claim against the selected sources. Cite page numbers and flag uncertainty.\n";
+    await instructions.fill(content);
+    await settings
+      .getByRole("button", { name: "Save AGENTS.md", exact: true })
+      .click();
+    await expect(settings.getByRole("status")).toContainText("AGENTS.md saved");
+    expect(h.native.files.get("research:AGENTS.md")).toBe(content);
+    expect(h.native.files.get("nemodoc:AGENTS.md")).toBe(sibling);
+    expect(h.inference()).toBe(0);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({ path: "output/agent-instructions-mobile.png" });
   } finally {
     await h.close();
   }

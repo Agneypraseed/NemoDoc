@@ -120,9 +120,17 @@ export function registerWorkspace(
     res.setHeader("Cache-Control", "no-store");
     res.json(service.models.catalog());
   });
-  app.get("/api/agent/workspace/web-connection", (_req, res) =>
-    res.json(options.web?.public() ?? { hasApiKey: false, tested: false }),
-  );
+  app.get("/api/agent/workspace/web-connection", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.json(
+      options.web?.public() ?? {
+        provider: "tavily",
+        hasApiKey: false,
+        tested: false,
+        providers: [],
+      },
+    );
+  });
   app.get("/api/agent/workspace/:notebookId", async (req, res) => {
     try {
       await ready;

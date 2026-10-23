@@ -24,7 +24,6 @@ import {
   Plus,
   Search,
   Settings2,
-  Sparkles,
   Trash2,
   RefreshCw,
   Upload,
@@ -52,6 +51,7 @@ import { createBackup, readBackup } from "./lib/backup";
 import { apiJSON } from "./lib/api";
 import { ConnectionSettings } from "./components/ConnectionSettings";
 import { AppearanceSettings } from "./components/AppearanceSettings";
+import { WebResearchConnection } from "./components/WebResearchConnection";
 import { NotebookActions } from "./components/NotebookActions";
 import { NotebookLibrary } from "./components/NotebookLibrary";
 import type { AnswerMode } from "./components/AnswerMode";
@@ -128,8 +128,9 @@ function SavedAnswerCard({
   onCitation: (citation: Citation) => void;
 }) {
   const prompt =
-    question.content.split("\n\nSelected passage from ")[0].trim() ||
-    "Saved answer";
+    (question.originalPrompt ?? question.content)
+      .split("\n\nSelected passage from ")[0]
+      .trim() || "Saved answer";
   const citations = (answer.citations ?? []).filter((citation) => {
     const source = sources.find(
       (candidate) => candidate.id === citation.sourceId,
@@ -302,6 +303,9 @@ export default function App() {
     model: "nvidia/nemotron-3-nano-30b-a3b",
     local: false,
   });
+  const [settingsSection, setSettingsSection] = useState<"general" | "search">(
+    "general",
+  );
   const [noteCitation, setNoteCitation] = useState<Citation>();
   const [modal, setModal] = useState<
       "settings" | "new" | "library" | "help" | null
@@ -315,8 +319,7 @@ export default function App() {
     [saveError, setSaveError] = useState("");
   const [draft, setDraft] = useState(""),
     [chatError, setChatError] = useState(""),
-    [busy, setBusy] = useState(false),
-    [preparingPrompt, setPreparingPrompt] = useState(false);
+    [busy, setBusy] = useState(false);
   const [voiceActive, setVoiceActive] = useState(false);
   const voiceRecognition = useRef<VoiceRecognitionLike | null>(null);
   const [streamingMessageId, setStreamingMessageId] = useState("");
@@ -359,7 +362,6 @@ export default function App() {
     chatBottom = useRef<HTMLDivElement>(null);
   const abort = useRef<AbortController>(null),
     streaming = useRef(false);
-  const rewritingPrompt = useRef(false);
   const activeNotebookRef = useRef(activeId);
   activeNotebookRef.current = activeId;
   const importingRef = useRef(false);
@@ -1331,7 +1333,7 @@ export default function App() {
       collapsed: true,
     };
     void sendPassage(
-      question.content,
+      question.originalPrompt ?? question.content,
       {
         sourceId: note.sourceId,
         page: note.page,
@@ -1398,14 +1400,8 @@ export default function App() {
     onlySources?: Source[],
     selected = context,
   ) => {
-    if (
-      !notebook ||
-      !question.trim() ||
-      streaming.current ||
-      rewritingPrompt.current
-    )
-      return;
-    const originalQuestion = question.trim();
+    if (!notebook || !question.trim() || streaming.current) return;
+    question = question.trim();
     if (
       !enabledSources.length &&
       !selected &&
@@ -1416,35 +1412,8 @@ export default function App() {
       return;
     }
     setChatError("");
-    setPreparingPrompt(true);
-    rewritingPrompt.current = true;
-    openConversation();
-    try {
-      const rewritten = await apiJSON<{ prompt: string }>(
-        "/api/prompt/rewrite",
-        { question: originalQuestion, answerMode },
-        AbortSignal.timeout(50000),
-      );
-      question = rewritten.prompt.trim();
-      if (!question || question.length > 8000)
-        throw new Error("The model returned an invalid rewritten request.");
-    } catch (error) {
-      setChatError(
-        `Could not refine your ${answerMode === "quick" ? "Quick" : "Deep"} prompt: ${error instanceof Error ? error.message : "Try again."}`,
-      );
-      setPreparingPrompt(false);
-      rewritingPrompt.current = false;
-      return;
-    }
-    setPreparingPrompt(false);
-    rewritingPrompt.current = false;
-    const promptMetadata = {
-      ...(question !== originalQuestion
-        ? { originalPrompt: originalQuestion }
-        : {}),
-    } satisfies Pick<Message, "originalPrompt">;
     if (selected && !onlySources) {
-      await sendPassage(question, selected, undefined, [], promptMetadata);
+      await sendPassage(question, selected);
       return;
     }
     openConversation();
@@ -1474,7 +1443,6 @@ export default function App() {
       id: crypto.randomUUID(),
       role: "user",
       content: fullQuestion,
-      ...promptMetadata,
     };
     const answer: Message = {
       id: crypto.randomUUID(),
@@ -1682,7 +1650,7 @@ export default function App() {
     return (
       <div className="boot">
         <Brand />
-        <span>Making room for your ideas…</span>
+        <span>Loading notebook…</span>
       </div>
     );
   return (
@@ -2250,74 +2218,8 @@ export default function App() {
                 <div className="chat-scroll">
                   {!panelMessages.length ? (
                     <div className="chat-welcome">
-                      <div className="assistant-orbit">
-                        <Brand />
-                        <span className="orbit-dot" />
-                      </div>
-                      <span className="eyebrow">NOTEBOOK CONVERSATION</span>
-                      <h2>Ask. Explore. Follow up.</h2>
-                      <p>
-                        Get an explanation, connect ideas, or make a study plan.
-                        Your questions and source-linked answers stay together
-                        in order.
-                      </p>
-                      <div className="prompt-cards">
-                        <button
-                          onClick={() =>
-                            chooseSuggestion(
-                              "Explain the most important idea in my sources in plain language.",
-                            )
-                          }
-                          disabled={!enabledSources.length}
-                        >
-                          <span className="prompt-icon violet">
-                            <BookOpen size={16} />
-                          </span>
-                          <span>
-                            <strong>Explain a concept</strong>
-                            <small>Start with a clear explanation</small>
-                          </span>
-                          <ArrowRight size={14} />
-                        </button>
-                        <button
-                          onClick={() =>
-                            chooseSuggestion(
-                              "Summarize the key ideas in my sources.",
-                            )
-                          }
-                          disabled={!enabledSources.length}
-                        >
-                          <span className="prompt-icon green">
-                            <Layers size={16} />
-                          </span>
-                          <span>
-                            <strong>Find the big picture</strong>
-                            <small>Bring the main ideas together</small>
-                          </span>
-                          <ArrowRight size={14} />
-                        </button>
-                        <button
-                          onClick={() =>
-                            chooseSuggestion(
-                              "Create five study questions with short answers based on my sources.",
-                            )
-                          }
-                          disabled={!enabledSources.length}
-                        >
-                          <span className="prompt-icon peach">
-                            <Sparkles size={16} />
-                          </span>
-                          <span>
-                            <strong>Practice what you learned</strong>
-                            <small>Turn the reading into questions</small>
-                          </span>
-                          <ArrowRight size={14} />
-                        </button>
-                      </div>
-                      <div className="grounded-note">
-                        <span className="status-dot" />
-                        Answers link back to the selected sources
-                      </div>
+                      <h2>Chat</h2>
+                      <p>Ask about your selected sources.</p>
                     </div>
                   ) : (
                     <div className="messages" aria-live="polite">
@@ -2372,16 +2274,15 @@ export default function App() {
                                 <strong>NemoDoc</strong>
                               </div>
                             )}
-                            {m.role === "user" && m.originalPrompt && (
-                              <details
-                                className="message-original-prompt"
-                                title="NemoDoc rewrote this request before sending it."
-                              >
-                                <summary>Original prompt</summary>
-                                <p>{m.originalPrompt}</p>
-                              </details>
-                            )}
-                            {m.content ? (
+                            {m.role === "user" ? (
+                              <p className="message-question">
+                                {
+                                  (m.originalPrompt ?? m.content).split(
+                                    "\n\nSelected passage from ",
+                                  )[0]
+                                }
+                              </p>
+                            ) : m.content ? (
                               <ReactMarkdown
                                 remarkPlugins={[remarkGfm, remarkMath]}
                                 rehypePlugins={[
@@ -2420,14 +2321,7 @@ export default function App() {
                                     ),
                                 }}
                               >
-                                {citationMarkdown(
-                                  m.role === "user"
-                                    ? m.content.split(
-                                        "\n\nSelected passage from ",
-                                      )[0]
-                                    : m.content,
-                                  m.citations ?? [],
-                                )}
+                                {citationMarkdown(m.content, m.citations ?? [])}
                               </ReactMarkdown>
                             ) : m.error ? (
                               <div className="form-error" role="alert">
@@ -2623,12 +2517,8 @@ export default function App() {
                     ) : (
                       <div className="notes-empty">
                         <MessageSquare size={25} strokeWidth={1.5} />
-                        <p>
-                          Your saved explanations will appear here in order.
-                        </p>
-                        <span>
-                          Save any completed answer from your conversation.
-                        </span>
+                        <p>No saved answers.</p>
+                        <span>Use Save to Notes on a completed answer.</span>
                         <button
                           type="button"
                           className="notes-open-chat"
@@ -2767,7 +2657,7 @@ export default function App() {
                       <textarea
                         id="notebook-note"
                         aria-label="Notebook notes"
-                        placeholder="A thought to come back to…"
+                        placeholder="Write a note…"
                         value={notebook?.notes ?? ""}
                         onChange={(e) => {
                           if (notebook)
@@ -2799,8 +2689,7 @@ export default function App() {
             >
               <header>
                 <div>
-                  <Sparkles size={16} />
-                  <strong>A little inspiration</strong>
+                  <strong>Suggested questions</strong>
                 </div>
                 <button
                   type="button"
@@ -2812,55 +2701,28 @@ export default function App() {
                 </button>
               </header>
               <div className="prompt-cards">
-                <button
-                  onClick={() =>
-                    chooseSuggestion("Summarize the key ideas in my sources.")
-                  }
-                  disabled={busy || !enabledSources.length}
-                >
-                  <span className="prompt-icon violet">
-                    <FileText size={17} />
-                  </span>
-                  <span>
-                    <strong>Find the big picture</strong>
-                    <small>A summary of the key ideas</small>
-                  </span>
-                  <ArrowRight size={15} />
-                </button>
-                <button
-                  onClick={() =>
-                    chooseSuggestion(
-                      "What connections can you find between the ideas in my sources?",
-                    )
-                  }
-                  disabled={busy || !enabledSources.length}
-                >
-                  <span className="prompt-icon green">
-                    <Layers size={17} />
-                  </span>
-                  <span>
-                    <strong>Connect the dots</strong>
-                    <small>Discover themes across sources</small>
-                  </span>
-                  <ArrowRight size={15} />
-                </button>
-                <button
-                  onClick={() =>
-                    chooseSuggestion(
-                      "Create five thoughtful study questions with short answers based on these sources.",
-                    )
-                  }
-                  disabled={busy || !enabledSources.length}
-                >
-                  <span className="prompt-icon peach">
-                    <MessageSquare size={17} />
-                  </span>
-                  <span>
-                    <strong>Go a little deeper</strong>
-                    <small>Questions worth thinking about</small>
-                  </span>
-                  <ArrowRight size={15} />
-                </button>
+                {[
+                  [
+                    "Summarize sources",
+                    "Summarize the key ideas in my sources.",
+                  ],
+                  [
+                    "Compare ideas",
+                    "What connections can you find between the ideas in my sources?",
+                  ],
+                  [
+                    "Practice questions",
+                    "Create five study questions with short answers based on my sources.",
+                  ],
+                ].map(([label, prompt]) => (
+                  <button
+                    key={label}
+                    onClick={() => chooseSuggestion(prompt)}
+                    disabled={busy || !enabledSources.length}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             </section>
           )}
@@ -2911,7 +2773,6 @@ export default function App() {
           )}
           <ConversationComposer
             {...{
-              preparingPrompt,
               answerMode,
               status,
               composer,
@@ -2977,10 +2838,7 @@ export default function App() {
         </Modal>
       )}
       {modal === "new" && (
-        <Modal title="A new place to think" onClose={() => setModal(null)}>
-          <p className="modal-description">
-            Bring related sources together in a notebook.
-          </p>
+        <Modal title="New notebook" onClose={() => setModal(null)}>
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -2991,7 +2849,7 @@ export default function App() {
               Notebook title
               <input
                 autoFocus
-                placeholder="What are you exploring?"
+                placeholder="Notebook title"
                 maxLength={80}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -2999,9 +2857,9 @@ export default function App() {
               />
             </label>
             <label className="form-label">
-              A little context <span>optional</span>
+              Description <span>optional</span>
               <input
-                placeholder="A few words about this collection"
+                placeholder="Description (optional)"
                 maxLength={160}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -3031,14 +2889,31 @@ export default function App() {
       )}
       {modal === "settings" && (
         <Modal title="Settings" onClose={() => setModal(null)}>
-          <AppearanceSettings theme={theme} onChange={setTheme} />
-          <ConnectionSettings
-            onSaved={() => {
-              void apiJSON<AIStatus>("/api/status")
-                .then(setStatus)
-                .catch(() => {});
-            }}
-          />
+          <nav className="settings-sections" aria-label="Settings sections">
+            {(["general", "search"] as const).map((section) => (
+              <button
+                type="button"
+                key={section}
+                aria-pressed={settingsSection === section}
+                onClick={() => setSettingsSection(section)}
+              >
+                {section === "general" ? "General" : "Search"}
+              </button>
+            ))}
+          </nav>
+          <div hidden={settingsSection !== "general"}>
+            <AppearanceSettings theme={theme} onChange={setTheme} />
+            <ConnectionSettings
+              onSaved={() => {
+                void apiJSON<AIStatus>("/api/status")
+                  .then(setStatus)
+                  .catch(() => {});
+              }}
+            />
+          </div>
+          <div hidden={settingsSection !== "search"}>
+            <WebResearchConnection />
+          </div>
         </Modal>
       )}
       {searchNotebook && (

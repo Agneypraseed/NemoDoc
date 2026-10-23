@@ -77,12 +77,7 @@ export function ResearchModelConnections() {
   return (
     <section className="agent-form" aria-label="Research model connections">
       <h4>Research models & task routing</h4>
-      <p>
-        Add models for planning, mathematical reasoning, research and critical
-        review. The planner chooses from tested profiles for each task; you can
-        override its choices before starting. Strengths and cost tiers are your
-        routing hints, not measured quality or live prices.
-      </p>
+      <p className="field-hint">Optional models for research tasks.</p>
       {!!notice && !feedbackId && (
         <p
           className={noticeError ? "form-error" : "form-success"}

@@ -161,6 +161,7 @@ for (const mobile of [false, true]) {
       page.getByRole("textbox", { name: "Notebook notes", exact: true }),
     ).toHaveValue(/protect concentration/);
     await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await page.getByText("Source search", { exact: true }).click();
     await page
       .getByRole("button", { name: "Use EmbeddingGemma 2 locally" })
       .click();

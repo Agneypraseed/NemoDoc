@@ -11,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { apiJSON } from "../lib/api";
 import { download } from "../lib/storage";
 import {
@@ -95,7 +96,7 @@ export function AgentConfiguration({
       <div className="agent-section-title">
         <h3>
           <Settings2 size={16} />
-          Roles & models
+          Agent settings
         </h3>
         <button
           type="button"
@@ -107,10 +108,6 @@ export function AgentConfiguration({
           Reload agents
         </button>
       </div>
-      <p className="agent-fine">
-        Give each agent its own role and model routing. Roles live in Markdown
-        files in the agent’s OpenClaw workspace.
-      </p>
       {error && (
         <p role="alert" className="form-error">
           {error}
@@ -136,48 +133,54 @@ export function AgentConfiguration({
           >
             Open connections
           </button>
-          <p>
-            On the runtime host, set <code>NEMODOC_NEMOCLAW_SANDBOX</code> to
-            your sandbox name and make the NemoClaw CLI available to the server.
-          </p>
+          <details>
+            <summary>Runtime setup details</summary>
+            <p>
+              On the runtime host, set <code>NEMODOC_NEMOCLAW_SANDBOX</code> to
+              your sandbox name and make the NemoClaw CLI available to the
+              server.
+            </p>
+          </details>
         </div>
       )}
       {configuration?.available && (
         <>
-          <p className="agent-monitor-caption">
-            Sandbox: {configuration.sandbox || "configured runtime"} ·{" "}
-            {configuration.message}
-          </p>
-          <form
-            className="agent-form agent-create-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void create();
-            }}
+          <details
+            className="agent-create-details"
+            open={!configuration.agents.length}
           >
-            <label className="field-label">
-              New agent name
-              <input
-                aria-label="New agent name"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                maxLength={80}
-                placeholder="Research reviewer"
-                required
-                pattern="[A-Za-z0-9][A-Za-z0-9 _-]*"
-              />
-            </label>
-            <button className="secondary-button" disabled={busy}>
-              <Plus size={13} />
-              Create agent
-            </button>
-            <p className="agent-monitor-caption">
-              Creates a separate workspace with restricted built-in tools. Add a
-              model and role after creation; no task starts automatically. Use a
-              name starting with a letter that forms an ID of at most 32
-              characters.
-            </p>
-          </form>
+            <summary>
+              <Plus size={14} /> Add an agent
+            </summary>
+            <form
+              className="agent-form agent-create-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void create();
+              }}
+            >
+              <label className="field-label">
+                New agent name
+                <input
+                  aria-label="New agent name"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  maxLength={32}
+                  placeholder="Research reviewer"
+                  required
+                  pattern="[A-Za-z][A-Za-z0-9 _-]*"
+                />
+              </label>
+              <button className="secondary-button" disabled={busy}>
+                <Plus size={13} />
+                Create agent
+              </button>
+              <p className="agent-monitor-caption">
+                Creates a separate workspace. Start with a letter and use up to
+                32 letters, numbers, spaces, hyphens or underscores.
+              </p>
+            </form>
+          </details>
           {configuration.catalogError && (
             <p role="status" className="agent-fine">
               {configuration.catalogError}
@@ -238,6 +241,9 @@ function AgentEditor({
 }) {
   const [primary, setPrimary] = useState(agent.primary),
     [fallbacks, setFallbacks] = useState(agent.fallbacks);
+  const [section, setSection] = useState<
+    "instructions" | "models" | "advanced"
+  >("instructions");
   const [nextFallback, setNextFallback] = useState("");
   const [name, setName] = useState(agent.name);
   const [busy, setBusy] = useState(false),
@@ -265,46 +271,39 @@ function AgentEditor({
   };
   return (
     <div className="agent-editor" aria-label={`${agent.name} settings`}>
-      <nav
-        className="agent-monitor-filters"
-        aria-label="Agent settings shortcuts"
-      >
-        <button
-          type="button"
-          onClick={() =>
-            document
-              .getElementById(`agent-models-${agent.id}`)
-              ?.scrollIntoView({ block: "start" })
-          }
-        >
-          Model routing
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            document
-              .getElementById(`agent-role-${agent.id}`)
-              ?.scrollIntoView({ block: "start" })
-          }
-        >
-          Edit role files
-        </button>
+      <nav className="agent-settings-tabs" aria-label="Agent settings sections">
+        {(["instructions", "models", "advanced"] as const).map((value) => (
+          <button
+            key={value}
+            type="button"
+            aria-pressed={section === value}
+            onClick={() => setSection(value)}
+          >
+            {value[0].toUpperCase() + value.slice(1)}
+          </button>
+        ))}
       </nav>
-      <button
-        type="button"
-        className="secondary-button"
-        disabled={busy}
-        onClick={() =>
-          void act(
-            () => apiJSON(root + "/select", { agentId: agent.id }),
-            "Agent selected. Test the gateway connection before running tasks.",
-          ).then((ok) => {
-            if (ok) onConnections();
-          })
-        }
-      >
-        Use this agent in NemoDoc
-      </button>
+      <div className="agent-editing-identity">
+        <div>
+          <strong>{agent.name}</strong>
+          <span>{agent.id}</span>
+        </div>
+        <button
+          type="button"
+          className="secondary-button"
+          disabled={busy}
+          onClick={() =>
+            void act(
+              () => apiJSON(root + "/select", { agentId: agent.id }),
+              "Agent selected. Test the gateway connection before running tasks.",
+            ).then((ok) => {
+              if (ok) onConnections();
+            })
+          }
+        >
+          Use this agent in NemoDoc
+        </button>
+      </div>
       {error && (
         <p role="alert" className="form-error">
           {error}
@@ -315,235 +314,253 @@ function AgentEditor({
           {message}
         </p>
       )}
-      <form
-        className="agent-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void act(
-            () => apiJSON(root + "/name", { agentId: agent.id, name }),
-            "Agent name saved in OpenClaw.",
-          );
-        }}
-      >
-        <h4>Identity</h4>
-        <label className="field-label">
-          Agent display name
-          <input
-            aria-label="Agent display name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-            maxLength={80}
-            pattern="[A-Za-z0-9][A-Za-z0-9 _-]*"
-          />
-        </label>
-        <button className="secondary-button" disabled={busy}>
-          Save name
-        </button>
-      </form>
-      <form
-        className="agent-form"
-        id={`agent-models-${agent.id}`}
-        onSubmit={(e) => {
-          e.preventDefault();
-          const input = {
-            agentId: agent.id,
-            primary,
-            fallbacks,
-            revision: agent.revision,
-          };
-          if (!modelRoutingInput.safeParse(input).success) {
-            setError(
-              "Choose distinct provider/model IDs, or inherit the runtime default without overrides.",
+      <div hidden={section !== "instructions"}>
+        <RoleEditor agentId={agent.id} drafts={drafts} />
+      </div>
+      <div hidden={section !== "advanced"}>
+        <form
+          className="agent-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void act(
+              () => apiJSON(root + "/name", { agentId: agent.id, name }),
+              "Agent name saved in OpenClaw.",
             );
-            return;
-          }
-          void act(
-            () => apiJSON(root + "/models", input),
-            "Model routing saved. The gateway may reload. Reload agents to verify the applied models before editing them again.",
-          ).then((ok) => {
-            if (ok) setModelsSaved(true);
-          });
-        }}
-      >
-        <h4>Model routing</h4>
-        <p className="agent-monitor-caption">
-          Each agent can use a different model. Fallbacks are tried in order
-          when the primary cannot serve a request.
-        </p>
-        <label className="field-label">
-          Primary model
-          <select
-            aria-label="Primary model"
-            value={exactMode ? "__exact__" : primary}
-            onChange={(e) => {
-              setExactMode(e.target.value === "__exact__");
-              setPrimary(
-                e.target.value === "__exact__"
-                  ? agent.primary || "nvidia/"
-                  : e.target.value,
-              );
-              if (!e.target.value) setFallbacks([]);
-            }}
-            disabled={busy || modelsSaved}
-          >
-            <option value="">Inherit runtime default</option>
-            {configuration.models.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name} · {m.provider}
-                {m.available === false
-                  ? " (credentials/availability need checking)"
-                  : ""}
-                {m.supportsTools === false ? " (no tool support reported)" : ""}
-              </option>
-            ))}
-            <option value="__exact__">Enter an exact provider/model ID…</option>
-          </select>
-        </label>
-        {exactMode && (
-          <label className="field-label">
-            Exact primary model ID
-            <input
-              aria-label="Exact primary model ID"
-              value={primary}
-              onChange={(e) => setPrimary(e.target.value)}
-              disabled={busy || modelsSaved}
-              placeholder="provider/model-id"
-            />
-          </label>
-        )}
-        <ol className="agent-fallback-list" aria-label="Fallback models">
-          {fallbacks.map((model, i) => (
-            <li key={`${i}-${model}`}>
-              <span>{model}</span>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label={`Move fallback ${i + 1} up`}
-                disabled={i === 0 || busy || modelsSaved}
-                onClick={() =>
-                  setFallbacks((values) => {
-                    const copy = [...values];
-                    [copy[i - 1], copy[i]] = [copy[i], copy[i - 1]];
-                    return copy;
-                  })
-                }
-              >
-                <ArrowUp size={13} />
-              </button>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label={`Move fallback ${i + 1} down`}
-                disabled={i === fallbacks.length - 1 || busy || modelsSaved}
-                onClick={() =>
-                  setFallbacks((values) => {
-                    const copy = [...values];
-                    [copy[i + 1], copy[i]] = [copy[i], copy[i + 1]];
-                    return copy;
-                  })
-                }
-              >
-                <ArrowDown size={13} />
-              </button>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label={`Remove fallback ${i + 1}`}
-                disabled={busy || modelsSaved}
-                onClick={() =>
-                  setFallbacks((values) => values.filter((_, at) => at !== i))
-                }
-              >
-                <X size={13} />
-              </button>
-            </li>
-          ))}
-        </ol>
-        <label className="field-label">
-          Fallback model ID
-          <input
-            aria-label="Fallback model ID"
-            value={nextFallback}
-            onChange={(e) => setNextFallback(e.target.value)}
-            list={`agent-model-options-${agent.id}`}
-            placeholder="provider/model-id"
-            disabled={!primary || busy || modelsSaved || fallbacks.length >= 5}
-          />
-          <datalist id={`agent-model-options-${agent.id}`}>
-            {configuration.models.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </datalist>
-        </label>
-        <button
-          type="button"
-          className="secondary-button"
-          disabled={
-            !primary ||
-            !nextFallback.trim() ||
-            busy ||
-            modelsSaved ||
-            fallbacks.length >= 5
-          }
-          onClick={() => {
-            const model = nextFallback.trim();
-            if (model === primary || fallbacks.includes(model)) {
-              setError("Primary and fallback models must be different.");
-              return;
-            }
-            setFallbacks((values) => [...values, model]);
-            setNextFallback("");
           }}
         >
-          Add fallback
-        </button>{" "}
-        <button className="primary-button" disabled={busy || modelsSaved}>
-          <Save size={13} />
-          Save model routing
-        </button>
-        {modelsSaved && (
-          <button type="button" className="text-button" onClick={onReload}>
-            Reload applied models
+          <h4>Identity</h4>
+          <label className="field-label">
+            Agent display name
+            <input
+              aria-label="Agent display name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              maxLength={80}
+              pattern="[A-Za-z0-9][A-Za-z0-9 _-]*"
+            />
+          </label>
+          <button className="secondary-button" disabled={busy}>
+            Save name
           </button>
-        )}
-        <p className="agent-monitor-caption">
-          Provider credentials and allowed inference routes stay in NemoClaw.
-          The runtime validates model IDs; saving does not prove model
-          availability.
-        </p>
-      </form>
-      <RoleEditor agentId={agent.id} drafts={drafts} />
-      <div className="agent-form">
-        <h4>Runtime permissions</h4>
-        <p className="agent-fine">
-          Markdown describes the role. Tool and sandbox policies enforce
-          permissions separately.
-        </p>
-        <button
-          type="button"
-          className="secondary-button"
-          disabled={busy}
-          onClick={() =>
-            void act(
-              () => apiJSON(root + "/restrict", { agentId: agent.id }),
-              "NemoDoc tool restrictions applied. The gateway may reload.",
-            )
-          }
-        >
-          Apply NemoDoc tool restrictions
-        </button>
+        </form>
       </div>
-      <p className="agent-fine">
-        Changes to NemoDoc’s selected agent pause its tasks and invalidate
-        earlier workflow approvals.{" "}
-        <button type="button" className="text-button" onClick={onConnections}>
-          Test its connection again
-        </button>{" "}
-        before running new work.
-      </p>
+      <div hidden={section !== "models"}>
+        <form
+          className="agent-form"
+          id={`agent-models-${agent.id}`}
+          onSubmit={(e) => {
+            e.preventDefault();
+            const input = {
+              agentId: agent.id,
+              primary,
+              fallbacks,
+              revision: agent.revision,
+            };
+            if (!modelRoutingInput.safeParse(input).success) {
+              setError(
+                "Choose distinct provider/model IDs, or inherit the runtime default without overrides.",
+              );
+              return;
+            }
+            void act(
+              () => apiJSON(root + "/models", input),
+              "Model routing saved. The gateway may reload. Reload agents to verify the applied models before editing them again.",
+            ).then((ok) => {
+              if (ok) setModelsSaved(true);
+            });
+          }}
+        >
+          <h4>Model routing</h4>
+          <p className="agent-monitor-caption">
+            Each agent can use a different model. Fallbacks are tried in order
+            when the primary cannot serve a request.
+          </p>
+          <label className="field-label">
+            Primary model
+            <select
+              aria-label="Primary model"
+              value={exactMode ? "__exact__" : primary}
+              onChange={(e) => {
+                setExactMode(e.target.value === "__exact__");
+                setPrimary(
+                  e.target.value === "__exact__"
+                    ? agent.primary || "nvidia/"
+                    : e.target.value,
+                );
+                if (!e.target.value) setFallbacks([]);
+              }}
+              disabled={busy || modelsSaved}
+            >
+              <option value="">Inherit runtime default</option>
+              {configuration.models.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name} · {m.provider}
+                  {m.available === false
+                    ? " (credentials/availability need checking)"
+                    : ""}
+                  {m.supportsTools === false
+                    ? " (no tool support reported)"
+                    : ""}
+                </option>
+              ))}
+              <option value="__exact__">
+                Enter an exact provider/model ID…
+              </option>
+            </select>
+          </label>
+          {exactMode && (
+            <label className="field-label">
+              Exact primary model ID
+              <input
+                aria-label="Exact primary model ID"
+                value={primary}
+                onChange={(e) => setPrimary(e.target.value)}
+                disabled={busy || modelsSaved}
+                placeholder="provider/model-id"
+              />
+            </label>
+          )}
+          <ol className="agent-fallback-list" aria-label="Fallback models">
+            {fallbacks.map((model, i) => (
+              <li key={`${i}-${model}`}>
+                <span>{model}</span>
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label={`Move fallback ${i + 1} up`}
+                  disabled={i === 0 || busy || modelsSaved}
+                  onClick={() =>
+                    setFallbacks((values) => {
+                      const copy = [...values];
+                      [copy[i - 1], copy[i]] = [copy[i], copy[i - 1]];
+                      return copy;
+                    })
+                  }
+                >
+                  <ArrowUp size={13} />
+                </button>
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label={`Move fallback ${i + 1} down`}
+                  disabled={i === fallbacks.length - 1 || busy || modelsSaved}
+                  onClick={() =>
+                    setFallbacks((values) => {
+                      const copy = [...values];
+                      [copy[i + 1], copy[i]] = [copy[i], copy[i + 1]];
+                      return copy;
+                    })
+                  }
+                >
+                  <ArrowDown size={13} />
+                </button>
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label={`Remove fallback ${i + 1}`}
+                  disabled={busy || modelsSaved}
+                  onClick={() =>
+                    setFallbacks((values) => values.filter((_, at) => at !== i))
+                  }
+                >
+                  <X size={13} />
+                </button>
+              </li>
+            ))}
+          </ol>
+          <label className="field-label">
+            Fallback model ID
+            <input
+              aria-label="Fallback model ID"
+              value={nextFallback}
+              onChange={(e) => setNextFallback(e.target.value)}
+              list={`agent-model-options-${agent.id}`}
+              placeholder="provider/model-id"
+              disabled={
+                !primary || busy || modelsSaved || fallbacks.length >= 5
+              }
+            />
+            <datalist id={`agent-model-options-${agent.id}`}>
+              {configuration.models.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </datalist>
+          </label>
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={
+              !primary ||
+              !nextFallback.trim() ||
+              busy ||
+              modelsSaved ||
+              fallbacks.length >= 5
+            }
+            onClick={() => {
+              const model = nextFallback.trim();
+              if (model === primary || fallbacks.includes(model)) {
+                setError("Primary and fallback models must be different.");
+                return;
+              }
+              setFallbacks((values) => [...values, model]);
+              setNextFallback("");
+            }}
+          >
+            Add fallback
+          </button>{" "}
+          <button className="primary-button" disabled={busy || modelsSaved}>
+            <Save size={13} />
+            Save model routing
+          </button>
+          {modelsSaved && (
+            <button type="button" className="text-button" onClick={onReload}>
+              Reload applied models
+            </button>
+          )}
+          <p className="agent-monitor-caption">
+            Provider credentials and allowed inference routes stay in NemoClaw.
+            The runtime validates model IDs; saving does not prove model
+            availability.
+          </p>
+        </form>
+      </div>
+      <div hidden={section !== "advanced"}>
+        <div className="agent-form">
+          <h4>Runtime permissions</h4>
+          <p className="agent-fine">
+            Markdown describes the role. Tool and sandbox policies enforce
+            permissions separately.
+          </p>
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={busy}
+            onClick={() =>
+              void act(
+                () => apiJSON(root + "/restrict", { agentId: agent.id }),
+                "NemoDoc tool restrictions applied. The gateway may reload.",
+              )
+            }
+          >
+            Apply NemoDoc tool restrictions
+          </button>
+        </div>
+        <p className="agent-fine">
+          Changes to NemoDoc’s selected agent pause its tasks and invalidate
+          earlier workflow approvals.{" "}
+          <button type="button" className="text-button" onClick={onConnections}>
+            Test its connection again
+          </button>{" "}
+          before running new work.
+        </p>
+        <p className="agent-fine">
+          Runtime: {configuration.sandbox || "configured runtime"} ·{" "}
+          {configuration.message}
+        </p>
+      </div>
     </div>
   );
 }
@@ -624,11 +641,11 @@ function RoleEditor({
     >
       <h4>
         <FileText size={15} />
-        Role instructions
+        Instructions
       </h4>
       <p className="agent-monitor-caption">
-        <strong>AGENTS.md</strong> defines how this agent works.{" "}
-        <strong>SOUL.md</strong> defines its personality, tone and boundaries.
+        <strong>AGENTS.md</strong> for instructions; <strong>SOUL.md</strong>{" "}
+        for tone. Saved files apply to new sessions.
       </p>
       <div className="agent-monitor-filters" aria-label="Role file selection">
         {(["AGENTS.md", "SOUL.md"] as const).map((name) => (
@@ -668,14 +685,9 @@ function RoleEditor({
           </button>
         </div>
       )}
-      {error && (
+      {error && !file && (
         <p role="alert" className="form-error">
           {error}
-        </p>
-      )}
-      {message && (
-        <p role="status" className="form-success">
-          {message}
         </p>
       )}
       {busy && !file && <p role="status">Loading {filename}…</p>}
@@ -698,7 +710,8 @@ function RoleEditor({
             </p>
           )}
           {filename === "AGENTS.md" && (
-            <div className="agent-role-template">
+            <details className="agent-role-template">
+              <summary>Start from a template</summary>
               <label className="field-label">
                 Role template
                 <select
@@ -731,7 +744,7 @@ function RoleEditor({
                 Updates only the marked NemoDoc role section. Other instructions
                 are preserved.
               </p>
-            </div>
+            </details>
           )}
           <div className="agent-section-title">
             <span className="agent-monitor-caption">
@@ -753,6 +766,7 @@ function RoleEditor({
             >
               <ReactMarkdown
                 skipHtml
+                remarkPlugins={[remarkGfm]}
                 components={{
                   a: ({ children }) => <span>{children}</span>,
                   img: ({ alt }) => <span>{alt || "Image omitted"}</span>,
@@ -763,7 +777,9 @@ function RoleEditor({
             </div>
           ) : (
             <label className="field-label">
-              {filename} content
+              {filename === "AGENTS.md"
+                ? "Agent instructions"
+                : "Personality & tone"}
               <textarea
                 aria-label={`${filename} content`}
                 className="agent-markdown-input"
@@ -771,63 +787,78 @@ function RoleEditor({
                 onChange={(e) => updateContent(e.target.value)}
                 maxLength={32000}
                 rows={15}
+                placeholder={
+                  filename === "AGENTS.md"
+                    ? "Role, goals, output format and limits…"
+                    : "Tone and communication preferences…"
+                }
                 spellCheck={false}
                 disabled={busy}
               />
             </label>
           )}
-          <button
-            type="button"
-            className="primary-button"
-            disabled={busy || !dirty}
-            onClick={async () => {
-              setBusy(true);
-              setError("");
-              setMessage("");
-              try {
-                const value = await apiJSON<AgentRoleFile>(root + "/file", {
-                  agentId,
-                  name: filename,
-                  content,
-                  revision: file.revision,
-                });
-                setFile(value);
-                setContent(value.content);
-                drafts.delete(draftKey);
-                setMessage(
-                  `${filename} saved in this agent’s runtime workspace. New sessions will load these instructions.`,
-                );
-              } catch (e) {
-                setError((e as Error).message);
-              } finally {
-                setBusy(false);
+          {error && (
+            <p role="alert" className="form-error">
+              {error}
+            </p>
+          )}
+          <div className="agent-instruction-actions">
+            <button
+              type="button"
+              className="primary-button"
+              disabled={busy || !dirty}
+              onClick={async () => {
+                setBusy(true);
+                setError("");
+                setMessage("");
+                try {
+                  const value = await apiJSON<AgentRoleFile>(root + "/file", {
+                    agentId,
+                    name: filename,
+                    content,
+                    revision: file.revision,
+                  });
+                  setFile(value);
+                  setContent(value.content);
+                  drafts.delete(draftKey);
+                  setMessage(`${filename} saved. Applies to new sessions.`);
+                } catch (e) {
+                  setError((e as Error).message);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              <Save size={13} />
+              Save {filename}
+            </button>{" "}
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={busy}
+              onClick={() => change("reload")}
+            >
+              Reload file
+            </button>{" "}
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() =>
+                download(
+                  new Blob([content], { type: "text/markdown;charset=utf-8" }),
+                  `${agentId}-${filename}`,
+                )
               }
-            }}
-          >
-            <Save size={13} />
-            Save {filename}
-          </button>{" "}
-          <button
-            type="button"
-            className="secondary-button"
-            disabled={busy}
-            onClick={() => change("reload")}
-          >
-            Reload file
-          </button>{" "}
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={() =>
-              download(
-                new Blob([content], { type: "text/markdown;charset=utf-8" }),
-                `${agentId}-${filename}`,
-              )
-            }
-          >
-            <Download size={13} />
-            Download draft
-          </button>
+            >
+              <Download size={13} />
+              Download draft
+            </button>
+          </div>
+          {message && (
+            <p role="status" className="form-success">
+              {message}
+            </p>
+          )}
         </>
       )}
     </section>

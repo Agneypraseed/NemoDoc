@@ -4,13 +4,18 @@ test("chat can close without losing a draft; bottom input sends and suggestions 
   page,
 }) => {
   let calls = 0;
-  await page.route("**/api/prompt/rewrite", (route) =>
-    route.fulfill({
-      json: { prompt: route.request().postDataJSON().question },
-    }),
-  );
+  let rewrites = 0;
+  let submittedQuestion = "";
+  await page.route("**/api/prompt/rewrite", (route) => {
+    rewrites++;
+    return route.fulfill({
+      status: 503,
+      json: { error: "Rewriting is unavailable" },
+    });
+  });
   await page.route("**/api/chat", (route) => {
     calls++;
+    submittedQuestion = route.request().postDataJSON().question;
     return route.fulfill({
       contentType: "text/event-stream",
       body: 'event: sources\ndata: [{"id":1,"sourceId":"sample-paper","sourceName":"Designing for human attention.pdf","page":3,"text":"Vertical scrolling supports continuous reading."}]\n\nevent: delta\ndata: "Vertical scrolling supports continuous reading. [1]"\n\nevent: done\ndata: {}\n\n',
@@ -42,7 +47,7 @@ test("chat can close without losing a draft; bottom input sends and suggestions 
   await expect(
     page.getByRole("region", { name: "Suggested questions" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: /Find the big picture/ }).click();
+  await page.getByRole("button", { name: /Summarize sources/ }).click();
   await expect(input).toHaveValue("Summarize the key ideas in my sources.");
   expect(calls).toBe(0);
   await expect(assistant).toBeHidden();
@@ -53,6 +58,9 @@ test("chat can close without losing a draft; bottom input sends and suggestions 
     "Vertical scrolling",
   );
   expect(calls).toBe(1);
+  expect(rewrites).toBe(0);
+  expect(submittedQuestion).toBe("Summarize the key ideas in my sources.");
+  await expect(page.locator(".message.user")).toHaveText(submittedQuestion);
   await page.getByRole("button", { name: "Save to Notes" }).click();
   await expect(page.getByRole("button", { name: "Saved" })).toBeDisabled();
   await page.getByRole("button", { name: "Notes", exact: true }).click();

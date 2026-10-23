@@ -12,7 +12,7 @@ test("homepage previews are interactive and open the existing notebook workspace
   });
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
-    "More understanding.",
+    "A notebook for your documents.",
   );
   await expect(
     page.getByRole("navigation", { name: "Main navigation" }),
@@ -93,7 +93,7 @@ test("homepage previews are interactive and open the existing notebook workspace
   await page.getByRole("link", { name: "How it works", exact: true }).click();
   await expect(page).toHaveURL(/#how-it-works$/);
   await expect(
-    page.getByRole("heading", { name: "Find your flow.", exact: true }),
+    page.getByRole("heading", { name: "Get started", exact: true }),
   ).toBeInViewport();
   await page
     .getByText("How do I keep a copy of my work?", { exact: true })
@@ -126,7 +126,7 @@ test("homepage previews are interactive and open the existing notebook workspace
   ).toBeVisible();
   await page.goBack();
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
-    "More understanding.",
+    "A notebook for your documents.",
   );
   expect(errors).toEqual([]);
 });
@@ -144,7 +144,7 @@ test("homepage navigation, feature demos, and FAQ work on a small screen", async
   await nav.getByRole("link", { name: "Features", exact: true }).click();
   await expect(nav).toBeHidden();
   await expect(
-    page.getByRole("heading", { name: /Made for the way/ }),
+    page.getByRole("heading", { name: /Features/ }),
   ).toBeInViewport();
   const preview = page.getByRole("region", {
     name: "Interactive product preview",

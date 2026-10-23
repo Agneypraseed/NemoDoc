@@ -338,10 +338,6 @@ export function AgentConnections() {
       <h3>Model & delivery connections</h3>
       <WebResearchConnection />
       <ResearchModelConnections />
-      <p className="agent-intro">
-        Choose the model your agent uses and where completed results can go.
-        Credentials stay on your local server and are excluded from exports.
-      </p>
       {error && (
         <p className="form-error" role="alert">
           {error}

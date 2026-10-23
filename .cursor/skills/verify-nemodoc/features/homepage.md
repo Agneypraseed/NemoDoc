@@ -15,3 +15,5 @@ Run `npm run verify:agents -- home.spec.ts`. Choose `Read & annotate`, toggle `R
 ## Gotchas
 
 The homepage is a feature preview, not a running notebook or connected agent. No credentials, inference, email, or runtime writes occur in the walkthrough. AI and delivery features require connections configured in the workspace. PDFs are imported in the workspace, not on the homepage. Local notebooks do not automatically sync between devices. Browser tests for the notebook must navigate to `/app`; only homepage tests should start at `/`.
+
+The introduction uses concise feature labels, `Get started` and `Features` headings, and one primary notebook action. Decorative hero copy and the repeated closing call to action have been removed.

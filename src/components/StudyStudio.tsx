@@ -140,9 +140,9 @@ export function StudyStudio({
   return (
     <div className="study-studio">
       <div className="studio-intro">
-        <h2>Your study studio</h2>
+        <h2>Study tools</h2>
         <p>
-          Build something useful from {sources.length} selected{" "}
+          {sources.length} selected{" "}
           {sources.length === 1 ? "source" : "sources"}.
         </p>
       </div>

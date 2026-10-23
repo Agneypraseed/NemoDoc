@@ -240,6 +240,7 @@ test("connection presets and model catalog select exact model IDs", async ({
     "https://api.tokenfactory.nebius.com/v1",
   );
   await expect(page.getByLabel("Embedding model ID")).toHaveValue("");
+  await page.getByText("OCR & images", { exact: true }).click();
   await expect(page.getByRole("combobox", { name: "Image model" })).toHaveValue(
     "openbmb/MiniCPM-V-4_5",
   );

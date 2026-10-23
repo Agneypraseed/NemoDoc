@@ -39,3 +39,11 @@ NemoDoc is a personal research and study agent for the [Personal AI track](https
 - 2:35–2:55: Show local data controls, the public source repository, MIT license and setup instructions. Explain that Nebius receives only the approved task context and retrieved passages, while originals remain in local browser storage.
 
 The rules require an actual Nebius runtime call or eligible Nebius AI Cloud execution, at least one NVIDIA open-source model, public licensed source with setup instructions, an accessible working demo/test build, and a public video under three minutes. A local app can meet the runtime route through Token Factory; Serverless deployment is optional for this route. A NVIDIA-hosted-only demo does not meet the Nebius runtime requirement. Confirm the selected model's open-source license from its official model card and list it in the final submission. Preparing these notes does not submit the project or create a demo video.
+
+## Configure agent instructions
+
+Open **Agent → Settings** and choose the agent. **Instructions** opens first: write its role, goals, output format and limits in that agent’s `AGENTS.md`, or expand **Start from a template**. Use `SOUL.md` for personality and tone. Save the file to apply it to new runtime sessions. Each runtime agent has a separate workspace; drafts are kept separately when switching agents, and conflicting saves preserve your edits.
+
+Use **Models** to select the primary model and ordered fallbacks. **Advanced** contains the display name and runtime permissions. **Add an agent** creates another workspace. Native file configuration requires a connected NemoClaw runtime. For application-managed research teams, edit each agent’s **Instructions** in the team plan before starting the task.
+
+The research page opens directly; **Task type** selects research teams, revision plans or synthesis without replacing your request. Ordinary notebook chat sends your question as written. Quick and Deep control answer detail.

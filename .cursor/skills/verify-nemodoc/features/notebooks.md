@@ -10,7 +10,7 @@ Open `/app`, then use the notebook library in the sidebar and open or create a n
 
 ## Driving it with Playwright
 
-Run `npm run verify:agents -- library.spec.ts` with port 4179 reserved for the isolated production-build instance. The existing library spec creates and reopens notebooks through the UI, searches and sorts them, then checks persistence. Choose `All notebooks`, then `New notebook` in the `Your notebooks` dialog. Fill `Notebook title` and `A little context`, then choose `Create notebook`. Reopen the library; use `Sort notebooks`, `Find a notebook`, and `Clear search`. Open Algebra and reload: its heading must still appear. Capture a trace with `--trace on` when gathering proof.
+Run `npm run verify:agents -- library.spec.ts` with port 4179 reserved for the isolated production-build instance. The existing library spec creates and reopens notebooks through the UI, searches and sorts them, then checks persistence. Choose `All notebooks`, then `New notebook` in the `Your notebooks` dialog. Fill `Notebook title` and `Description`, then choose `Create notebook`. Reopen the library; use `Sort notebooks`, `Find a notebook`, and `Clear search`. Open Algebra and reload: its heading must still appear. Capture a trace with `--trace on` when gathering proof.
 
 ## Gotchas
 

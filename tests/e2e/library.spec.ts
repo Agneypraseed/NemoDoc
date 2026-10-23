@@ -17,7 +17,7 @@ test("library searches, sorts, creates and reopens persisted notebooks", async (
       .getByRole("button", { name: "New notebook" })
       .click();
     await page.getByLabel("Notebook title").fill(title);
-    await page.getByLabel(/A little context/).fill(description);
+    await page.getByLabel(/Description/).fill(description);
     await page
       .getByRole("button", { name: "Create notebook", exact: true })
       .click();

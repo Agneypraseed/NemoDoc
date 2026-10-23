@@ -1218,28 +1218,6 @@ h1 {
 .composer textarea::placeholder {
   color: var(--muted);
 }
-.prompt-rewrite-status {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin: 1px 2px 8px;
-  color: var(--accent);
-  font-size: 10px;
-}
-.prompt-rewrite-status svg {
-  flex: 0 0 auto;
-  animation: prompt-refining 1.2s ease-in-out infinite alternate;
-}
-.send-button.prompt-preparing {
-  background: var(--accent);
-  opacity: 0.75;
-}
-@keyframes prompt-refining {
-  to {
-    opacity: 0.45;
-    transform: scale(0.88);
-  }
-}
 .composer > div {
   display: flex;
   align-items: center;
@@ -1303,24 +1281,6 @@ h1 {
   border-radius: 11px 11px 3px 11px;
   color: var(--text);
   font-size: 11px;
-}
-.message-original-prompt {
-  margin: 0 0 8px;
-  color: var(--muted);
-  font-weight: 400;
-}
-.message-original-prompt summary {
-  width: fit-content;
-  cursor: pointer;
-  font-size: 9px;
-  font-weight: 500;
-}
-.message-original-prompt p {
-  margin: 6px 0 0;
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 400;
-  white-space: pre-wrap;
 }
 .message p {
   margin: 8px 0;

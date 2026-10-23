@@ -1,0 +1,174 @@
+.chat-scroll .messages {
+  padding: 24px 20px;
+}
+.chat-scroll .message {
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.75;
+  margin-bottom: 28px;
+}
+.chat-scroll .message.user {
+  width: fit-content;
+  max-width: 94%;
+  margin-left: auto;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px 16px 4px 16px;
+  background: var(--surface-quiet);
+  color: var(--ink);
+  font-weight: 400;
+}
+.chat-scroll .message-question {
+  white-space: pre-wrap;
+  margin: 0;
+}
+.chat-scroll .message-author {
+  margin-bottom: 12px;
+}
+.chat-scroll .message-author strong {
+  font-size: 12px;
+  color: var(--ink);
+}
+.message :is(h1, h2, h3, h4, h5, h6) {
+  color: var(--ink);
+  line-height: 1.4;
+  font-weight: 600;
+  margin: 1.4em 0 0.6em;
+  letter-spacing: -0.02em;
+}
+.message h1 {
+  font-size: 1.4em;
+}
+.message h2 {
+  font-size: 1.25em;
+}
+.message h3 {
+  font-size: 1.1em;
+}
+.message :is(h4, h5, h6) {
+  font-size: 1em;
+}
+.message :is(ul, ol) {
+  padding-left: 1.5em;
+  margin: 0.75em 0;
+}
+.message li + li {
+  margin-top: 0.35em;
+}
+.message blockquote {
+  margin: 1em 0;
+  padding: 2px 14px;
+  border-left: 3px solid var(--accent);
+  color: var(--muted);
+  background: var(--surface-quiet);
+}
+.message code {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.88em;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--surface-quiet);
+}
+.message pre {
+  max-width: 100%;
+  margin: 1em 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.65;
+  tab-size: 2;
+}
+.message pre code {
+  padding: 0;
+  background: transparent;
+  white-space: pre;
+  overflow-wrap: normal;
+}
+.message table {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  margin: 1em 0;
+  border-collapse: collapse;
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.message :is(th, td) {
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  text-align: left;
+  min-width: 100px;
+}
+.message th {
+  background: var(--surface-quiet);
+  font-weight: 600;
+}
+.message a {
+  color: var(--accent);
+  text-underline-offset: 3px;
+}
+.message hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 1.5em 0;
+}
+.message img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+.message .katex-display {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 6px 0;
+}
+@media (max-width: 700px) {
+  .chat-scroll .messages {
+    padding: 18px 14px;
+  }
+  .chat-scroll .message.user {
+    padding: 10px 13px;
+  }
+}
+.chat-welcome {
+  padding: 32px 20px;
+  text-align: left;
+}
+.chat-welcome h2 {
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+.chat-suggestions .prompt-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chat-suggestions .prompt-cards > button {
+  flex: 1 1 auto;
+  display: block;
+  padding: 10px 12px;
+  font-size: 12px;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: none;
+}
+.workspace-chat .composer-input-row > textarea:focus-visible {
+  outline: none;
+}
+.assistant-panel > .margin-header {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+.notes-intro h2,
+.studio-intro h2 {
+  font-family: inherit;
+  font-size: 17px;
+}

@@ -84,6 +84,21 @@ test("appends the question, answer, and only valid cited source pages", () => {
   );
 });
 
+test("older rewritten questions save the user's original wording", () => {
+  const messages: Message[] = [
+    {
+      id: "q",
+      role: "user",
+      content: "Expanded model request",
+      originalPrompt: "My own question?",
+    },
+    { id: "a", role: "assistant", content: "A completed answer." },
+  ];
+  const saved = saveAnswerToNotes("", messages, "a", sources)!;
+  assert.match(saved.notes, /My own question\?/);
+  assert.doesNotMatch(saved.notes, /Expanded model request/);
+});
+
 test("rejects empty answers and answers without an associated question", () => {
   assert.equal(
     saveAnswerToNotes(

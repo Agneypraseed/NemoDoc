@@ -13,7 +13,7 @@
   background: transparent;
   border-radius: 0;
   border-bottom: 1px solid var(--line);
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 8px;
 }
 .agent-panel .agent-primary-nav > button {
@@ -359,8 +359,105 @@
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 12px;
   line-height: 1.7;
-  min-height: 260px;
+  min-height: 220px;
   tab-size: 2;
+}
+.agent-configuration > .field-label {
+  margin: 18px 0;
+}
+.agent-create-details {
+  margin: 18px 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.agent-create-details > summary,
+.agent-role-template > summary {
+  cursor: pointer;
+  padding: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.agent-create-details > summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.agent-create-details .agent-create-form {
+  margin: 0;
+  border: 0;
+}
+.agent-settings-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin: 18px 0;
+  background: var(--surface-quiet);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.agent-settings-tabs button {
+  flex: 1;
+  padding: 9px 10px;
+  border-radius: 7px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.agent-settings-tabs button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 4px #0000000c;
+}
+.agent-editing-identity {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0;
+}
+.agent-editing-identity > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.agent-editing-identity strong {
+  font-size: 14px;
+}
+.agent-editing-identity span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.agent-role-editor .agent-role-template {
+  display: block;
+  padding: 0;
+  margin: 14px 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.agent-role-template > :not(summary) {
+  margin: 0 12px 12px;
+}
+.agent-instruction-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.agent-configuration
+  :is(button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+@media (max-width: 700px) {
+  .agent-panel .agent-primary-nav {
+    gap: 6px;
+  }
+  .agent-panel .agent-primary-nav > button,
+  .agent-more-nav > summary {
+    font-size: 11px;
+  }
 }
 .agent-markdown-preview {
   padding: 14px;

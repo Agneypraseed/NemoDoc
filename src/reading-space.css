@@ -704,10 +704,6 @@ body,
 .workspace-chat .composer-input-row > textarea::placeholder {
   color: var(--muted);
 }
-.workspace-chat .composer > .prompt-rewrite-status {
-  width: 100%;
-  margin: 2px 3px 0;
-}
 .workspace-chat .composer .composer-chat-toggle {
   display: flex;
   align-items: center;
@@ -800,8 +796,7 @@ body,
   background: transparent;
   opacity: 0.62;
 }
-.workspace-chat .composer-input-row .send-button.stop,
-.workspace-chat .composer-input-row .send-button.prompt-preparing {
+.workspace-chat .composer-input-row .send-button.stop {
   color: var(--accent);
   background: var(--accent-soft);
 }
