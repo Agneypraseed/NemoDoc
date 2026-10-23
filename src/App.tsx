@@ -2167,6 +2167,7 @@ export default function App() {
             geometryKey={activePassageNote?.id ?? `${activeId}:${tab}`}
             movable={tab === "chat" && Boolean(activePassageNote)}
             resizable={tab === "chat" && Boolean(activePassageNote)}
+            expandable={tab === "agent"}
             onGeometryChange={(card) => {
               if (activePassageNote)
                 setPassageNote(activeId, activePassageNote.id, (note) => ({

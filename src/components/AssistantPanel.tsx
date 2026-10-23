@@ -9,7 +9,13 @@ import {
   type ReactNode,
   type CSSProperties,
 } from "react";
-import { GripVertical, RotateCcw, X } from "lucide-react";
+import {
+  GripVertical,
+  Maximize2,
+  Minimize2,
+  RotateCcw,
+  X,
+} from "lucide-react";
 
 type Point = { x: number; y: number };
 type Geometry = Point & { width: number; height: number };
@@ -22,8 +28,10 @@ export function AssistantPanel({
   geometry,
   geometryKey,
   onGeometryChange,
+  onKeyDown,
   movable = false,
   resizable = false,
+  expandable = false,
   ...attributes
 }: Omit<HTMLAttributes<HTMLElement>, "title"> & {
   title: ReactNode;
@@ -34,9 +42,11 @@ export function AssistantPanel({
   onGeometryChange?: (value: Partial<Geometry>) => void;
   movable?: boolean;
   resizable?: boolean;
+  expandable?: boolean;
 }) {
   const panel = useRef<HTMLElement>(null);
   const handle = useRef<HTMLButtonElement>(null);
+  const expandButton = useRef<HTMLButtonElement>(null);
   const [position, setPosition] = useState<Point | undefined>(
     geometry?.x === undefined || geometry.y === undefined
       ? undefined
@@ -48,6 +58,7 @@ export function AssistantPanel({
       : undefined,
   );
   const [dragging, setDragging] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const gesture = useRef<
     | {
         id: number;
@@ -92,6 +103,19 @@ export function AssistantPanel({
         : undefined,
     );
   }, [geometryKey]);
+  useEffect(() => {
+    if (!expandable) setExpanded(false);
+  }, [expandable]);
+  const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (expanded && event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      setExpanded(false);
+      expandButton.current?.focus();
+      return;
+    }
+    onKeyDown?.(event);
+  };
   useEffect(() => {
     if (!floating || !panel.current) return;
     const constrain = () => {
@@ -197,7 +221,8 @@ export function AssistantPanel({
     <aside
       {...attributes}
       ref={panel}
-      className={`assistant-panel ${floating ? "floating" : ""} ${dragging ? "dragging" : ""}`}
+      className={`assistant-panel ${floating ? "floating" : ""} ${dragging ? "dragging" : ""} ${expanded && expandable ? "agent-expanded" : ""}`}
+      onKeyDown={handleKeyDown}
       style={
         {
           ...(floating
@@ -231,6 +256,19 @@ export function AssistantPanel({
           <div className="margin-title">
             <strong>{title}</strong>
           </div>
+        )}
+        {expandable && !floating && (
+          <button
+            ref={expandButton}
+            type="button"
+            className="icon-button small panel-expand"
+            aria-label={expanded ? "Return Agent to sidebar" : "Expand Agent to full screen"}
+            aria-expanded={expanded}
+            title={expanded ? "Return to sidebar (Esc)" : "Expand to full screen"}
+            onClick={() => setExpanded((value) => !value)}
+          >
+            {expanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+          </button>
         )}
         {floating && (
           <button

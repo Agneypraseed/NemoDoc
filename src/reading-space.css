@@ -1276,3 +1276,31 @@ body,
   overflow-y: hidden;
   padding-block: 4px;
 }
+.work-area .assistant-panel.agent-expanded {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  width: 100vw;
+  height: 100dvh;
+  min-height: 0;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--background);
+  box-shadow: none;
+}
+.assistant-panel.agent-expanded > .margin-header,
+.assistant-panel.agent-expanded > .agent-panel {
+  box-sizing: border-box;
+  width: min(100%, 1440px);
+  margin-inline: auto;
+}
+.assistant-panel.agent-expanded > .margin-header {
+  min-height: 62px;
+  padding: 12px clamp(18px, 4vw, 48px);
+  border-bottom: 1px solid var(--line);
+}
+.assistant-panel.agent-expanded > .agent-panel {
+  padding: 24px clamp(18px, 4vw, 48px) 48px;
+}
