@@ -139,7 +139,7 @@
   line-height: 1.45;
 }
 .research-heading {
-  margin: 4px 0 10px;
+  margin: 4px 0 2px;
 }
 .research-heading h2 {
   font-size: 27px;
@@ -149,15 +149,41 @@
   font-size: 13px;
 }
 .workflow-templates {
-  gap: 4px;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
 }
-.agent-panel .workflow-templates button {
-  font-size: 11px;
-  padding: 8px;
-  min-height: 36px;
+.agent-panel .workflow-choice {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  width: 100%;
+  min-height: 0;
+  padding: 11px 13px;
+  text-align: left;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
   box-shadow: none;
+}
+.agent-panel .workflow-choice[aria-pressed="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+}
+.agent-panel .workflow-choice:hover:not(:disabled) {
+  border-color: var(--accent-line);
+}
+.workflow-choice-title {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.workflow-choice-description {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
 }
 .research-evidence > summary,
 .research-compose > summary {
@@ -480,6 +506,20 @@
   border: 1px solid var(--line);
   border-radius: 12px;
   background: color-mix(in srgb, var(--panel, transparent) 72%, transparent);
+}
+.workflow-report h1,
+.workflow-report h2,
+.workflow-report h3,
+.workflow-report h4,
+.workflow-report h5,
+.workflow-report h6 {
+  overflow-wrap: anywhere;
+}
+.workflow-report > table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
 }
 .workflow-report > h4 {
   margin: 0 0 10px;

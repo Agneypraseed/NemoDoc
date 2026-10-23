@@ -84,6 +84,26 @@ const workflowNames = {
   research_synthesis: "Research synthesis",
   research_team: "Research team",
 } as const;
+const workflowChoices = [
+  {
+    id: "research_team",
+    title: "Research team",
+    description:
+      "Explore a question with parallel researchers, then a reviewer checks the evidence.",
+  },
+  {
+    id: "study_revision",
+    title: "Plan revision",
+    description:
+      "Turn selected notes and quiz results into a focused study plan.",
+  },
+  {
+    id: "research_synthesis",
+    title: "Synthesize research",
+    description:
+      "Compare at least two sources in a cited evidence table.",
+  },
+] as const;
 export function EvidenceWorkflows({
   notebookId,
   title,
@@ -425,35 +445,33 @@ export function EvidenceWorkflows({
       aria-label="Evidence workflows"
     >
       <div className="research-heading">
-        <h2>Research together</h2>
-        <p>
-          A team to explore your sources, check the evidence, and bring it
-          together.
-        </p>
+        <h2>Choose a workflow</h2>
+        <p>Pick the kind of help you need. You can change it before you start.</p>
       </div>
       {error && (
         <p className="form-error" role="alert">
           {error}
         </p>
       )}
-      <div className="workflow-templates" aria-label="Research workflow">
-        {(
-          ["research_team", "study_revision", "research_synthesis"] as const
-        ).map((w) => (
+      <div
+        className="workflow-templates"
+        role="group"
+        aria-label="Choose a workflow"
+      >
+        {workflowChoices.map(({ id, title, description }) => (
           <button
-            key={w}
-            className={workflow === w ? "primary-button" : "secondary-button"}
+            key={id}
+            type="button"
+            className="workflow-choice"
+            aria-pressed={workflow === id}
             onClick={() => {
-              setWorkflow(w);
-              setPrompt(prompts[w]);
+              setWorkflow(id);
+              setPrompt(prompts[id]);
               setComposeOpen(true);
             }}
           >
-            {w === "study_revision"
-              ? "Plan revision"
-              : w === "research_synthesis"
-                ? "Synthesize research"
-                : "Research team"}
+            <span className="workflow-choice-title">{title}</span>
+            <span className="workflow-choice-description">{description}</span>
           </button>
         ))}
       </div>

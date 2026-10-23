@@ -108,6 +108,16 @@ body,
   grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
 }
 @media (min-width: 701px) {
+  .work-area:has(.assistant-panel[data-view="agent"]) {
+    grid-template-columns: minmax(0, 1fr) minmax(312px, 330px);
+  }
+}
+@media (min-width: 1201px) {
+  .work-area:has(.assistant-panel[data-view="agent"]) {
+    grid-template-columns: minmax(0, 1fr) minmax(342px, 375px);
+  }
+}
+@media (min-width: 701px) {
   .work-area .assistant-panel:not(.floating) {
     align-self: stretch;
     justify-self: stretch;

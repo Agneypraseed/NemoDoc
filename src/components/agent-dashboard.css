@@ -1,25 +1,6 @@
-.work-area:has(.agent-panel[data-dashboard="true"]) {
-  grid-template-columns: minmax(0, 1fr);
-}
-.work-area:has(.agent-panel[data-dashboard="true"]) > .reading-workspace {
-  display: none;
-}
-.panel-hidden
-  .work-area:has(.agent-panel[data-dashboard="true"])
-  > .reading-workspace {
-  display: flex;
-}
-.work-area
-  .assistant-panel:has(.agent-panel[data-dashboard="true"]):not(.floating) {
-  width: 100%;
-  height: auto;
-  max-height: none;
-  margin: 12px 0;
-  align-self: stretch;
-  background: var(--background);
-}
 .agent-panel[data-dashboard="true"] {
-  padding: 16px 28px 28px;
+  container: agent-sidebar / inline-size;
+  padding: 18px 18px 24px;
 }
 .agent-dashboard {
   min-width: 0;
@@ -367,16 +348,6 @@
   }
 }
 @media (max-width: 700px) {
-  .work-area
-    .assistant-panel:has(.agent-panel[data-dashboard="true"]):not(.floating) {
-    position: fixed;
-    inset: 94px 8px 8px;
-    width: auto;
-    margin: 0;
-    z-index: 35;
-    border-radius: 12px;
-    border: 1px solid var(--line);
-  }
   .agent-panel[data-dashboard="true"] {
     padding: 12px 14px 24px;
   }
@@ -395,6 +366,56 @@
   }
   .dashboard-stats dt {
     font-size: 12px;
+  }
+}
+@container agent-sidebar (max-width: 620px) {
+  .dashboard-heading h2 {
+    font-size: 25px;
+  }
+  .dashboard-actions {
+    justify-content: flex-start;
+  }
+  .dashboard-filters {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  .dashboard-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 14px 0;
+    gap: 14px 0;
+  }
+  .dashboard-stats > div {
+    padding: 0 8px;
+  }
+  .dashboard-stats > div:nth-child(2) {
+    border-right: 0;
+  }
+  .dashboard-stats > div:nth-child(n + 3) {
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+  }
+  .dashboard-stats > div:nth-child(3) {
+    border-right: 1px solid var(--line);
+  }
+  .dashboard-stats dd {
+    font-size: 30px;
+  }
+  .dashboard-chart-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .dashboard-surface {
+    padding: 14px;
+  }
+  .dashboard-outcomes > div {
+    grid-template-columns: 62px minmax(0, 1fr) 22px;
+    gap: 8px;
+  }
+  .dashboard-pricing fieldset {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .dashboard-table-scroll th,
+  .dashboard-table-scroll td {
+    padding: 9px 10px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
