@@ -119,8 +119,9 @@ test("live Nebius defines the selected MML Rank with its page context in Quick a
     const answers: Record<string, string> = {};
     for (const [index, mode] of ["Quick", "Deep"].entries()) {
       await page
-        .getByRole("combobox", { name: "Answer detail" })
-        .selectOption(mode.toLowerCase());
+        .getByRole("group", { name: "Answer detail" })
+        .getByRole("button", { name: mode })
+        .click();
       const number = page.getByRole("textbox", {
         name: "Page number",
         exact: true,

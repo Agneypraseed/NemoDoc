@@ -177,8 +177,9 @@ test("paper workspace gives space to the document and passage questions stay in 
     fullPage: true,
   });
   await page
-    .getByRole("combobox", { name: "Answer detail" })
-    .selectOption("quick");
+    .getByRole("group", { name: "Answer detail" })
+    .getByRole("button", { name: "Quick" })
+    .click();
   const nextSelection = await selectPassage(page, "Clarity is not");
   await nextSelection
     .getByRole("button", { name: "Define", exact: true })
@@ -669,7 +670,7 @@ test("paper and dark reading views stay compact on desktop and mobile", async ({
   // retains at least 65% of the viewport below the toolbar.
   expect(stage!.height).toBeGreaterThan(786 * 0.65);
   await expect(
-    page.getByRole("heading", { name: "The thoughtful interface" }),
+    page.getByRole("heading", { name: "Sample notebook" }),
   ).toBeVisible();
   await page.screenshot({
     path: "test-results/reading-mobile.png",

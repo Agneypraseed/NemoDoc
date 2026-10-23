@@ -11,7 +11,7 @@ test("PDF reader layouts, selection, notes, persistence, search, and export", as
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/app");
   await expect(
-    page.getByRole("heading", { name: "The thoughtful interface" }),
+    page.getByRole("heading", { name: "Sample notebook" }),
   ).toBeVisible();
   await expect(page.locator('[data-page="1"] canvas')).toBeVisible();
   await page.screenshot({ path: "test-results/desktop.png" });

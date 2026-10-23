@@ -1,6 +1,6 @@
 import { test, expect } from "./fixtures";
 
-test("homepage previews are interactive and open the existing notebook workspace", async ({
+test("homepage previews are interactive and start notebook creation", async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -12,11 +12,23 @@ test("homepage previews are interactive and open the existing notebook workspace
   });
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
-    "A notebook for your documents.",
+    "Your personal notebook",
   );
+  const navigation = page.getByRole("navigation", {
+    name: "Main navigation",
+  });
+  await expect(navigation).toBeVisible();
   await expect(
-    page.getByRole("navigation", { name: "Main navigation" }),
-  ).toBeVisible();
+    navigation.getByRole("link", { name: "How it works", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("link", { name: "Open NemoDoc", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.locator("#how-it-works")).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Get started", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.locator("#features, .home-privacy")).toHaveCount(0);
   const preview = page.getByRole("region", {
     name: "Interactive product preview",
   });
@@ -29,9 +41,7 @@ test("homepage previews are interactive and open the existing notebook workspace
   await expect(
     preview.getByRole("button", { name: "Highlight passage" }),
   ).toHaveAttribute("aria-pressed", "false");
-  await preview
-    .getByRole("button", { name: "Ask in context", exact: true })
-    .click();
+  await preview.getByRole("button", { name: "Chat", exact: true }).click();
   await expect(panel).toContainText(
     "Context gives you a way to check your interpretation.",
   );
@@ -45,7 +55,7 @@ test("homepage previews are interactive and open the existing notebook workspace
     preview.getByRole("button", { name: "Read & annotate", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
   await preview
-    .getByRole("button", { name: "Make it stick", exact: true })
+    .getByRole("button", { name: "Study tools", exact: true })
     .click();
   await panel
     .getByRole("button", { name: "Reveal answer", exact: true })
@@ -57,9 +67,7 @@ test("homepage previews are interactive and open the existing notebook workspace
   await expect(panel).toContainText(
     "Why does context make a note more useful?",
   );
-  await preview
-    .getByRole("button", { name: "Meet your agents", exact: true })
-    .click();
+  await preview.getByRole("button", { name: "Agents", exact: true }).click();
   await panel
     .getByRole("button", { name: "Preview a workflow", exact: true })
     .click();
@@ -90,11 +98,6 @@ test("homepage previews are interactive and open the existing notebook workspace
     "data-state",
     "queued",
   );
-  await page.getByRole("link", { name: "How it works", exact: true }).click();
-  await expect(page).toHaveURL(/#how-it-works$/);
-  await expect(
-    page.getByRole("heading", { name: "Get started", exact: true }),
-  ).toBeInViewport();
   await page
     .getByText("How do I keep a copy of my work?", { exact: true })
     .click();
@@ -106,27 +109,41 @@ test("homepage previews are interactive and open the existing notebook workspace
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: "output/home-desktop.png", fullPage: true });
   await page
-    .getByRole("link", { name: "Open your notebook", exact: true })
-    .first()
+    .getByRole("button", { name: "Create a notebook", exact: true })
     .click();
-  await expect(page).toHaveURL(/\/app$/);
+  await expect(page).toHaveURL(/\/$/);
+  await expect(
+    page.getByRole("dialog", { name: "New notebook" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("textbox", { name: "Notebook title" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Close dialog" }).click();
   await expect(
     page.getByRole("heading", {
-      name: "The thoughtful interface",
+      name: "Your personal notebook",
       exact: true,
     }),
   ).toBeVisible();
-  await expect(page.locator('[data-page="1"] canvas')).toBeVisible();
   await page.reload();
   await expect(
     page.getByRole("heading", {
-      name: "The thoughtful interface",
+      name: "Your personal notebook",
       exact: true,
     }),
   ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Create a notebook", exact: true })
+    .click();
+  await page.getByRole("textbox", { name: "Notebook title" }).fill("From home");
+  await page.getByRole("button", { name: "Create notebook" }).click();
+  await expect(page).toHaveURL(/\/app$/);
+  await expect(
+    page.getByRole("heading", { name: "From home", exact: true }),
+  ).toBeVisible();
   await page.goBack();
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
-    "A notebook for your documents.",
+    "Your personal notebook",
   );
   expect(errors).toEqual([]);
 });
@@ -138,19 +155,20 @@ test("homepage navigation, feature demos, and FAQ work on a small screen", async
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
   const nav = page.getByRole("navigation", { name: "Main navigation" });
-  await expect(nav).toBeHidden();
-  await page.getByRole("button", { name: /Toggle navigation/ }).click();
   await expect(nav).toBeVisible();
-  await nav.getByRole("link", { name: "Features", exact: true }).click();
-  await expect(nav).toBeHidden();
   await expect(
-    page.getByRole("heading", { name: /Features/ }),
-  ).toBeInViewport();
+    nav.getByRole("link", { name: "How it works", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.locator("#how-it-works")).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Get started", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.locator("#features, .home-privacy")).toHaveCount(0);
   const preview = page.getByRole("region", {
     name: "Interactive product preview",
   });
   await preview
-    .getByRole("button", { name: "Make it stick", exact: true })
+    .getByRole("button", { name: "Study tools", exact: true })
     .click();
   await preview
     .getByRole("button", { name: "Reveal answer", exact: true })
@@ -167,11 +185,20 @@ test("homepage navigation, feature demos, and FAQ work on a small screen", async
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: "output/home-mobile.png", fullPage: true });
-  await page.getByRole("link", { name: "Open NemoDoc", exact: true }).click();
-  await expect(page).toHaveURL(/\/app$/);
+  await page
+    .getByRole("button", { name: "Create a notebook", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(
+    page.getByRole("dialog", { name: "New notebook" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("textbox", { name: "Notebook title" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Close dialog" }).click();
   await expect(
     page.getByRole("heading", {
-      name: "The thoughtful interface",
+      name: "Your personal notebook",
       exact: true,
     }),
   ).toBeVisible();

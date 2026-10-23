@@ -22,7 +22,7 @@ test("responsive navigation keeps notebook identity and tools reachable", async 
     const height = width === 1536 ? 1024 : 900;
     await page.setViewportSize({ width, height });
     await expect(
-      page.getByRole("heading", { name: "The thoughtful interface" }),
+      page.getByRole("heading", { name: "Sample notebook" }),
     ).toBeVisible();
     const header = page.locator(".workspace-header");
     expect(
@@ -52,12 +52,11 @@ test("responsive navigation keeps notebook identity and tools reachable", async 
         });
       await page.getByRole("button", { name: "Close assistant" }).click();
     }
-    const detail = page.getByRole("combobox", { name: "Answer detail" });
-    await detail.focus();
-    await detail.press("d");
-    await detail.press("Enter");
-    await expect(detail).toHaveValue("deep");
-    await detail.selectOption("quick");
+    const detail = page.getByRole("group", { name: "Answer detail" });
+    const deep = detail.getByRole("button", { name: "Deep" });
+    await deep.click();
+    await expect(deep).toHaveAttribute("aria-pressed", "true");
+    await detail.getByRole("button", { name: "Quick" }).click();
   }
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.getByRole("button", { name: "Notes", exact: true }).click();

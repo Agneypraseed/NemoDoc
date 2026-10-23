@@ -315,6 +315,12 @@ export default function App() {
   const [ready, setReady] = useState(false),
     [importing, setImporting] = useState(""),
     [filter, setFilter] = useState("");
+  const createNotebookOnLaunch = useRef(
+    new URLSearchParams(window.location.search).get("create") === "notebook",
+  );
+  const requestedNotebookOnLaunch = useRef(
+    new URLSearchParams(window.location.search).get("notebook") ?? "",
+  );
   const [toast, setToast] = useState<{ message: string; undo?: () => void }>(),
     [saveError, setSaveError] = useState("");
   const [draft, setDraft] = useState(""),
@@ -475,6 +481,17 @@ export default function App() {
     let alive = true;
     (async () => {
       const saved = await storage.read();
+      // Update only bundled defaults; preserve renamed notebooks and user content.
+      const sample = saved.notebooks.find(
+        (item) =>
+          item.id === "welcome" && item.title === "The thoughtful interface",
+      );
+      if (sample) {
+        sample.title = "Sample notebook";
+        if (sample.description === "A small collection of big ideas.")
+          sample.description = "";
+        await storage.notebook(sample);
+      }
       if (!saved.notebooks.length) {
         const demo = await createDemo();
         await storage.notebook(demo.notebook);
@@ -495,21 +512,23 @@ export default function App() {
       } catch {
         /* IndexedDB remains the primary store. */
       }
+      const requestedNotebook = saved.notebooks.find(
+        (n) => n.id === requestedNotebookOnLaunch.current,
+      )?.id;
       const active =
-        saved.notebooks.find((n) => n.id === rememberedNotebook)?.id ??
-        saved.notebooks[0].id;
+        requestedNotebook ??
+        (createNotebookOnLaunch.current
+          ? ""
+          : (saved.notebooks.find((n) => n.id === rememberedNotebook)?.id ??
+            saved.notebooks[0].id));
       setActiveId(active);
-      setSourceId(
-        saved.sources.find(
-          (s) => s.notebookId === active && s.id === rememberedSource,
-        )?.id ??
-          saved.sources.find((s) => s.notebookId === active)?.id ??
-          "",
+      const activeSources = saved.sources.filter(
+        (s) => s.notebookId === active,
       );
       const resumedSource =
-        saved.sources.find(
-          (s) => s.notebookId === active && s.id === rememberedSource,
-        ) ?? saved.sources.find((s) => s.notebookId === active);
+        activeSources.find((s) => s.id === rememberedSource) ??
+        activeSources[0];
+      setSourceId(resumedSource?.id ?? "");
       setPage(resumedSource?.readingState?.page ?? 1);
       setEnabled(new Set(saved.sources.map((s) => s.id)));
       setReady(true);
@@ -533,6 +552,21 @@ export default function App() {
   }, []);
   useEffect(() => {
     if (!ready) return;
+    const url = new URL(window.location.href);
+    const openCreateDialog = url.searchParams.get("create") === "notebook";
+    const hasNotebookTarget = url.searchParams.has("notebook");
+    if (!openCreateDialog && !hasNotebookTarget) return;
+    url.searchParams.delete("create");
+    url.searchParams.delete("notebook");
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+    if (openCreateDialog) setModal("new");
+  }, [ready]);
+  useEffect(() => {
+    if (!ready || (createNotebookOnLaunch.current && !activeId)) return;
     try {
       localStorage.setItem("nemodoc-notebook", activeId);
       localStorage.setItem("nemodoc-source", sourceId);
@@ -1730,7 +1764,6 @@ export default function App() {
             <PanelLeftClose size={18} />
           </button>
         </div>
-        <div className="workspace-label">YOUR WORKSPACE</div>
         <button className="nav-item" onClick={() => setModal("library")}>
           <Grid2X2 size={17} />
           All notebooks<span>{notebooks.length}</span>
@@ -2218,8 +2251,7 @@ export default function App() {
                 <div className="chat-scroll">
                   {!panelMessages.length ? (
                     <div className="chat-welcome">
-                      <h2>Chat</h2>
-                      <p>Ask about your selected sources.</p>
+                      <h2>Ask a question</h2>
                     </div>
                   ) : (
                     <div className="messages" aria-live="polite">
@@ -2461,7 +2493,6 @@ export default function App() {
             ) : (
               <div className="notes-scroll">
                 <div className="notes-intro">
-                  <h2>Your notebook</h2>
                   <div
                     className="notes-view-switch"
                     role="group"
@@ -2518,7 +2549,6 @@ export default function App() {
                       <div className="notes-empty">
                         <MessageSquare size={25} strokeWidth={1.5} />
                         <p>No saved answers.</p>
-                        <span>Use Save to Notes on a completed answer.</span>
                         <button
                           type="button"
                           className="notes-open-chat"
@@ -2849,6 +2879,7 @@ export default function App() {
               Notebook title
               <input
                 autoFocus
+                data-modal-autofocus
                 placeholder="Notebook title"
                 maxLength={80}
                 value={title}

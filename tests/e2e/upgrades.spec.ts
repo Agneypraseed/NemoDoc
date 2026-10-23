@@ -158,11 +158,11 @@ test("reader navigation, bookmarks, markup history, tags, exports and complete r
   await expect(
     page
       .locator(".notebook-card")
-      .filter({ hasText: "The thoughtful interface (restored)" }),
+      .filter({ hasText: "Sample notebook (restored)" }),
   ).toBeVisible();
   await page
     .locator(".notebook-card")
-    .filter({ hasText: "The thoughtful interface (restored)" })
+    .filter({ hasText: "Sample notebook (restored)" })
     .click();
   await page.getByRole("button", { name: /^Notes/ }).click();
   await page.getByRole("button", { name: /^Highlights/ }).click();

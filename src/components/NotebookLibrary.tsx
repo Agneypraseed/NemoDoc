@@ -81,7 +81,6 @@ export function NotebookLibrary({
               <span className="library-row-copy">
                 <span className="library-row-title">
                   <strong>{notebook.title}</strong>
-                  {activeId === notebook.id && <small>Current</small>}
                 </span>
                 {notebook.description && (
                   <span className="library-description">
@@ -100,9 +99,7 @@ export function NotebookLibrary({
       {!visible.length && (
         <div className="library-empty">
           <p>
-            {query.trim()
-              ? "No notebooks match your search."
-              : "Your first notebook starts here."}
+            {query.trim() ? "No notebooks match your search." : "No notebooks."}
           </p>
           {query.trim() && (
             <button type="button" onClick={() => setQuery("")}>

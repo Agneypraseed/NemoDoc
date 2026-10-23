@@ -5,7 +5,7 @@ test("library searches, sorts, creates and reopens persisted notebooks", async (
 }) => {
   await page.goto("/app");
   await expect(
-    page.getByRole("heading", { name: "The thoughtful interface" }),
+    page.getByRole("heading", { name: "Sample notebook" }),
   ).toBeVisible();
   for (const [title, description] of [
     ["Algebra", "Vector spaces"],
@@ -29,7 +29,7 @@ test("library searches, sorts, creates and reopens persisted notebooks", async (
   const library = page.getByRole("dialog", { name: "Your notebooks" });
   await expect(library.locator(".library-row strong")).toHaveText([
     "Algebra",
-    "The thoughtful interface",
+    "Sample notebook",
     "Zoology",
   ]);
   await library

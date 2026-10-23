@@ -26,7 +26,10 @@ for (const mode of ["quick", "deep"] as const) {
     await expect(page.locator('[data-page="1"] canvas')).toBeVisible({
       timeout: 15000,
     });
-    await page.getByLabel("Answer detail", { exact: true }).selectOption(mode);
+    await page
+      .getByRole("group", { name: "Answer detail" })
+      .getByRole("button", { name: mode === "quick" ? "Quick" : "Deep" })
+      .click();
     const input = page.getByRole("textbox", {
       name: "Ask about your sources",
       exact: true,

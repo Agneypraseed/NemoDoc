@@ -1,61 +1,51 @@
-import { useState } from "react";
-import {
-  ArrowDown,
-  ArrowRight,
-  Highlighter,
-  Layers,
-  LockKeyhole,
-  Plus,
-  Quote,
-  ShieldCheck,
-  Sparkles,
-  Workflow,
-  X,
-} from "lucide-react";
+import { useState, type FormEvent } from "react";
+import { ArrowRight, Plus } from "lucide-react";
+import { Modal } from "../components/Modal";
+import { storage } from "../lib/storage";
+import type { Notebook } from "../types";
 import { ProductPreview } from "./ProductPreview";
 import "./home.css";
 
-const features = [
-  {
-    icon: Highlighter,
-    title: "Read and annotate",
-    text: "Highlight text, add notes, draw and bookmark pages.",
-    tag: "READ & ANNOTATE",
-  },
-  {
-    icon: Quote,
-    title: "Ask about your sources",
-    text: "Ask about a passage or notebook. Open citations in the source.",
-    tag: "GROUNDED ANSWERS",
-  },
-  {
-    icon: Layers,
-    title: "Study tools",
-    text: "Create flashcards, quizzes, guides and mind maps from selected sources.",
-    tag: "STUDY STUDIO",
-  },
-  {
-    icon: Workflow,
-    title: "Research tasks",
-    text: "Assign research, review results and schedule tasks.",
-    tag: "AGENTS, WITH CONTROL",
-  },
-  {
-    icon: Sparkles,
-    title: "Agent settings",
-    text: "Choose models and write instructions for each agent.",
-    tag: "MODELS & ROLES",
-  },
-  {
-    icon: LockKeyhole,
-    title: "Export and backup",
-    text: "Export notes as Markdown. Back up and restore notebooks as ZIP files.",
-    tag: "LOCAL NOTEBOOKS",
-  },
-];
-
 export default function HomePage() {
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
+
+  const closeCreate = () => {
+    setCreateOpen(false);
+    setTitle("");
+    setDescription("");
+    setCreateError("");
+  };
+
+  const createNotebook = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!title.trim() || creating) return;
+    setCreating(true);
+    setCreateError("");
+    const notebook: Notebook = {
+      id: crypto.randomUUID(),
+      title: title.trim(),
+      description: description.trim(),
+      createdAt: Date.now(),
+      notes: "",
+      messages: [],
+    };
+    try {
+      await storage.notebook(notebook);
+      window.location.assign(
+        `/app?notebook=${encodeURIComponent(notebook.id)}`,
+      );
+    } catch {
+      setCreating(false);
+      setCreateError(
+        "Could not save the notebook. Check browser storage and try again.",
+      );
+    }
+  };
+
   return (
     <div className="home-page">
       <a className="home-skip" href="#home-main">
@@ -66,35 +56,9 @@ export default function HomePage() {
           <span className="home-logomark" aria-hidden="true">
             N
           </span>
-          NemoDoc<span className="home-logo-period">.</span>
+          NemoDoc
         </a>
-        <button
-          type="button"
-          className="home-menu-toggle"
-          aria-expanded={menuOpen}
-          aria-controls="home-nav"
-          onClick={() => setMenuOpen((value) => !value)}
-        >
-          {menuOpen ? (
-            <X size={20} />
-          ) : (
-            <span>
-              Menu <Plus size={15} />
-            </span>
-          )}
-          <span className="home-visually-hidden">Toggle navigation</span>
-        </button>
-        <nav
-          id="home-nav"
-          className={menuOpen ? "is-open" : ""}
-          aria-label="Main navigation"
-        >
-          <a href="#how-it-works" onClick={() => setMenuOpen(false)}>
-            How it works
-          </a>
-          <a href="#features" onClick={() => setMenuOpen(false)}>
-            Features
-          </a>
+        <nav id="home-nav" aria-label="Main navigation">
           <a
             href="https://github.com/Agneypraseed/NemoDoc"
             target="_blank"
@@ -103,100 +67,24 @@ export default function HomePage() {
             GitHub <ArrowRight size={12} className="home-external-arrow" />
           </a>
         </nav>
-        <a className="home-nav-cta" href="/app">
-          Open NemoDoc <ArrowRight size={14} />
-        </a>
       </header>
       <main id="home-main">
         <section className="home-hero">
-          <h1>A notebook for your documents.</h1>
-          <p>Read PDFs and slides, ask questions, and save notes.</p>
+          <h1>Your personal notebook</h1>
           <div className="home-hero-actions">
-            <a className="home-primary-link" href="/app">
-              Open your notebook <ArrowRight size={17} />
-            </a>
-            <a className="home-secondary-link" href="#explore">
-              Preview <ArrowDown size={15} />
-            </a>
+            <button
+              className="home-primary-link"
+              type="button"
+              onClick={() => {
+                setCreateError("");
+                setCreateOpen(true);
+              }}
+            >
+              Create a notebook <ArrowRight size={17} />
+            </button>
           </div>
-          <span className="home-hero-note">
-            <LockKeyhole size={12} /> Reading and notes work without an account.
-          </span>
         </section>
         <ProductPreview />
-        <section
-          className="home-how home-section"
-          id="how-it-works"
-          aria-labelledby="home-how-title"
-        >
-          <div className="home-section-heading">
-            <div>
-              <h2 id="home-how-title">Get started</h2>
-            </div>
-          </div>
-          <div className="home-steps">
-            {[
-              {
-                title: "Add documents",
-                text: "Upload PDFs or lecture slides.",
-              },
-              {
-                title: "Read and annotate",
-                text: "Select text to highlight, annotate or ask a question.",
-              },
-              {
-                title: "Save notes",
-                text: "Save answers and create study material.",
-              },
-            ].map((item, index) => (
-              <article key={item.title}>
-                <span className="home-step-number">0{index + 1}</span>
-                <h3>{item.title}</h3>
-                <p>{item.text}</p>
-              </article>
-            ))}
-          </div>
-          <p className="home-how-foot">Notebooks are stored in this browser.</p>
-        </section>
-        <section
-          className="home-features home-section"
-          id="features"
-          aria-labelledby="home-features-title"
-        >
-          <div className="home-section-heading">
-            <div>
-              <h2 id="home-features-title">Features</h2>
-            </div>
-          </div>
-          <div className="home-feature-grid">
-            {features.map(({ icon: Icon, title, text, tag }) => (
-              <article key={title}>
-                <div className="home-feature-top">
-                  <Icon size={22} strokeWidth={1.4} />
-                  <span>{tag}</span>
-                </div>
-                <h3>{title}</h3>
-                <p>{text}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-        <section className="home-privacy">
-          <div className="home-privacy-icon">
-            <ShieldCheck size={29} strokeWidth={1.3} />
-          </div>
-          <div>
-            <h2>Storage and sharing</h2>
-            <p>
-              Reading and annotation work without AI credentials. When you
-              connect a hosted model, relevant text or selected page images are
-              sent to that provider. You choose what to share with your agents.
-            </p>
-          </div>
-          <a href="/app">
-            Open notebook <ArrowRight size={16} />
-          </a>
-        </section>
         <section
           className="home-faq home-section"
           aria-labelledby="home-faq-title"
@@ -243,9 +131,8 @@ export default function HomePage() {
           <span className="home-logomark" aria-hidden="true">
             N
           </span>
-          NemoDoc<span className="home-logo-period">.</span>
+          NemoDoc
         </a>
-        <span>PDFs, notes and source-linked answers.</span>
         <a
           href="https://github.com/Agneypraseed/NemoDoc"
           target="_blank"
@@ -254,6 +141,50 @@ export default function HomePage() {
           Source code <ArrowRight size={13} />
         </a>
       </footer>
+      {createOpen && (
+        <Modal
+          title="New notebook"
+          className="home-create-modal"
+          onClose={closeCreate}
+        >
+          <form onSubmit={(event) => void createNotebook(event)}>
+            <label className="form-label">
+              Notebook title
+              <input
+                autoFocus
+                data-modal-autofocus
+                placeholder="Notebook title"
+                maxLength={80}
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                required
+              />
+            </label>
+            <label className="form-label">
+              Description <span>optional</span>
+              <input
+                placeholder="Description (optional)"
+                maxLength={160}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+              />
+            </label>
+            {createError && (
+              <p className="home-create-error" role="alert">
+                {createError}
+              </p>
+            )}
+            <button
+              className="primary-button modal-submit"
+              type="submit"
+              disabled={!title.trim() || creating}
+            >
+              <Plus size={16} />
+              {creating ? "Creating…" : "Create notebook"}
+            </button>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 }

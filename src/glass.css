@@ -1,0 +1,383 @@
+/* Shared workspace materials. Content stays opaque; glass belongs to chrome. */
+.app .agent-panel h2,
+.app .agent-panel h3,
+.app .agent-panel h4,
+.app .agent-panel .dashboard-surface h3,
+.app .dashboard-stats dd,
+.modal:has(.notebook-library) .modal-header h2,
+.modal .notebook-library .library-row-title strong {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 600;
+}
+:root {
+  --ink: #252724;
+  --text: #454944;
+  --muted: #6e756f;
+  --background: #faf9f5;
+  --canvas: #f0f1ed;
+  --surface: #fffefa;
+  --surface-quiet: #f5f5f0;
+  --surface-muted: #eeefea;
+  --line: #dedfd8;
+  --accent: #2468bb;
+  --accent-soft: #eaf1f9;
+  --accent-line: #abc4e1;
+  --glass: rgb(250 249 245 / 86%);
+  --glass-edge: rgb(255 255 255 / 90%);
+  --shadow-soft: 0 2px 5px #25342704, 0 8px 28px #25342706;
+  --shadow-float: 0 12px 44px #25342714, inset 0 1px 0 var(--glass-edge);
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+:root[data-theme="dark"] {
+  --ink: #f1f3ef;
+  --text: #d5d9d4;
+  --muted: #a0aaa3;
+  --background: #151917;
+  --canvas: #111512;
+  --surface: #202622;
+  --surface-quiet: #1b211d;
+  --surface-muted: #2a322d;
+  --line: #39433c;
+  --accent: #92bdf3;
+  --accent-soft: #25384b;
+  --accent-line: #536f8e;
+  --glass: rgb(30 36 32 / 90%);
+  --glass-edge: rgb(255 255 255 / 8%);
+  --shadow-soft: 0 2px 8px #00000012, 0 8px 28px #00000016;
+  --shadow-float: 0 12px 44px #00000035, inset 0 1px 0 var(--glass-edge);
+}
+
+.app {
+  padding: 12px;
+  gap: 10px;
+  background:
+    radial-gradient(
+      ellipse at 20% 0%,
+      color-mix(in srgb, var(--sage-soft) 55%, transparent),
+      transparent 60%
+    ),
+    var(--background);
+}
+.app .workspace {
+  background: transparent;
+}
+.sidebar {
+  background: var(--glass);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  box-shadow:
+    var(--shadow-soft),
+    inset 0 1px 0 var(--glass-edge);
+  backdrop-filter: blur(24px) saturate(125%);
+  padding: 24px 14px 0;
+}
+.sidebar-brand {
+  padding: 2px 4px 10px;
+}
+.sidebar-brand + .nav-item {
+  margin-top: 24px;
+}
+.brand-mark {
+  background: var(--ink);
+  color: var(--surface);
+  border-radius: 10px;
+}
+.workspace-label,
+.sidebar-section-heading {
+  letter-spacing: 1.3px;
+  font-size: 10px;
+  font-weight: 600;
+}
+.nav-item {
+  border-radius: 12px;
+  min-height: 42px;
+  font-size: 13px;
+}
+.add-source {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: 12px;
+  min-height: 40px;
+  box-shadow: 0 2px 4px #25342704;
+}
+.source-row {
+  border-radius: 12px;
+  padding-top: 13px;
+  padding-bottom: 13px;
+}
+.source-row.active {
+  background: var(--accent-soft);
+  border-color: transparent;
+  box-shadow: none;
+}
+.source-open strong {
+  font-size: 12px;
+  font-weight: 500;
+}
+.source-open small {
+  font-size: 10px;
+}
+.source-document-icon {
+  color: var(--muted);
+}
+.source-row.active .source-document-icon {
+  color: var(--accent);
+}
+.sidebar-bottom {
+  padding: 16px 4px 20px;
+}
+.workspace-header {
+  border: 0;
+  padding: 0 18px;
+  height: 62px;
+  background: var(--glass);
+  border-radius: 18px;
+  backdrop-filter: blur(20px);
+}
+.notebook-title h1 {
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+}
+.workspace-tabs {
+  gap: 3px;
+}
+.workspace-tabs button {
+  border-radius: 11px;
+}
+.icon-button,
+.settings-launcher {
+  border-radius: 10px;
+}
+.work-area {
+  gap: 18px;
+  padding: 0 12px;
+}
+.reader-toolbar {
+  min-height: 48px;
+  padding: 6px 2px;
+}
+.reader-file strong {
+  font-size: 12px;
+}
+.reader-stage {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+.page-scroller {
+  background: var(--canvas);
+}
+.document-page {
+  box-shadow: 0 2px 12px #17271d0c;
+}
+.reader-footer {
+  min-height: 32px;
+}
+.assistant-panel,
+.work-area .assistant-panel:not(.floating) {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: var(--shadow-soft);
+}
+.margin-header {
+  padding: 12px 14px 10px 20px;
+  border-bottom: 1px solid var(--line);
+}
+.margin-header strong {
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+.message {
+  font-size: 14px;
+  line-height: 1.75;
+}
+.message.user {
+  padding: 14px 16px;
+  background: var(--accent-soft);
+  border-radius: 14px;
+}
+.chat-scroll {
+  padding: 18px 20px 24px;
+}
+.workspace-chat .composer-input-row {
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+  min-height: 60px;
+}
+.workspace-chat .composer-input-row > textarea {
+  background: transparent;
+  font-size: 15px;
+}
+.workspace-chat .composer-input-row .send-button:not(:disabled) {
+  background: var(--accent);
+  color: var(--surface);
+  border-radius: 50%;
+}
+.modal {
+  border-radius: 24px;
+  border-color: var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+}
+.modal::backdrop {
+  background: #18251e30;
+  backdrop-filter: blur(8px);
+}
+.modal h2,
+.app h2,
+.app h3,
+.app .study-heading,
+.app .margin-header strong {
+  font-family: inherit;
+}
+.modal h2 {
+  font-weight: 600;
+  letter-spacing: -0.6px;
+}
+.primary-button,
+.secondary-button,
+.modal-submit {
+  border-radius: 12px;
+}
+.field-label input,
+.field-label select,
+.field-label textarea {
+  border-radius: 10px;
+}
+.notebook-card {
+  border-radius: 16px;
+  background: var(--surface-quiet);
+}
+.notebook-actions-popover,
+.reader-tools-popover,
+.chat-suggestions,
+.toast {
+  background: var(--glass);
+  backdrop-filter: blur(24px) saturate(125%);
+  box-shadow: var(--shadow-float);
+  border-radius: 16px;
+}
+.agent-panel .agent-primary-nav {
+  gap: 12px;
+}
+.agent-panel .agent-primary-nav > button {
+  padding: 12px 6px;
+}
+.agent-panel {
+  padding: 20px 22px 28px;
+}
+.app button,
+.modal button {
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    box-shadow 180ms ease,
+    transform 180ms var(--ease);
+}
+.app select:focus-visible,
+.modal select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.app ::selection {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+@media (min-width: 1201px) {
+  .sidebar {
+    width: 228px;
+  }
+  .work-area {
+    padding: 0 18px;
+    gap: 22px;
+  }
+  .notebook-title h1 {
+    font-size: 19px;
+  }
+}
+@media (max-width: 700px) {
+  .app {
+    padding: 0;
+    gap: 0;
+  }
+  .sidebar {
+    border-radius: 0 22px 22px 0;
+    padding-top: 20px;
+  }
+  .workspace-header {
+    height: 94px;
+    border-radius: 0;
+    padding: 0 10px 5px;
+  }
+  .notebook-title h1 {
+    font-size: 14px;
+  }
+  .work-area {
+    padding: 0 10px;
+  }
+  .reader-toolbar {
+    min-height: 40px;
+  }
+  .reader-file strong {
+    font-size: 11px;
+  }
+  .reader-stage {
+    border-radius: 12px;
+  }
+  .assistant-panel {
+    box-shadow: var(--shadow-float);
+  }
+  .margin-header {
+    padding: 10px 12px 8px 16px;
+  }
+  .workspace-chat .composer-input-row {
+    min-height: 54px;
+    border-radius: 16px;
+  }
+  .agent-panel {
+    padding: 16px;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .sidebar,
+  .workspace-header,
+  .notebook-actions-popover,
+  .reader-tools-popover,
+  .chat-suggestions,
+  .toast {
+    background: var(--surface);
+    backdrop-filter: none;
+  }
+  .modal::backdrop {
+    backdrop-filter: none;
+    background: #18251e66;
+  }
+}
+@media (prefers-contrast: more) {
+  :root {
+    --muted: #454d47;
+    --line: #7c857d;
+    --glass: var(--surface);
+  }
+  :root[data-theme="dark"] {
+    --muted: #d2dad4;
+    --line: #87938b;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app button,
+  .modal button {
+    transition: none;
+  }
+  .app button:active:not(:disabled),
+  .modal button:active:not(:disabled) {
+    transform: none;
+  }
+}

@@ -12,6 +12,8 @@ NemoDoc is a local notebook for PDFs and lecture slides with source-grounded Nem
 
 ## Data and implementation
 
+- Improve user, developer, and agent experience together: use clear layouts, direct action names, shared components, and stable accessible controls. Remove decorative taglines, redundant helper text, and secondary labels; retain necessary permissions, errors, provenance, and accessibility names. Preserve existing workflows and user content.
+
 - Preserve notebook notes and browser persistence. Keep ZIP backup validation compatible with older backups when adding optional fields.
 - Reuse `src/lib/citations.ts` for citation interpretation. Do not present uncited retrieval candidates or invalid references as supporting evidence.
 - Preserve edits and message metadata when streamed answers finish, including when another completed answer is saved during streaming.

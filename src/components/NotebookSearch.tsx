@@ -90,13 +90,6 @@ export function NotebookSearch({
           </button>
         ))}
       </div>
-      <p className="modal-description">
-        {scope === "notes"
-          ? "Find saved answers, passage notes, highlights and notebook notes."
-          : "Find ideas across the selected sources."}{" "}
-        Uses your configured embeddings, or keyword search when embeddings are
-        off.
-      </p>
       <form
         className="semantic-search"
         onSubmit={(e) => {
@@ -169,10 +162,7 @@ export function NotebookSearch({
         </div>
       )}
       {scope === "notes" && !notes.length && (
-        <p className="modal-description">
-          Save an answer, highlight a passage or write a note to start
-          searching.
-        </p>
+        <p className="modal-description">No notes to search.</p>
       )}
       {noteResult && (
         <div className="semantic-results">

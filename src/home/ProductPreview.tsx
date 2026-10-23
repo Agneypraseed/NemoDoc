@@ -1,6 +1,5 @@
 import { useState } from "react";
 import {
-  ArrowDown,
   ArrowRight,
   BookOpen,
   Bookmark,
@@ -25,9 +24,9 @@ import type { AgentActivityStatus } from "../agent-monitor-types";
 type PreviewMode = "read" | "ask" | "study" | "agents";
 const modes = [
   { id: "read", label: "Read & annotate", icon: BookOpen },
-  { id: "ask", label: "Ask in context", icon: MessageSquare },
-  { id: "study", label: "Make it stick", icon: Layers },
-  { id: "agents", label: "Meet your agents", icon: Workflow },
+  { id: "ask", label: "Chat", icon: MessageSquare },
+  { id: "study", label: "Study tools", icon: Layers },
+  { id: "agents", label: "Agents", icon: Workflow },
 ] as const;
 const agentSteps = [
   { label: "Selected notes are ready", status: "queued" },
@@ -49,12 +48,6 @@ export function ProductPreview() {
       id="explore"
       aria-label="Interactive product preview"
     >
-      <div className="home-preview-intro">
-        <span className="home-eyebrow">A notebook that works with you</span>
-        <span>
-          Take a look around <ArrowDown size={14} />
-        </span>
-      </div>
       <div
         className="home-preview-controls"
         role="group"
@@ -315,13 +308,6 @@ export function ProductPreview() {
               </div>
             )}
           </aside>
-        </div>
-        <div className="home-product-foot">
-          <span>
-            <span className="home-small-dot" />
-            Your sources. Your notes. Your train of thought.
-          </span>
-          <span>Built for a little more focus.</span>
         </div>
       </div>
     </section>

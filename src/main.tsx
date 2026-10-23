@@ -9,6 +9,7 @@ import "./appearance.css";
 import "./reading-space.css";
 import "./chat-rendering.css";
 import "./settings.css";
+import "./glass.css";
 
 const App = lazy(() => import("./App"));
 

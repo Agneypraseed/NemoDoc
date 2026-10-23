@@ -45,7 +45,7 @@ test("interrupted answer stays unsaveable after reload and backup restore", asyn
   await expect(page.getByRole("status")).toContainText("1 notebook restored");
   await page.getByRole("button", { name: /^All notebooks/ }).click();
   await page
-    .getByRole("button", { name: /The thoughtful interface \(restored\)/ })
+    .getByRole("button", { name: /Sample notebook \(restored\)/ })
     .click();
   await expect(page.locator(".message.assistant")).toContainText(
     "An unfinished answer",

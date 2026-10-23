@@ -7,8 +7,8 @@ export async function createDemo(): Promise<{
 }> {
   const notebook: Notebook = {
     id: "welcome",
-    title: "The thoughtful interface",
-    description: "A small collection of big ideas.",
+    title: "Sample notebook",
+    description: "",
     createdAt: Date.now(),
     notes: "",
     messages: [],

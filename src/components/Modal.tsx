@@ -5,18 +5,25 @@ export function Modal({
   title,
   children,
   onClose,
+  className = "",
 }: {
   title: string;
   children: ReactNode;
   onClose: () => void;
+  className?: string;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
-    dialog.current?.showModal();
+    const element = dialog.current;
+    if (!element) return;
+    element.showModal();
+    element.querySelector<HTMLElement>("[data-modal-autofocus]")?.focus({
+      preventScroll: true,
+    });
   }, []);
   return (
     <dialog
-      className="modal"
+      className={`modal ${className}`.trim()}
       ref={dialog}
       onCancel={onClose}
       onClick={(event) => {
