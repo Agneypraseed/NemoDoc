@@ -9,6 +9,8 @@ export default defineConfig({
     "search-connections.spec.ts",
     "research-team.spec.ts",
     "research-team-live.spec.ts",
+    "autonomous-tools.spec.ts",
+    "agent.spec.ts",
     "home.spec.ts",
     "library.spec.ts",
   ],
@@ -37,7 +39,7 @@ export default defineConfig({
     env: {
       HOST: "127.0.0.1",
       PORT: "4179",
-      DOTENV_CONFIG_PATH: "/dev/null",
+      DOTENV_CONFIG_PATH: process.env.DOTENV_CONFIG_PATH ?? "/dev/null",
       NEMODOC_DATA_DIR: process.env.NEMODOC_VERIFY_DATA_DIR,
       NEBIUS_API_KEY: "",
       NVIDIA_API_KEY: "",

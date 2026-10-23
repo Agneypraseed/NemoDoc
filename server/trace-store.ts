@@ -98,20 +98,28 @@ export class TraceHandle {
   async event(
     type: string,
     payload: Record<string, unknown> = {},
-    options: { spanId?: string; attempt?: number; at?: number } = {},
+    options: {
+      spanId?: string;
+      attempt?: number;
+      at?: number;
+      required?: boolean;
+    } = {},
   ) {
     this.sequence++;
-    return this.store.append({
-      eventId: randomUUID(),
-      traceId: this.traceId,
-      sequence: this.sequence,
-      notebookId: this.notebookId,
-      spanId: options.spanId,
-      at: options.at ?? Date.now(),
-      type,
-      attempt: options.attempt,
-      payload,
-    });
+    return this.store.append(
+      {
+        eventId: randomUUID(),
+        traceId: this.traceId,
+        sequence: this.sequence,
+        notebookId: this.notebookId,
+        spanId: options.spanId,
+        at: options.at ?? Date.now(),
+        type,
+        attempt: options.attempt,
+        payload,
+      },
+      options.required,
+    );
   }
   async span(
     name: string,
@@ -164,10 +172,11 @@ export class TraceSpanHandle {
     readonly startedAt: number,
     readonly attempt?: number,
   ) {}
-  event(type: string, payload: Record<string, unknown> = {}) {
+  event(type: string, payload: Record<string, unknown> = {}, required = false) {
     return this.trace.event(type, payload, {
       spanId: this.spanId,
       attempt: this.attempt,
+      required,
     });
   }
   finish(
@@ -292,7 +301,7 @@ export class TraceStore {
     await trace.finish("interrupted", error, finishedAt);
   }
 
-  async append(input: EventInput) {
+  async append(input: EventInput, required = false) {
     const safe = redacted(input, this.secrets()) as TraceEvent;
     console.info(
       JSON.stringify({
@@ -339,6 +348,10 @@ export class TraceStore {
             sequence: safe.sequence,
           }),
         );
+        if (required)
+          throw new Error(
+            "The audit log is unavailable. No tool action was taken.",
+          );
       }
     });
     return this.persistence;

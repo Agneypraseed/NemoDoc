@@ -13,6 +13,25 @@ NemoDoc helps you read, annotate, and understand your course materials. Ask ques
 - Save notes and answers, then create flashcards, quizzes, study guides, and mind maps.
 - Use a personal agent for tasks based on sources you approve.
 
+## Autonomous tools
+
+Nemotron chooses which tools to call, reads each result, and decides what to do next. A personal task can search approved notebook sources, read selected text files, search and read public web pages, and create a cited output file. Enable web access and file creation separately for each task; configure Tavily, Exa, or Firecrawl in **Settings → Search** for web research.
+
+Open **Agent → Research → Scheduled tasks & activity inbox → New task**, choose **Research and write a file**, upload and select a brief, and grant the tools it needs. For example: “Read my brief, find and read official NVIDIA documentation, and write a cited Markdown summary.” Download the result from **Created files** and inspect each action in **Action history**.
+
+The server validates tool names, arguments, source/file scope, citations and search connection revisions. File access uses a dedicated notebook workspace with opaque IDs; new writes never overwrite originals. Search results become evidence only after page extraction. Tool attempts and outcomes are audited in redacted local JSONL/PostgreSQL traces; tool execution stops if its audit entry cannot be saved. See [tool permissions, limits and verification](docs/AUTONOMOUS_TOOLS.md).
+
+![Live Nemotron agent reading a selected brief, researching a public page and creating a cited output file](docs/screenshots/autonomous-tools-live.png)
+
+_Live Nemotron and Tavily workflow with a public synthetic brief. Security rejection cases are verified separately with deterministic tests._
+
+<details>
+<summary>See a rejected file write (deterministic security fixture)</summary>
+
+![Agent rejecting a traversal filename before creating a valid output file](docs/screenshots/autonomous-tools-security.png)
+
+</details>
+
 ## Research teams
 
 Review a plan for three agents: two researchers work in parallel, then a reviewer checks their findings against source excerpts and writes a cited report. Edit each role’s instructions before starting. Use different tested models by role, and optionally enable Tavily, Exa, or Firecrawl search in **Settings → Search**.
@@ -30,7 +49,7 @@ npm ci
 npm run dev
 ```
 
-Open [http://127.0.0.1:5173](http://127.0.0.1:5173). Reading and annotation work without AI credentials. NemoDoc uses NVIDIA Nemotron by default; configure a provider in Settings to enable live AI.
+Open the notebook at [http://127.0.0.1:5173/app](http://127.0.0.1:5173/app). Reading and annotation work without AI credentials. NemoDoc uses NVIDIA Nemotron by default; configure a provider in Settings to enable live AI.
 
 ## Your files and AI
 

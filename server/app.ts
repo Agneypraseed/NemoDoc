@@ -133,6 +133,7 @@ export function createApp(
     options.agentFile,
     options.smtpTransportFactory,
     traceStore,
+    webResearch,
   );
   const researchModels = new ResearchModels(
     agent.worker.connections,

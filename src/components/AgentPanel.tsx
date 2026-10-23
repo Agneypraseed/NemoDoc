@@ -15,6 +15,7 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { apiJSON } from "../lib/api";
+import { citationReferences } from "../lib/citations";
 import { download } from "../lib/storage";
 import { AgentConnections } from "./AgentConnections";
 import { AgentOverview } from "./AgentOverview";
@@ -38,8 +39,11 @@ import type {
   SharedSource,
 } from "../agent-types";
 import type { Source, Citation, StudyArtifact } from "../types";
+import { agentFileLimit, type AgentFile } from "../agent-file-types";
+import type { PublicWebConnection } from "../web-research-types";
 
 type Overview = Omit<AgentState, "sources"> & {
+  toolAccess?: { web?: PublicWebConnection };
   sources: (Omit<SharedSource, "pages"> & {
     pageCount: number;
     characters: number;
@@ -109,6 +113,10 @@ export function AgentPanel({
     [timeZone, setTimeZone] = useState("Europe/Berlin");
   const [allowMemory, setAllowMemory] = useState(false),
     [allowSchedule, setAllowSchedule] = useState(false);
+  const [fileIds, setFileIds] = useState<string[]>([]);
+  const [allowWeb, setAllowWeb] = useState(false);
+  const [webRevision, setWebRevision] = useState<string>();
+  const [allowFileWrites, setAllowFileWrites] = useState(false);
   const [selected, setSelected] = useState<string[]>([]),
     [consent, setConsent] = useState(false);
   const [memory, setMemory] = useState<Partial<AgentMemory>>();
@@ -171,6 +179,9 @@ export function AgentPanel({
       </div>
     );
   const approved = data.sources.filter((s) => s.notebookId === notebookId);
+  const files = (data.files ?? []).filter((f) => f.notebookId === notebookId);
+  const web = data.toolAccess?.web;
+  const webReady = !!web?.hasApiKey && web.tested;
   const memories = data.memories.filter((m) => m.notebookId === notebookId);
   const tasks = data.tasks
     .filter((t) => t.notebookId === notebookId)
@@ -204,6 +215,10 @@ export function AgentPanel({
               : undefined,
           allowMemory,
           allowSchedule,
+          fileIds,
+          allowFileWrites,
+          allowWeb,
+          webRevision: allowWeb ? webRevision : undefined,
           channels,
           channelRevisions: Object.fromEntries(
             channels.map((channel) => [
@@ -375,8 +390,8 @@ export function AgentPanel({
               <div className="agent-empty">
                 <ShieldCheck size={24} />
                 <p>
-                  Choose which documents your agent can access before creating a
-                  task.
+                  Choose documents, add a text file in a new task, or allow web
+                  research. The agent chooses tools within that access.
                 </p>
                 <button
                   className="secondary-button"
@@ -451,6 +466,108 @@ export function AgentPanel({
                       {s.name}
                     </label>
                   ))}
+                </fieldset>
+                <fieldset className="agent-tool-permissions">
+                  <legend>Tools the agent may choose</legend>
+                  <p className="agent-fine">
+                    The agent decides when to search, read and write. These
+                    permissions limit the available tools for this task.
+                  </p>
+                  <label className="check-field">
+                    <input
+                      type="checkbox"
+                      checked={allowWeb}
+                      disabled={!webReady && !allowWeb}
+                      onChange={(e) => {
+                        setAllowWeb(e.target.checked);
+                        setWebRevision(
+                          e.target.checked ? web?.revision : undefined,
+                        );
+                      }}
+                    />
+                    Allow public web search and page reading
+                  </label>
+                  {!webReady && (
+                    <p className="agent-fine">
+                      Save and test a search provider in Settings → Search
+                      first.{" "}
+                      <button type="button" onClick={onSettings}>
+                        Open settings
+                      </button>
+                    </p>
+                  )}
+                  {allowWeb && webRevision !== web?.revision && (
+                    <p role="status" className="agent-fine">
+                      Search settings changed. Turn web access off and on to
+                      approve the current connection.
+                    </p>
+                  )}
+                  <label className="check-field">
+                    <input
+                      type="checkbox"
+                      checked={allowFileWrites}
+                      onChange={(e) => setAllowFileWrites(e.target.checked)}
+                    />
+                    Allow new output files in this notebook’s agent workspace
+                  </label>
+                  <label className="field-label">
+                    Add a text file
+                    <input
+                      type="file"
+                      accept=".md,.txt,.csv,.json"
+                      disabled={busy}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = "";
+                        if (!file) return;
+                        if (file.size > agentFileLimit) {
+                          setError("Choose a text file up to 64 KiB.");
+                          return;
+                        }
+                        void act(async () => {
+                          const saved = await apiJSON<AgentFile>(
+                            "/api/agent/files",
+                            {
+                              notebookId,
+                              name: file.name,
+                              content: await file.text(),
+                            },
+                          );
+                          setFileIds((ids) => [...ids, saved.id]);
+                        }, "File copied to the local agent workspace and selected for this task.");
+                      }}
+                    />
+                  </label>
+                  {files.map((file) => (
+                    <label className="check-field" key={file.id}>
+                      <input
+                        type="checkbox"
+                        checked={fileIds.includes(file.id)}
+                        disabled={
+                          fileIds.length >= 20 && !fileIds.includes(file.id)
+                        }
+                        onChange={(e) =>
+                          setFileIds(
+                            e.target.checked
+                              ? [...fileIds, file.id]
+                              : fileIds.filter((id) => id !== file.id),
+                          )
+                        }
+                      />
+                      {file.name} ·{" "}
+                      {file.origin === "agent"
+                        ? "generated file"
+                        : "uploaded file"}
+                    </label>
+                  ))}
+                  <p className="agent-fine">
+                    Only selected files can be read. New files never overwrite
+                    originals. Text files: .md, .txt, .csv or .json, up to 64
+                    KiB each. Web queries go to your saved search provider;
+                    retrieved file and page text goes to your model. Every tool
+                    attempt appears in the action history and redacted run
+                    trace.
+                  </p>
                 </fieldset>
                 {repeat !== "weekdays" && (
                   <label className="field-label">
@@ -566,7 +683,9 @@ export function AgentPanel({
                   className="primary-button"
                   disabled={
                     busy ||
-                    !selected.length ||
+                    (!selected.length && !fileIds.length && !allowWeb) ||
+                    (allowWeb &&
+                      (!webReady || webRevision !== web?.revision)) ||
                     !data.skills.some((s) => s.id === skillId)
                   }
                   type="submit"
@@ -1086,9 +1205,10 @@ export function AgentPanel({
           <details className="agent-danger">
             <summary>Erase all agent data</summary>
             <p>
-              Deletes all notebooks’ agent memories, cached text, tasks, plans,
-              run history and receipts. Browser notebooks and connection
-              settings remain available.
+              Deletes all notebooks’ agent files, memories, cached text, tasks,
+              plans, run history and receipts. Browser notebooks and connection
+              settings remain available. Redacted run traces are stored
+              separately and are retained.
             </p>
             <button
               className="secondary-button"
@@ -1121,6 +1241,15 @@ function RunResult({
   onCitation: (c: Citation) => void;
   onSave: (a: Omit<StudyArtifact, "notebookId">) => void;
 }) {
+  const citedIds = new Set(
+    citationReferences(
+      run.answer,
+      run.citations.map((c) => ({
+        id: c.id,
+        page: c.kind ? undefined : c.page,
+      })),
+    ),
+  );
   const stageLabel: Record<string, string> = {
     queued: "Queued",
     retrieving: "Retrieving approved evidence",
@@ -1140,6 +1269,15 @@ function RunResult({
       <small>
         {run.connection.model} · {run.calls}/8 model calls
       </small>
+      {run.toolAccess && (
+        <p className="agent-tool-scope">
+          <ShieldCheck size={15} /> Autonomous tool selection ·{" "}
+          {run.toolAccess.fileIds.length} selected file
+          {run.toolAccess.fileIds.length === 1 ? "" : "s"}
+          {run.toolAccess.web && " · public web"}
+          {run.toolAccess.writeFiles && " · new output files"}
+        </p>
+      )}
       {run.status === "running" && (
         <p role="status">
           {stageLabel[run.stage || ""] || "Working"}
@@ -1159,24 +1297,38 @@ function RunResult({
         </div>
       )}
       {run.status === "completed" && <AgentDelivery key={run.id} run={run} />}
-      {run.citations.map((c) =>
-        c.sourceId.startsWith("notes:") ? (
-          <details key={c.id}>
-            <summary>
-              [{c.id}] {c.sourceName} · section {c.page}
-            </summary>
-            <pre>{c.text}</pre>
-          </details>
-        ) : (
-          <button
-            className="agent-citation"
-            key={c.id}
-            onClick={() => onCitation(c)}
-          >
-            [{c.id}] {c.sourceName} · p. {c.page}
-          </button>
-        ),
-      )}
+      {run.citations
+        .filter((c) => citedIds.has(c.id))
+        .map((c) =>
+          c.kind === "web" ||
+          c.kind === "file" ||
+          c.sourceId.startsWith("notes:") ? (
+            <details key={c.id}>
+              <summary>
+                [{c.id}] {c.sourceName} ·{" "}
+                {c.kind === "web"
+                  ? "web page"
+                  : c.kind === "file"
+                    ? "local file"
+                    : `section ${c.page}`}
+              </summary>
+              {c.url && (
+                <a href={c.url} target="_blank" rel="noreferrer">
+                  Open cited page
+                </a>
+              )}
+              <pre>{c.text}</pre>
+            </details>
+          ) : (
+            <button
+              className="agent-citation"
+              key={c.id}
+              onClick={() => onCitation(c)}
+            >
+              [{c.id}] {c.sourceName} · p. {c.page}
+            </button>
+          ),
+        )}
       {run.materials.map((a) => (
         <details key={a.id}>
           <summary>
@@ -1197,20 +1349,47 @@ function RunResult({
               {item.answer}
             </p>
           ))}
-          <button
-            className="secondary-button"
-            onClick={() => onSave({ ...a, id: a.id })}
-          >
-            Save to Studio
-          </button>
+          {!a.citations.some((c) => c.kind) && (
+            <button
+              className="secondary-button"
+              onClick={() => onSave({ ...a, id: a.id })}
+            >
+              Save to Studio
+            </button>
+          )}
         </details>
       ))}
+      {!!run.files?.length && (
+        <section className="agent-output-files" aria-label="Agent output files">
+          <h5>Created files</h5>
+          {run.files.map((file) => (
+            <a
+              className="secondary-button"
+              key={file.id}
+              href={`/api/agent/files/${encodeURIComponent(file.id)}/download?notebookId=${encodeURIComponent(run.notebookId)}`}
+              download={file.name}
+            >
+              <Download size={14} /> {file.name}{" "}
+              <small>{file.bytes} bytes</small>
+            </a>
+          ))}
+        </section>
+      )}
       <details>
         <summary>Action history ({run.steps.length})</summary>
         <ol className="agent-steps">
           {run.steps.map((s, i) => (
             <li key={i}>
               <strong>{s.tool}</strong>
+              {s.status && (
+                <span className={`agent-step-status is-${s.status}`}>
+                  {s.status === "succeeded"
+                    ? "Succeeded"
+                    : s.status === "rejected"
+                      ? "Rejected"
+                      : "Failed"}
+                </span>
+              )}
               <p>{s.summary}</p>
             </li>
           ))}
@@ -1224,9 +1403,10 @@ function RunResult({
           Model: {run.connection.model}
           <br />
           The system instructions, source names, current time, task, skill,
-          notebook memory/plan and accumulated tool results are sent with each
-          call. Retrieved passages are listed below. Generated assistant tool
-          calls and prior replies are also sent on subsequent calls.
+          notebook memory/plan, selected file names and accumulated tool results
+          are sent with each call. Retrieved passages are listed below.
+          Generated assistant tool calls and prior replies are also sent on
+          subsequent calls.
         </p>
         <pre>
           {JSON.stringify(

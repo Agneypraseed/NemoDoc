@@ -526,6 +526,46 @@
     animation: none;
   }
 }
+.agent-tool-permissions {
+  display: grid;
+  gap: 10px;
+}
+.agent-tool-scope {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.agent-output-files {
+  display: grid;
+  gap: 8px;
+  padding: 14px 0;
+}
+.agent-output-files h5 {
+  margin: 0;
+  font-size: 13px;
+}
+.agent-output-files a {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: fit-content;
+  text-decoration: none;
+}
+.agent-output-files a small {
+  color: var(--muted);
+}
+.agent-step-status {
+  margin-left: 10px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.agent-step-status.is-rejected,
+.agent-step-status.is-failed {
+  color: var(--danger, #bd4545);
+}
 @media (max-width: 700px) {
   .agent-monitor-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));

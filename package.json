@@ -25,7 +25,7 @@
     "demo:workflows": "node scripts/record-workflows.mjs",
     "lint": "node scripts/check-boundaries.mjs && node --test scripts/check-boundaries.test.mjs",
     "verify": "npm run lint && npm run check && npm test && npm run build",
-    "verify:agents": "bash scripts/verify-agents.sh"
+    "verify:agents": "node scripts/verify-agents.mjs"
   },
   "dependencies": {
     "dotenv": "^17.2.3",
