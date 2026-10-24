@@ -12,4 +12,6 @@
 
 Homepage, agents, and library use the isolated production-build verification harness. Save answers uses the existing development harness and is not covered by the default verification run. See each map's preconditions and limitations.
 
+`agent.spec.ts` verifies personal memory and reusable skills, a task completing while its browser tab is closed, saved results in Studio, source revocation and mobile layout. Its fixture uses a temporary agent store, workspace and trace spool; reopened tabs proxy API calls to that isolated backend through Playwright. It exercises the real OpenAI Agents SDK runner with deterministic provider responses.
+
 Search provider setup is covered by `npm run verify:agents -- search-connections.spec.ts`: General/Search settings navigation, Tavily/Exa/Firecrawl setup, save-and-test, invalid-key recovery, masked credentials, provider switching, disconnect and mobile layout. The browser calls an isolated real Express backend with fixture provider responses, not live services.

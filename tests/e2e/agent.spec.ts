@@ -48,23 +48,25 @@ test("personal agent remembers preferences, reuses skills, runs while browser is
       else message = { content: "Your study guide and plan are saved. [1]" };
       return Response.json({ id: "test-response", choices: [{ message }] });
     }) as typeof fetch,
-    { agentFile: path.join(directory, "agent.json") },
+    {
+      agentFile: path.join(directory, "agent.json"),
+      workspaceFile: path.join(directory, "workspace.json"),
+      traceSpoolFile: path.join(directory, "traces.jsonl"),
+    },
   );
+  await app.locals.workspace.ready;
   const server = app.listen(0, "127.0.0.1");
   await new Promise<void>((r) => server.once("listening", r));
   const apiUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   await context.route("**/api/agent**", async (route) => {
     const request = route.request();
-    const response = await fetch(apiUrl + new URL(request.url()).pathname, {
-      method: request.method(),
-      headers: { "Content-Type": "application/json" },
-      body: request.postData() || undefined,
+    const url = new URL(request.url());
+    const response = await route.fetch({
+      url: apiUrl + url.pathname + url.search,
+      timeout: 10000,
+      maxRetries: 0,
     });
-    await route.fulfill({
-      status: response.status,
-      contentType: "application/json",
-      body: await response.text(),
-    });
+    await route.fulfill({ response });
   });
   try {
     await page.goto("/app");
@@ -206,9 +208,11 @@ test("personal agent remembers preferences, reuses skills, runs while browser is
       ),
     ).toBe(true);
   } finally {
+    await context.unrouteAll({ behavior: "ignoreErrors" }).catch(() => {});
     app.locals.agent.stop();
     server.closeAllConnections();
     await new Promise<void>((r) => server.close(() => r()));
+    await app.locals.workspace.repository.close();
     expect(
       path.resolve(directory).startsWith(path.resolve(tmpdir()) + path.sep),
     ).toBe(true);
