@@ -22,6 +22,7 @@ NemoDoc is a local notebook for PDFs and lecture slides with source-grounded Nem
 
 ## GitHub work
 
+- Make suitable local commits as coherent parts of requested work are completed and validated. This does not authorize pushing.
 - Work on main and commit/push directly when the user requests it. Create or use a PR branch only when the user asks for a PR. Report checks and limitations accurately.
 - Do not merge a PR or push feature changes to main unless the user explicitly requests it.
 - For Save answer to Notes, follow `docs/SAVE_ANSWER_TO_NOTES.md`.
