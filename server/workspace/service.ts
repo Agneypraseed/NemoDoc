@@ -18,7 +18,7 @@ import { usesCitation } from "../../src/lib/citations.ts";
 import { canonical } from "./canonical.ts";
 import type { TraceStore } from "../trace-store.ts";
 import type { WebResearch } from "./web-research.ts";
-import { agentResponseSchema } from "../agent-response.ts";
+import { runTextAgent, type ChatMessage } from "../agent-runner.ts";
 import { VisibleAnswerStream } from "../visible-answer.ts";
 import { chatOptions } from "../providers.ts";
 import { ResearchModels } from "./model-routing.ts";
@@ -396,20 +396,31 @@ export class WorkspaceService {
         }
       : undefined;
     try {
-      const raw = planner
-        ? await this.models.request(fetcher, planner, request, signal, observer)
-        : await this.connections.modelJSON(
-            fetcher,
-            request,
-            signal,
-            undefined,
-            observer,
-          );
-      const message = agentResponseSchema.parse(raw).choices[0].message;
-      if (message.tool_calls?.length)
-        throw new WorkspaceConflict(
-          "The planner returned tools instead of assignments.",
-        );
+      const message = await runTextAgent({
+        name: "Research team planner",
+        messages: request.messages as ChatMessage[],
+        signal,
+        rejectTools: () =>
+          new WorkspaceConflict(
+            "The planner returned tools instead of assignments.",
+          ),
+        request: async () =>
+          planner
+            ? await this.models.request(
+                fetcher,
+                planner,
+                request,
+                signal,
+                observer,
+              )
+            : await this.connections.modelJSON(
+                fetcher,
+                request,
+                signal,
+                undefined,
+                observer,
+              ),
+      });
       const visible = new VisibleAnswerStream();
       const content = (visible.push(message.content ?? "") + visible.finish())
         .trim()

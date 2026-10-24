@@ -28,6 +28,7 @@
     "verify:agents": "node scripts/verify-agents.mjs"
   },
   "dependencies": {
+    "@openai/agents": "^0.21.0",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "idb": "^8.0.3",

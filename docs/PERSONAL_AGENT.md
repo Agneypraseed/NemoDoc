@@ -4,6 +4,8 @@ NemoDoc is a personal research and study agent for the [Personal AI track](https
 
 ## Implementation and acceptance
 
+Execution uses the OpenAI Agents SDK for TypeScript. `server/agent-runner.ts` owns SDK agent construction and tool dispatch; the personal worker retains scoped tool implementations, evidence checks, scheduling, file audits and approved delivery. See [agent architecture](AGENT_ARCHITECTURE.md) for provider support and maintenance guidance.
+
 - Nebius Token Factory uses its documented `/v1/chat/completions` and `/v1/models` routes with a server-side Bearer key. The model catalog prevents relying solely on a hardcoded provider ID. NVIDIA hosted and user-run local model endpoints remain options.
 - Provider-specific embedding/reranking payloads are separate from portable chat requests. Keys do not follow a changed chat host or get forwarded to a different provider's capability endpoint.
 - Memory is scoped to a notebook. Users can edit goals, deadlines, preferences and progress. Quiz results become memory only through an explicit action. The next run reads current progress so a weak-topics skill can adapt its questions.

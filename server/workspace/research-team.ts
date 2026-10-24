@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { runNotebookAgent } from "../agent-runner.ts";
 import { VisibleAnswerStream } from "../visible-answer.ts";
 import { agentResponseSchema } from "../agent-response.ts";
 import type { ModelRequestObserver } from "../model-observer.ts";
@@ -126,284 +127,277 @@ export async function executeResearchTeam(context: ResearchContext) {
       },
     ];
     try {
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        await check();
-        specialist.modelCalls = attempt;
-        specialist.stage = "awaiting_model_response";
-        run.stage = "awaiting_model_response";
-        run.calls++;
-        await trace?.event(
-          "stage.changed",
-          {
-            stage: "awaiting_model_response",
-            agentId: specialist.agentId,
-            agentName: specialist.name,
-            attempt,
-          },
-          { attempt },
-        );
-        await save(run);
-        const modelSpan = await trace?.span(
-          `${specialist.name} model call`,
-          "model_call",
-          {
-            parentSpanId: agentSpan?.spanId,
-            attempt,
-            attributes: {
-              gatewayTarget: target,
-              configuredModel: specialist.assignedModel,
-            },
-          },
-        );
-        let raw: unknown;
-        try {
-          raw = await service.connections.modelJSON(
-            fetcher,
+      await runNotebookAgent({
+        name: specialist.name,
+        messages,
+        tools,
+        maxCalls: 3,
+        signal,
+        limitMessage: () =>
+          `${specialist.name} used all three model calls without completing a cited report.`,
+        request: async (attempt) => {
+          await check();
+          specialist.modelCalls = attempt;
+          specialist.stage = "awaiting_model_response";
+          run.stage = "awaiting_model_response";
+          run.calls++;
+          await trace?.event(
+            "stage.changed",
             {
-              model: target,
-              messages,
-              tools: attempt === 3 ? [] : tools,
-              tool_choice: attempt === 3 ? "none" : "auto",
-              stream: false,
-              temperature: 0.2,
-              max_tokens: 1800,
+              stage: "awaiting_model_response",
+              agentId: specialist.agentId,
+              agentName: specialist.name,
+              attempt,
             },
-            signal,
-            specialist.agentId,
-            modelSpan
-              ? modelObserver(modelSpan, target, async (model) => {
-                  if (model) {
-                    specialist.returnedModel = model;
-                    await save(run);
-                  }
-                })
-              : undefined,
+            { attempt },
           );
-        } catch (error) {
-          await modelSpan?.finish("failed", {}, (error as Error).message);
-          throw error;
-        }
-        await modelSpan?.finish("completed", {
-          gatewayTarget: target,
-          configuredModel: specialist.assignedModel,
-          returnedModel: specialist.returnedModel,
-        });
-        await check();
-        const result = agentResponseSchema.parse(raw);
-        if (result.usage) {
-          run.usage ??= { promptTokens: 0, completionTokens: 0 };
-          run.usage.promptTokens += result.usage.prompt_tokens ?? 0;
-          run.usage.completionTokens += result.usage.completion_tokens ?? 0;
-        }
-        const message = result.choices[0].message;
-        if (message.tool_calls?.length) {
-          messages.push({
-            role: "assistant",
-            content: message.content ?? null,
-            tool_calls: message.tool_calls,
-          });
-          for (const toolCall of message.tool_calls) {
-            await check();
-            const toolName = toolCall.function.name;
-            const toolSpan = await trace?.span(
-              `${specialist.name} ${toolName}`,
-              toolName === "search_sources"
-                ? "source_retrieval"
-                : "source_read",
-              {
-                parentSpanId: agentSpan?.spanId,
-                attempt,
-                attributes: {
-                  agentId: specialist.agentId,
-                  toolCallId: toolCall.id,
-                  arguments: toolCall.function.arguments,
-                },
+          await save(run);
+          const modelSpan = await trace?.span(
+            `${specialist.name} model call`,
+            "model_call",
+            {
+              parentSpanId: agentSpan?.spanId,
+              attempt,
+              attributes: {
+                gatewayTarget: target,
+                configuredModel: specialist.assignedModel,
               },
-            );
-            await toolSpan?.event("tool.call", {
-              agentId: specialist.agentId,
-              tool: toolName,
-              arguments: toolCall.function.arguments,
-            });
-            let output: unknown;
-            let summary = "";
-            try {
-              if (toolName !== "search_sources" && toolName !== "read_passage")
-                throw new Error(
-                  "Only search_sources and read_passage are available to specialists.",
-                );
-              specialist.readActions = (specialist.readActions ?? 0) + 1;
-              if (specialist.readActions > 6)
-                throw new Error(
-                  `${specialist.name} reached its six-read-action limit.`,
-                );
-              const args = readSchemas[toolName].parse(
-                JSON.parse(toolCall.function.arguments),
-              );
-              specialist.stage = "retrieving";
-              run.stage = "retrieving";
-              await trace?.event(
-                "stage.changed",
-                {
-                  stage: "retrieving",
-                  agentId: specialist.agentId,
-                  agentName: specialist.name,
-                  tool: toolName,
-                  attempt,
-                },
-                { attempt },
-              );
-              const checked = await check();
-              const candidate = researchReadCandidates(
-                run,
-                checked,
-                toolName,
-                args,
-              );
-              output = await service.repository.transaction(
-                run.notebookId,
-                (currentState) => {
-                  service.checkRun(currentState, run);
-                  const index = currentState.runs.findIndex(
-                    (item) => item.id === run.id,
-                  );
-                  if (index < 0) throw new Error("Run was removed.");
-                  const citations = candidate.citations.map((item) => {
-                    const existing = run.citations.find(
-                      (citation) =>
-                        citation.sourceId === item.sourceId &&
-                        citation.page === item.page &&
-                        citation.text === item.text,
-                    );
-                    if (existing) return existing;
-                    const id =
-                      Math.max(
-                        0,
-                        ...run.citations.map((citation) => citation.id),
-                        ...run.evidence.map((evidence) => evidence.id),
-                      ) + 1;
-                    const citation = { ...item, id };
-                    run.citations.push(citation);
-                    return citation;
-                  });
-                  specialist.citationIds = [
-                    ...new Set([
-                      ...specialist.citationIds,
-                      ...citations.map((citation) => citation.id),
-                    ]),
-                  ];
-                  summary = `${candidate.summary}; ${citations.length} passage${citations.length === 1 ? "" : "s"} assigned.`;
-                  run.steps.push({ tool: toolName, summary, at: Date.now() });
-                  currentState.runs[index] = structuredClone(run);
-                  return citations;
-                },
-              );
-            } catch (error) {
-              summary = (error as Error).message;
-              output = { error: summary };
-            }
-            await toolSpan?.event("tool.result", {
-              agentId: specialist.agentId,
-              tool: toolName,
-              summary,
-              result: output,
-            });
-            await toolSpan?.finish(
-              output && typeof output === "object" && "error" in output
-                ? "failed"
-                : "completed",
-              { summary },
-              output && typeof output === "object" && "error" in output
-                ? summary
+            },
+          );
+          let raw: unknown;
+          try {
+            raw = await service.connections.modelJSON(
+              fetcher,
+              {
+                model: target,
+                messages,
+                tools: attempt === 3 ? [] : tools,
+                tool_choice: attempt === 3 ? "none" : "auto",
+                stream: false,
+                temperature: 0.2,
+                max_tokens: 1800,
+              },
+              signal,
+              specialist.agentId,
+              modelSpan
+                ? modelObserver(modelSpan, target, async (model) => {
+                    if (model) {
+                      specialist.returnedModel = model;
+                      await save(run);
+                    }
+                  })
                 : undefined,
             );
-            messages.push({
-              role: "tool",
-              tool_call_id: toolCall.id,
-              content: JSON.stringify(output),
-            });
-            if (summary) await save(run);
+          } catch (error) {
+            await modelSpan?.finish("failed", {}, (error as Error).message);
+            throw error;
           }
-          continue;
-        }
-
-        const visible = new VisibleAnswerStream();
-        const answer = visible.push(message.content ?? "") + visible.finish();
-        specialist.stage = "validating";
-        run.stage = "validating";
-        await trace?.event(
-          "stage.changed",
-          {
-            stage: "validating",
-            agentId: specialist.agentId,
-            agentName: specialist.name,
-            attempt,
-          },
-          { attempt },
-        );
-        const validation = await trace?.span(
-          `${specialist.name} citation validation`,
-          "validation",
-          { parentSpanId: agentSpan?.spanId, attempt },
-        );
-        const cited = textReferences(answer, run);
-        const allowed = new Set(specialist.citationIds);
-        const valid =
-          !!answer.trim() &&
-          cited.length > 0 &&
-          cited.every((id) => allowed.has(id));
-        await validation?.event("citation.validation", {
-          valid,
-          agentId: specialist.agentId,
-          citationIds: cited,
-          allowedCitationIds: specialist.citationIds,
-        });
-        await validation?.finish(valid ? "completed" : "failed", { valid });
-        if (valid) {
-          specialist.answer = answer;
-          specialist.status = "completed";
-          specialist.stage = "completed";
-          run.steps.push({
-            tool: "research_agent",
-            summary: `${specialist.name} completed after ${specialist.modelCalls} model call(s), ${specialist.readActions} read action(s), and ${cited.length} cited passage(s).`,
-            at: Date.now(),
-          });
-          await trace?.event("stage.changed", {
-            stage: "completed",
-            agentId: specialist.agentId,
-            agentName: specialist.name,
-            citationIds: specialist.citationIds,
-            modelCalls: specialist.modelCalls,
-            readActions: specialist.readActions,
-          });
-          await save(run);
-          await agentSpan?.finish("completed", {
-            answer,
-            citationIds: cited,
-            modelCalls: specialist.modelCalls,
-            readActions: specialist.readActions,
+          await modelSpan?.finish("completed", {
+            gatewayTarget: target,
+            configuredModel: specialist.assignedModel,
             returnedModel: specialist.returnedModel,
           });
-          return;
-        }
-        if (attempt < 3) {
-          messages.push(
-            { role: "assistant", content: answer },
+          await check();
+          const result = agentResponseSchema.parse(raw);
+          if (result.usage) {
+            run.usage ??= { promptTokens: 0, completionTokens: 0 };
+            run.usage.promptTokens += result.usage.prompt_tokens ?? 0;
+            run.usage.completionTokens += result.usage.completion_tokens ?? 0;
+          }
+          return result;
+        },
+        executeTool: async (toolCall, attempt) => {
+          await check();
+          const toolName = toolCall.function.name;
+          const toolSpan = await trace?.span(
+            `${specialist.name} ${toolName}`,
+            toolName === "search_sources" ? "source_retrieval" : "source_read",
             {
-              role: "user",
-              content:
-                "Your answer did not pass citation validation. Use only numeric citations returned by your own read tools, cite every factual claim, and state when evidence is insufficient. Retry within your three-call budget.",
+              parentSpanId: agentSpan?.spanId,
+              attempt,
+              attributes: {
+                agentId: specialist.agentId,
+                toolCallId: toolCall.id,
+                arguments: toolCall.function.arguments,
+              },
             },
           );
-          continue;
-        }
-        throw new Error(
-          `${specialist.name} did not return a source-grounded answer with valid citations.`,
-        );
-      }
-      throw new Error(
-        `${specialist.name} used all three model calls without completing a cited report.`,
-      );
+          await toolSpan?.event("tool.call", {
+            agentId: specialist.agentId,
+            tool: toolName,
+            arguments: toolCall.function.arguments,
+          });
+          let output: unknown;
+          let summary = "";
+          try {
+            if (toolName !== "search_sources" && toolName !== "read_passage")
+              throw new Error(
+                "Only search_sources and read_passage are available to specialists.",
+              );
+            specialist.readActions = (specialist.readActions ?? 0) + 1;
+            if (specialist.readActions > 6)
+              throw new Error(
+                `${specialist.name} reached its six-read-action limit.`,
+              );
+            const args = readSchemas[toolName].parse(
+              JSON.parse(toolCall.function.arguments),
+            );
+            specialist.stage = "retrieving";
+            run.stage = "retrieving";
+            await trace?.event(
+              "stage.changed",
+              {
+                stage: "retrieving",
+                agentId: specialist.agentId,
+                agentName: specialist.name,
+                tool: toolName,
+                attempt,
+              },
+              { attempt },
+            );
+            const checked = await check();
+            const candidate = researchReadCandidates(
+              run,
+              checked,
+              toolName,
+              args,
+            );
+            output = await service.repository.transaction(
+              run.notebookId,
+              (currentState) => {
+                service.checkRun(currentState, run);
+                const index = currentState.runs.findIndex(
+                  (item) => item.id === run.id,
+                );
+                if (index < 0) throw new Error("Run was removed.");
+                const citations = candidate.citations.map((item) => {
+                  const existing = run.citations.find(
+                    (citation) =>
+                      citation.sourceId === item.sourceId &&
+                      citation.page === item.page &&
+                      citation.text === item.text,
+                  );
+                  if (existing) return existing;
+                  const id =
+                    Math.max(
+                      0,
+                      ...run.citations.map((citation) => citation.id),
+                      ...run.evidence.map((evidence) => evidence.id),
+                    ) + 1;
+                  const citation = { ...item, id };
+                  run.citations.push(citation);
+                  return citation;
+                });
+                specialist.citationIds = [
+                  ...new Set([
+                    ...specialist.citationIds,
+                    ...citations.map((citation) => citation.id),
+                  ]),
+                ];
+                summary = `${candidate.summary}; ${citations.length} passage${citations.length === 1 ? "" : "s"} assigned.`;
+                run.steps.push({ tool: toolName, summary, at: Date.now() });
+                currentState.runs[index] = structuredClone(run);
+                return citations;
+              },
+            );
+          } catch (error) {
+            summary = (error as Error).message;
+            output = { error: summary };
+          }
+          await toolSpan?.event("tool.result", {
+            agentId: specialist.agentId,
+            tool: toolName,
+            summary,
+            result: output,
+          });
+          await toolSpan?.finish(
+            output && typeof output === "object" && "error" in output
+              ? "failed"
+              : "completed",
+            { summary },
+            output && typeof output === "object" && "error" in output
+              ? summary
+              : undefined,
+          );
+          if (summary) await save(run);
+          return output;
+        },
+        accept: async (message, attempt) => {
+          const visible = new VisibleAnswerStream();
+          const answer = visible.push(message.content ?? "") + visible.finish();
+          specialist.stage = "validating";
+          run.stage = "validating";
+          await trace?.event(
+            "stage.changed",
+            {
+              stage: "validating",
+              agentId: specialist.agentId,
+              agentName: specialist.name,
+              attempt,
+            },
+            { attempt },
+          );
+          const validation = await trace?.span(
+            `${specialist.name} citation validation`,
+            "validation",
+            { parentSpanId: agentSpan?.spanId, attempt },
+          );
+          const cited = textReferences(answer, run);
+          const allowed = new Set(specialist.citationIds);
+          const valid =
+            !!answer.trim() &&
+            cited.length > 0 &&
+            cited.every((id) => allowed.has(id));
+          await validation?.event("citation.validation", {
+            valid,
+            agentId: specialist.agentId,
+            citationIds: cited,
+            allowedCitationIds: specialist.citationIds,
+          });
+          await validation?.finish(valid ? "completed" : "failed", { valid });
+          if (valid) {
+            specialist.answer = answer;
+            specialist.status = "completed";
+            specialist.stage = "completed";
+            run.steps.push({
+              tool: "research_agent",
+              summary: `${specialist.name} completed after ${specialist.modelCalls} model call(s), ${specialist.readActions} read action(s), and ${cited.length} cited passage(s).`,
+              at: Date.now(),
+            });
+            await trace?.event("stage.changed", {
+              stage: "completed",
+              agentId: specialist.agentId,
+              agentName: specialist.name,
+              citationIds: specialist.citationIds,
+              modelCalls: specialist.modelCalls,
+              readActions: specialist.readActions,
+            });
+            await save(run);
+            await agentSpan?.finish("completed", {
+              answer,
+              citationIds: cited,
+              modelCalls: specialist.modelCalls,
+              readActions: specialist.readActions,
+              returnedModel: specialist.returnedModel,
+            });
+            return true;
+          }
+          if (attempt < 3) {
+            messages.push(
+              { role: "assistant", content: answer },
+              {
+                role: "user",
+                content:
+                  "Your answer did not pass citation validation. Use only numeric citations returned by your own read tools, cite every factual claim, and state when evidence is insufficient. Retry within your three-call budget.",
+              },
+            );
+            return false;
+          }
+          throw new Error(
+            `${specialist.name} did not return a source-grounded answer with valid citations.`,
+          );
+        },
+      });
     } catch (error) {
       const timedOut = signal.aborted && signal.reason === "timeout";
       specialist.status =
@@ -492,96 +486,113 @@ export async function executeResearchTeam(context: ResearchContext) {
   ];
   let synthesis = "";
   try {
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      await check();
-      run.calls++;
-      await save(run);
-      const modelSpan = await trace?.span(
-        "Critical reviewer model call",
-        "model_call",
-        {
-          parentSpanId: synthesisSpan?.spanId,
-          attempt,
-          attributes: {
-            gatewayTarget: target,
-            configuredModel: reviewer.assignedModel,
-          },
-        },
-      );
-      let raw: unknown;
-      try {
-        raw = await service.connections.modelJSON(
-          fetcher,
-          {
-            model: target,
-            messages,
-            stream: false,
-            temperature: 0.2,
-            max_tokens: 2400,
-          },
-          signal,
-          reviewer.agentId,
-          modelSpan
-            ? modelObserver(modelSpan, target, async (model) => {
-                if (model) {
-                  reviewer.returnedModel = model;
-                  await save(run);
-                }
-              })
-            : undefined,
-        );
-      } catch (error) {
-        await modelSpan?.finish("failed", {}, (error as Error).message);
-        throw error;
-      }
-      await modelSpan?.finish("completed", {
-        gatewayTarget: target,
-        configuredModel: reviewer.assignedModel,
-        returnedModel: reviewer.returnedModel,
-      });
-      await check();
-      const response = agentResponseSchema.parse(raw);
-      if (response.usage) {
-        run.usage ??= { promptTokens: 0, completionTokens: 0 };
-        run.usage.promptTokens += response.usage.prompt_tokens ?? 0;
-        run.usage.completionTokens += response.usage.completion_tokens ?? 0;
-      }
-      const message = response.choices[0].message;
-      if (message.tool_calls?.length)
+    await runNotebookAgent({
+      name: "Critical reviewer synthesis",
+      messages,
+      tools: [],
+      maxCalls: 2,
+      signal,
+      limitMessage: () =>
+        "The critical reviewer did not return a synthesis with valid evidence citations.",
+      executeTool: async () => {
         throw new Error(
           "The critical reviewer returned an unsupported tool call during synthesis.",
         );
-      const visible = new VisibleAnswerStream();
-      synthesis = visible.push(message.content ?? "") + visible.finish();
-      const cited = textReferences(synthesis, run);
-      const valid =
-        !!synthesis.trim() &&
-        cited.length > 0 &&
-        cited.every((id) => allowed.has(id));
-      await trace?.event(
-        "citation.validation",
-        {
-          valid,
-          citationIds: cited,
-          allowedCitationIds: [...allowed],
-          synthesis: true,
-        },
-        { spanId: synthesisSpan?.spanId, attempt },
-      );
-      if (valid) break;
-      if (attempt === 2)
-        throw new Error(
-          "The critical reviewer did not return a synthesis with valid evidence citations.",
+      },
+      request: async (attempt) => {
+        await check();
+        run.calls++;
+        await save(run);
+        const modelSpan = await trace?.span(
+          "Critical reviewer model call",
+          "model_call",
+          {
+            parentSpanId: synthesisSpan?.spanId,
+            attempt,
+            attributes: {
+              gatewayTarget: target,
+              configuredModel: reviewer.assignedModel,
+            },
+          },
         );
-      messages.push(
-        { role: "assistant", content: synthesis },
-        {
-          role: "user",
-          content:
-            "Revise the synthesis. Cite only supplied IDs, cite each factual claim, and explicitly state what the selected evidence cannot establish. Do not use outside facts.",
-        },
-      );
-    }
+        let raw: unknown;
+        try {
+          raw = await service.connections.modelJSON(
+            fetcher,
+            {
+              model: target,
+              messages,
+              stream: false,
+              temperature: 0.2,
+              max_tokens: 2400,
+            },
+            signal,
+            reviewer.agentId,
+            modelSpan
+              ? modelObserver(modelSpan, target, async (model) => {
+                  if (model) {
+                    reviewer.returnedModel = model;
+                    await save(run);
+                  }
+                })
+              : undefined,
+          );
+        } catch (error) {
+          await modelSpan?.finish("failed", {}, (error as Error).message);
+          throw error;
+        }
+        await modelSpan?.finish("completed", {
+          gatewayTarget: target,
+          configuredModel: reviewer.assignedModel,
+          returnedModel: reviewer.returnedModel,
+        });
+        await check();
+        const response = agentResponseSchema.parse(raw);
+        if (response.usage) {
+          run.usage ??= { promptTokens: 0, completionTokens: 0 };
+          run.usage.promptTokens += response.usage.prompt_tokens ?? 0;
+          run.usage.completionTokens += response.usage.completion_tokens ?? 0;
+        }
+        return response;
+      },
+      accept: async (message, attempt) => {
+        if (message.tool_calls?.length)
+          throw new Error(
+            "The critical reviewer returned an unsupported tool call during synthesis.",
+          );
+        const visible = new VisibleAnswerStream();
+        synthesis = visible.push(message.content ?? "") + visible.finish();
+        const cited = textReferences(synthesis, run);
+        const valid =
+          !!synthesis.trim() &&
+          cited.length > 0 &&
+          cited.every((id) => allowed.has(id));
+        await trace?.event(
+          "citation.validation",
+          {
+            valid,
+            citationIds: cited,
+            allowedCitationIds: [...allowed],
+            synthesis: true,
+          },
+          { spanId: synthesisSpan?.spanId, attempt },
+        );
+        if (valid) return true;
+        if (attempt === 2)
+          throw new Error(
+            "The critical reviewer did not return a synthesis with valid evidence citations.",
+          );
+        messages.push(
+          { role: "assistant", content: synthesis },
+          {
+            role: "user",
+            content:
+              "Revise the synthesis. Cite only supplied IDs, cite each factual claim, and explicitly state what the selected evidence cannot establish. Do not use outside facts.",
+          },
+        );
+        return false;
+      },
+    });
     const cited = textReferences(synthesis, run);
     await synthesisSpan?.finish("completed", {
       citationIds: cited,

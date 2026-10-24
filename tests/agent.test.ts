@@ -64,11 +64,11 @@ function setup(fetcher: typeof fetch, filename?: string) {
 }
 const reply = (message: unknown) =>
   Response.json({ id: "response-test", choices: [{ message }] });
-const calls = (name: string, args: unknown) => ({
+const calls = (name: string, args: unknown, id = "call-" + name) => ({
   content: null,
   tool_calls: [
     {
-      id: "call-" + name,
+      id,
       type: "function",
       function: { name, arguments: JSON.stringify(args) },
     },
@@ -157,10 +157,14 @@ test("memory and scheduling permission permits one non-recursive follow-up and r
               text: "User reports difficulty with spaced practice",
             })
           : n === 3 || n === 4
-            ? calls("schedule_review", {
-                prompt: "Review attention",
-                hoursFromNow: 24,
-              })
+            ? calls(
+                "schedule_review",
+                {
+                  prompt: "Review attention",
+                  hoursFromNow: 24,
+                },
+                `schedule-${n}`,
+              )
             : { content: "A review is scheduled. [1]" },
     );
   }) as typeof fetch);

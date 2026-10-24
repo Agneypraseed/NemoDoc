@@ -25,7 +25,7 @@ This works with both the **NemoDoc** and **NemoClaw runtime** execution routes. 
 
 For ongoing NemoClaw instructions, open **Agent settings → Instructions**, choose a runtime agent, and edit/import its `AGENTS.md` or `SOUL.md`. **Save AGENTS.md** or **Save SOUL.md** writes that agent's native workspace file; imported content remains a draft until saved. Runtime files apply to new sessions. These ongoing files are distinct from the task-specific snapshot above.
 
-See [agent architecture and SDK options](AGENT_ARCHITECTURE.md) for the current libraries, provider support and a proposed OpenAI Agents SDK migration.
+See [agent architecture](AGENT_ARCHITECTURE.md) for the OpenAI Agents SDK execution model, provider support and extension points.
 
 ## Try both workflows
 
@@ -74,7 +74,7 @@ Create the restore database first and provision the reader there; set the two UR
 
 ## Implementation guide
 
-`src/workspace-types.ts` defines strict tool/API contracts. `server/workspace/repository.ts` supplies JSON and PostgreSQL implementations; `service.ts` owns snapshots, immutable attempts, proposal revisions and approvals; `read-tools.ts` enforces scoped SQL/retrieval reads; `worker.ts` owns bounded inference, recovery and SMTP dispatch; `evidence.ts` validates references; `routes.ts` exposes the scoped API. `ConversationComposer.tsx` extracts the current composer markup without changing its design.
+`src/workspace-types.ts` defines strict tool/API contracts. `server/workspace/repository.ts` supplies JSON and PostgreSQL implementations; `service.ts` owns snapshots, immutable attempts, proposal revisions and approvals; `read-tools.ts` enforces scoped SQL/retrieval reads; `worker.ts` owns workflow lifecycle, recovery and SMTP dispatch; `server/agent-runner.ts` supplies OpenAI Agents SDK execution with bounded inference and application validation; `evidence.ts` validates references; `routes.ts` exposes the scoped API. `ConversationComposer.tsx` extracts the current composer markup without changing its design.
 
 The normalized schema stores notebooks → sources → pages, notes → source/page references, and quiz attempts → per-question snapshots → source/page references. Foreign keys keep scope explicit. Run steps and action lifecycle columns are relational; evolving model/action payloads use JSONB. SQL tools query read views with parameterized filters and a separate restricted reader. The server binds notebook, source and note selection; the model gets neither arbitrary SQL nor a notebook selector. Returned aggregates include filters and contributing attempt IDs, and note dates remain NULL when not established.
 

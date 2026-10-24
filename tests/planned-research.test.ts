@@ -563,12 +563,14 @@ test("research enforces the ten-minute deadline without replaying returned tools
 });
 
 test("tool actions remain bounded even when a model ignores final-turn tool restrictions", async () => {
+  let callId = 0;
   const fetcher: typeof fetch = async () =>
     response({
       content: null,
-      tool_calls: Array.from({ length: 6 }, () =>
-        tool("read_passage", { sourceId: "book", page: 1 }),
-      ),
+      tool_calls: Array.from({ length: 6 }, () => ({
+        ...tool("read_passage", { sourceId: "book", page: 1 }),
+        id: `read-${++callId}`,
+      })),
     });
   const { service, worker, repository, input } = await setup(fetcher);
   await service.queue(input);

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { runNotebookAgent } from "../agent-runner.ts";
 import { z } from "zod";
 import { executeReadTool, readSchemas } from "./read-tools.ts";
 import { agentResponseSchema } from "../agent-response.ts";
@@ -253,7 +254,7 @@ export class WorkspaceWorker {
       timedOut = true;
       controller.abort("timeout");
     }, duration);
-    run.status = "running";
+    run.status = "running" as WorkflowRun["status"];
     run.startedAt = now;
     run.traceId ||= run.id;
     let trace: TraceHandle | undefined;
@@ -351,83 +352,97 @@ export class WorkspaceWorker {
             parameters: z.toJSONSchema(schema),
           },
         }));
-      for (let turn = 0; turn < MAX_MODEL_CALLS; turn++) {
-        const current = await check();
-        const proposed = current.proposals.some((p) => p.runId === run.id);
-        const finishRetrieval =
-          !proposed &&
-          (turn >= 7 || unparsedToolResponses > 0) &&
-          run.citations.length > 0 &&
-          run.evidence.some((e) => e.kind === "notes") &&
-          (run.workflow === "study_revision" ||
-            new Set(run.citations.map((c) => c.sourceId)).size >= 2) &&
-          (run.workflow !== "study_revision" ||
-            !run.includeProgress ||
-            run.evidence.some((e) => e.kind === "progress"));
-        if (finishRetrieval)
-          messages.push({
-            role: "system",
-            content:
-              "The retrieval budget is complete. Use the evidence already returned to create the requested proposal now. Keep unsupported or missing information explicit; do not invent evidence.",
-          });
-        run.calls++;
-        await this.save(run);
-        const modelSpan = await trace?.span("Model request", "model_call", {
-          attempt: run.calls,
-          attributes: {
-            configuredModel: run.connection.model,
-            gatewayTarget:
-              run.connection.mode === "openclaw"
-                ? run.connection.model
-                : undefined,
-          },
-        });
-        let responseValue: unknown;
-        try {
-          responseValue = await this.service.connections.modelJSON(
-            this.fetcher,
-            {
-              model: run.connection.model,
-              messages,
-              tools: proposed
-                ? []
-                : finishRetrieval
-                  ? tools.filter((t) => t.function.name === "propose_actions")
-                  : tools,
-              tool_choice: proposed
-                ? "none"
-                : finishRetrieval
-                  ? { type: "function", function: { name: "propose_actions" } }
-                  : "auto",
-              stream: false,
-              temperature: 0.2,
-              max_tokens: 4096,
-              ...(/nemotron/i.test(run.connection.model)
-                ? { chat_template_kwargs: { enable_thinking: false } }
-                : {}),
+      await runNotebookAgent({
+        name: "Notebook evidence workflow",
+        messages,
+        tools,
+        maxCalls: MAX_MODEL_CALLS,
+        signal: controller.signal,
+        limitMessage: () =>
+          `Agent reached its ${MAX_MODEL_CALLS}-model-call limit before completing a grounded proposal.`,
+        completed: () => (run.status === "completed" ? run.answer : undefined),
+        request: async (attempt) => {
+          const turn = attempt - 1;
+          const current = await check();
+          const proposed = current.proposals.some((p) => p.runId === run.id);
+          const finishRetrieval =
+            !proposed &&
+            (turn >= 7 || unparsedToolResponses > 0) &&
+            run.citations.length > 0 &&
+            run.evidence.some((e) => e.kind === "notes") &&
+            (run.workflow === "study_revision" ||
+              new Set(run.citations.map((c) => c.sourceId)).size >= 2) &&
+            (run.workflow !== "study_revision" ||
+              !run.includeProgress ||
+              run.evidence.some((e) => e.kind === "progress"));
+          if (finishRetrieval)
+            messages.push({
+              role: "system",
+              content:
+                "The retrieval budget is complete. Use the evidence already returned to create the requested proposal now. Keep unsupported or missing information explicit; do not invent evidence.",
+            });
+          run.calls++;
+          await this.save(run);
+          const modelSpan = await trace?.span("Model request", "model_call", {
+            attempt: run.calls,
+            attributes: {
+              configuredModel: run.connection.model,
+              gatewayTarget:
+                run.connection.mode === "openclaw"
+                  ? run.connection.model
+                  : undefined,
             },
-            controller.signal,
-            undefined,
-            modelSpan
-              ? traceModelObserver(modelSpan, run.connection.model)
-              : undefined,
-          );
-        } catch (error) {
-          await modelSpan?.finish("failed", {}, (error as Error).message);
-          throw error;
-        }
-        await modelSpan?.finish("completed", {
-          configuredModel: run.connection.model,
-        });
-        await check();
-        const response = agentResponseSchema.parse(responseValue);
-        if (response.usage) {
-          run.usage ??= { promptTokens: 0, completionTokens: 0 };
-          run.usage.promptTokens += response.usage.prompt_tokens ?? 0;
-          run.usage.completionTokens += response.usage.completion_tokens ?? 0;
-        }
-        const message = response.choices[0].message;
-        if (!message.tool_calls?.length) {
+          });
+          let responseValue: unknown;
+          try {
+            responseValue = await this.service.connections.modelJSON(
+              this.fetcher,
+              {
+                model: run.connection.model,
+                messages,
+                tools: proposed
+                  ? []
+                  : finishRetrieval
+                    ? tools.filter((t) => t.function.name === "propose_actions")
+                    : tools,
+                tool_choice: proposed
+                  ? "none"
+                  : finishRetrieval
+                    ? {
+                        type: "function",
+                        function: { name: "propose_actions" },
+                      }
+                    : "auto",
+                stream: false,
+                temperature: 0.2,
+                max_tokens: 4096,
+                ...(/nemotron/i.test(run.connection.model)
+                  ? { chat_template_kwargs: { enable_thinking: false } }
+                  : {}),
+              },
+              controller.signal,
+              undefined,
+              modelSpan
+                ? traceModelObserver(modelSpan, run.connection.model)
+                : undefined,
+            );
+          } catch (error) {
+            await modelSpan?.finish("failed", {}, (error as Error).message);
+            throw error;
+          }
+          await modelSpan?.finish("completed", {
+            configuredModel: run.connection.model,
+          });
+          await check();
+          const response = agentResponseSchema.parse(responseValue);
+          if (response.usage) {
+            run.usage ??= { promptTokens: 0, completionTokens: 0 };
+            run.usage.promptTokens += response.usage.prompt_tokens ?? 0;
+            run.usage.completionTokens += response.usage.completion_tokens ?? 0;
+          }
+          return response;
+        },
+        accept: async (message) => {
           if (/^\s*<tool_call>/i.test(message.content ?? "")) {
             if (++unparsedToolResponses >= 2)
               throw new Error(
@@ -441,7 +456,7 @@ export class WorkspaceWorker {
                   "Your tool call arrived as XML text, which cannot be executed. Use the actual structured function tool-call interface, not <tool_call> markup or prose. Keep all evidence IDs unchanged.",
               },
             );
-            continue;
+            return false;
           }
           const visible = new VisibleAnswerStream();
           const answer = visible.push(message.content ?? "") + visible.finish();
@@ -478,19 +493,15 @@ export class WorkspaceWorker {
                   "Finish the evidence workflow first: query approved notes, retrieve document passages, create one proposal, and answer with only returned numeric citations. Do not claim actions have been applied.",
               },
             );
-            continue;
+            return false;
           }
           run.answer = answer;
           run.status = "completed";
-          break;
-        }
-        unparsedToolResponses = 0;
-        messages.push({
-          role: "assistant",
-          content: message.content ?? null,
-          tool_calls: message.tool_calls,
-        });
-        for (const call of message.tool_calls) {
+          return true;
+        },
+        executeTool: async (call) => {
+          unparsedToolResponses = 0;
+
           const state = await check();
           if (++actions > 20)
             throw new Error("Agent reached its twenty-tool-action limit.");
@@ -582,22 +593,17 @@ export class WorkspaceWorker {
           );
           run.steps.push({ tool: call.function.name, summary, at: Date.now() });
           await this.save(run);
-          messages.push({
-            role: "tool",
-            tool_call_id: call.id,
-            content: JSON.stringify(output),
-          });
+
           const saved = (await check()).proposals.find(
             (p) => p.runId === run.id,
           );
           if (saved) {
             run.answer = proposalSummary(run, saved);
             run.status = "completed";
-            break;
           }
-        }
-        if (run.status === "completed") break;
-      }
+          return output;
+        },
+      });
       if (run.status !== "completed")
         throw new Error(
           `Agent reached its ${MAX_MODEL_CALLS}-model-call limit before completing a grounded proposal.`,

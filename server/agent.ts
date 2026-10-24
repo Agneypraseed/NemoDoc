@@ -1,3 +1,4 @@
+import { runNotebookAgent } from "./agent-runner.ts";
 import { agentResponseSchema as responseSchema } from "./agent-response.ts";
 import type express from "express";
 import { createHash, randomUUID } from "node:crypto";
@@ -512,85 +513,96 @@ export class AgentWorker {
         },
         { role: "user", content: task.prompt },
       ];
-      for (let turn = 0; turn < 8; turn++) {
-        check();
-        run.calls++;
-        await setStage("awaiting_model_response", run.calls);
-        this.data.flush();
-        const config = {
-          ...this.settings.value,
-          ...this.connections.runtime(),
-        };
-        const body = {
-          model: config.model,
-          messages,
-          tools,
-          tool_choice: "auto",
-          stream: false,
-          temperature: 0.2,
-          max_tokens: 4096,
-          ...(/nemotron/i.test(config.model) ? chatOptions(config) : {}),
-        };
-        const gatewayTarget =
-          this.connections.value.model.mode === "openclaw"
-            ? config.model
-            : undefined;
-        const modelSpan = await trace?.span(
-          `Model call ${run.calls}`,
-          "model_call",
-          {
-            parentSpanId: agentSpan?.spanId,
-            attempt: run.calls,
-            attributes: { configuredModel: config.model, gatewayTarget },
-          },
-        );
-        let raw: unknown;
-        try {
-          raw =
-            this.connections.value.model.mode !== "notebook"
-              ? await this.connections.modelJSON(
-                  this.fetcher,
-                  body,
-                  controller.signal,
-                  undefined,
-                  modelSpan
-                    ? traceModelObserver(modelSpan, gatewayTarget)
-                    : undefined,
-                )
-              : await providerJSON(
-                  this.fetcher,
-                  config.baseUrl.replace(/\/$/, "") + "/chat/completions",
-                  body,
-                  config,
-                  controller.signal,
-                  "chat",
-                  modelSpan
-                    ? traceModelObserver(modelSpan, gatewayTarget)
-                    : undefined,
-                );
-        } catch (error) {
-          await modelSpan?.finish("failed", {}, (error as Error).message);
-          throw error;
-        }
-        await modelSpan?.finish("completed", {
-          configuredModel: config.model,
-          gatewayTarget,
-        });
-        check();
-        const result = responseSchema.parse(raw);
-        this.data.receipt({
-          at: Date.now(),
-          endpoint: config.baseUrl,
-          model: config.model,
-          responseId: result.id || "",
-          method: "agent",
-        });
-        const message = result.choices[0].message;
-        await setStage(
-          message.tool_calls?.length ? "retrieving" : "validating",
-          run.calls,
-        );
-        if (!message.tool_calls?.length) {
+      await runNotebookAgent({
+        name: "Personal research and study agent",
+        messages,
+        tools,
+        maxCalls: 8,
+        signal: controller.signal,
+        limitMessage: () =>
+          "The agent reached its eight-call limit. Completed actions are in the history; try a smaller task.",
+        request: async () => {
+          check();
+          run.calls++;
+          await setStage("awaiting_model_response", run.calls);
+          this.data.flush();
+          const config = {
+            ...this.settings.value,
+            ...this.connections.runtime(),
+          };
+          const body = {
+            model: config.model,
+            messages,
+            tools,
+            tool_choice: "auto",
+            stream: false,
+            temperature: 0.2,
+            max_tokens: 4096,
+            ...(/nemotron/i.test(config.model) ? chatOptions(config) : {}),
+          };
+          const gatewayTarget =
+            this.connections.value.model.mode === "openclaw"
+              ? config.model
+              : undefined;
+          const modelSpan = await trace?.span(
+            `Model call ${run.calls}`,
+            "model_call",
+            {
+              parentSpanId: agentSpan?.spanId,
+              attempt: run.calls,
+              attributes: { configuredModel: config.model, gatewayTarget },
+            },
+          );
+          let raw: unknown;
+          try {
+            raw =
+              this.connections.value.model.mode !== "notebook"
+                ? await this.connections.modelJSON(
+                    this.fetcher,
+                    body,
+                    controller.signal,
+                    undefined,
+                    modelSpan
+                      ? traceModelObserver(modelSpan, gatewayTarget)
+                      : undefined,
+                  )
+                : await providerJSON(
+                    this.fetcher,
+                    config.baseUrl.replace(/\/$/, "") + "/chat/completions",
+                    body,
+                    config,
+                    controller.signal,
+                    "chat",
+                    modelSpan
+                      ? traceModelObserver(modelSpan, gatewayTarget)
+                      : undefined,
+                  );
+          } catch (error) {
+            await modelSpan?.finish("failed", {}, (error as Error).message);
+            throw error;
+          }
+          await modelSpan?.finish("completed", {
+            configuredModel: config.model,
+            gatewayTarget,
+          });
+          check();
+          const result = responseSchema.parse(raw);
+          this.data.receipt({
+            at: Date.now(),
+            endpoint: config.baseUrl,
+            model: config.model,
+            responseId: result.id || "",
+            method: "agent",
+          });
+          await setStage(
+            result.choices[0].message.tool_calls?.length
+              ? "retrieving"
+              : "validating",
+            run.calls,
+          );
+          return result;
+        },
+        accept: async (message) => {
           if (!message.content?.trim())
             throw new Error(
               "The model returned no answer. Choose a chat model with function calling support.",
@@ -619,7 +631,7 @@ export class AgentWorker {
                   "Carry out the skill with cited evidence and real tool actions.",
               },
             );
-            continue;
+            return false;
           }
           const refs = citationReferences(content, evidence);
           const validCitations =
@@ -667,23 +679,13 @@ export class AgentWorker {
                   ". Do not use internal source IDs, filenames, or page numbers as citation labels. Return the answer directly.",
               },
             );
-            continue;
+            return false;
           }
           run.answer = content;
           run.status = "completed";
-          break;
-        }
-        if (
-          new Set(message.tool_calls.map((c) => c.id)).size !==
-          message.tool_calls.length
-        )
-          throw new Error("The model returned duplicate tool call IDs.");
-        messages.push({
-          role: "assistant",
-          content: message.content || null,
-          tool_calls: message.tool_calls,
-        });
-        for (const call of message.tool_calls) {
+          return true;
+        },
+        executeTool: async (call) => {
           check();
           await setStage("retrieving", run.calls);
           let output: unknown;
@@ -1042,14 +1044,10 @@ export class AgentWorker {
             callId: call.id,
           });
           this.data.flush();
-          messages.push({
-            role: "tool",
-            tool_call_id: call.id,
-            content: JSON.stringify(output),
-          });
           if (toolCount > 20) throw new Error(summary);
-        }
-      }
+          return output;
+        },
+      });
       if (run.status === "completed") {
         check();
         for (const target of task.deliveries || []) {
