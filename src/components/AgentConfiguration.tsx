@@ -14,6 +14,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { apiJSON } from "../lib/api";
 import { download } from "../lib/storage";
+import { MarkdownFileInput } from "./MarkdownFileInput";
 import {
   applyRoleTemplate,
   modelRoutingInput,
@@ -746,6 +747,16 @@ function RoleEditor({
               </p>
             </details>
           )}
+          <MarkdownFileInput
+            key={draftKey}
+            name={filename}
+            disabled={busy}
+            onImport={(value) => {
+              updateContent(value);
+              setPreview(false);
+              setMessage("");
+            }}
+          />
           <div className="agent-section-title">
             <span className="agent-monitor-caption">
               {dirty ? "Unsaved changes" : "Matches loaded file"} ·{" "}

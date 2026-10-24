@@ -427,6 +427,8 @@ export class WorkspaceService {
         throw new WorkspaceConflict("The planner must propose three agents.");
       const names = new Set<string>();
       for (const [index, agent] of plan.agents.entries()) {
+        // Instruction files are supplied by the user, never by the planner.
+        delete agent.instructions;
         if (
           names.has(agent.name.toLocaleLowerCase()) ||
           modelChoices?.some(
@@ -680,6 +682,9 @@ export class WorkspaceService {
                       id: a.id,
                       name: a.name,
                       focus: a.assignment,
+                      ...(a.instructions !== undefined
+                        ? { instructions: a.instructions }
+                        : {}),
                       role: a.role,
                       agentId: a.agentId,
                       assignedModel: application

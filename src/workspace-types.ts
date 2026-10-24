@@ -6,6 +6,7 @@ import type {
 } from "./agent-types";
 import type { ResearchStage } from "./trace-types";
 import type { ResearchModelRoute } from "./research-model-types";
+import { roleContent } from "./agent-config-types";
 
 const id = z
   .string()
@@ -171,6 +172,7 @@ export const researchPlanSchema = z
             id: id,
             name: z.string().trim().min(1).max(100),
             assignment: z.string().trim().min(1).max(2000),
+            instructions: roleContent.optional(),
             role: z.enum(["researcher", "reviewer"]),
             modelProfileId: z
               .string()
@@ -332,6 +334,7 @@ export interface ResearchTeamAgent {
   id: string;
   name: string;
   focus: string;
+  instructions?: string;
   role?: "researcher" | "reviewer";
   usage?: { promptTokens: number; completionTokens: number };
   agentId?: string;

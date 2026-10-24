@@ -447,6 +447,31 @@ for (const multiModel of [false, true]) {
       await flow
         .getByLabel("Agent 1 assignment", { exact: true })
         .fill("Investigate definitions and assumptions");
+      const firstAssignment = flow.getByRole("article", {
+        name: "Assignment 1",
+        exact: true,
+      });
+      await firstAssignment
+        .getByText("AGENTS.md instructions", { exact: true })
+        .click();
+      const instructions =
+        "# Research approach\n\nExplain definitions before comparing assumptions.\n";
+      await firstAssignment
+        .getByLabel("Import AGENTS.md", { exact: true })
+        .setInputFiles({
+          name: "researcher.md",
+          mimeType: "text/markdown",
+          buffer: Buffer.from(instructions),
+        });
+      await expect(
+        firstAssignment.getByLabel("AGENTS.md content", { exact: true }),
+      ).toHaveValue(instructions);
+      await firstAssignment
+        .getByRole("button", { name: "Preview Markdown", exact: true })
+        .click();
+      await expect(
+        firstAssignment.getByLabel("AGENTS.md preview", { exact: true }),
+      ).toContainText("Research approach");
       await flow
         .getByRole("button", { name: "Add researcher", exact: true })
         .click();
@@ -503,6 +528,8 @@ for (const multiModel of [false, true]) {
       const completed = await run;
       expect(completed.status).toBe("completed");
       expect(completed.researchTeam).toHaveLength(3);
+      expect(completed.researchTeam[0].instructions).toBe(instructions);
+      expect(completed.teamPlan.agents[0].instructions).toBe(instructions);
       expect(completed.researchTeam.every((agent: any) => agent.answer)).toBe(
         true,
       );

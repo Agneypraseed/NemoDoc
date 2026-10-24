@@ -19,3 +19,5 @@ The model catalog and native files are external-boundary fixtures. Model saves c
 Each runtime agent retains its own native `AGENTS.md` and optional `SOUL.md`. Switching settings sections preserves edits; switching agents preserves drafts independently. Task-specific instructions for application-managed research teams are edited in the reviewed team plan, rather than native runtime files.
 
 The mobile journey creates a missing `AGENTS.md` in the selected agent’s own workspace and verifies that a sibling agent is unchanged. It records `output/agent-instructions-mobile.png`.
+
+The desktop journey imports a local Markdown draft using `Import AGENTS.md`, then switches agents, previews, saves and reloads it through the native RPC fixture. Import alone does not save the runtime file or invoke inference.

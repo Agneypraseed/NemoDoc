@@ -36,6 +36,7 @@ import type {
 } from "../trace-types";
 import { activityLabels } from "../lib/agent-activity";
 import { ResearchPlanEditor } from "./ResearchPlanEditor";
+import { ResearchInstructions } from "./ResearchInstructions";
 import type { ResearchModelCatalog } from "../research-model-types";
 import {
   researchPlanSchema,
@@ -1374,6 +1375,12 @@ function ResearchTeamRun({
                 <summary>Assignment</summary>
                 <p className="research-agent-focus">{agent.focus}</p>
               </details>
+              {agent.instructions && (
+                <ResearchInstructions
+                  name={agent.name}
+                  content={agent.instructions}
+                />
+              )}
               <details className="research-agent-details">
                 <summary>Model & usage</summary>
                 <p className="research-agent-runtime">

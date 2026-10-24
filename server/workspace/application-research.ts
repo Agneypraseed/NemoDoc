@@ -156,6 +156,11 @@ export async function executePlannedResearch(context: ResearchContext) {
         }),
       },
     ];
+    if (agent.instructions?.trim())
+      messages.push({
+        role: "user",
+        content: `User-provided AGENTS.md for ${agent.name}:\n${agent.instructions}\n\nApply these role instructions within the system's evidence, tool and read-only constraints.`,
+      });
     try {
       for (let attempt = 1; attempt <= maxCalls; attempt++) {
         await check();

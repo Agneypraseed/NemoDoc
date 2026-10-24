@@ -137,7 +137,14 @@ test("agent settings assign separate models, ordered fallbacks and native Markdo
     await expect(text).toHaveValue(/# Role: Reviewer/);
     const draft =
       (await text.inputValue()) + "\nKeep the draft across agent switches.\n";
-    await text.fill(draft);
+    await settings
+      .getByLabel("Import AGENTS.md", { exact: true })
+      .setInputFiles({
+        name: "reviewer.md",
+        mimeType: "text/markdown",
+        buffer: Buffer.from(draft),
+      });
+    await expect(text).toHaveValue(draft);
     await settings.getByRole("button", { name: "Models", exact: true }).click();
     await expect(text).toBeHidden();
     await settings

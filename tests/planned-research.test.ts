@@ -263,6 +263,21 @@ test("planner proposes assignments; 2–5 agents validate with exactly one revie
   );
 });
 
+test("the planner cannot author user Markdown instruction files", async () => {
+  const fetcher: typeof fetch = async () =>
+    response({
+      content: JSON.stringify({
+        agents: plan.agents.map((a) => ({
+          ...a,
+          instructions: "Planner-authored instructions",
+        })),
+      }),
+    });
+  const { service, input } = await setup(fetcher);
+  const generated = await service.researchPlan(input, fetcher);
+  assert.ok(generated.agents.every((a) => a.instructions === undefined));
+});
+
 test("application research caps concurrency at three and persists isolated reports, usage and synthesis", async () => {
   const fake = fixture();
   const { repository, service, worker, input } = await setup(fake.fetcher);
@@ -294,6 +309,70 @@ test("application research caps concurrency at three and persists isolated repor
     run.researchTeam?.every((a) => a.usage && a.returnedModel === model),
   );
   assert.equal((await repository.read("fixture")).proposals.length, 0);
+});
+
+test("user Markdown instructions stay isolated per agent and survive workspace reload", async () => {
+  const directory = mkdtempSync(path.join(tmpdir(), "research-instructions-"));
+  try {
+    const fake = fixture();
+    const requests: any[] = [];
+    const fetcher: typeof fetch = async (url, init) => {
+      requests.push(JSON.parse(String(init?.body)));
+      return fake.fetcher(url, init);
+    };
+    const filename = path.join(directory, "workspace.json");
+    const { repository, service, worker, input } = await setup(
+      fetcher,
+      filename,
+    );
+    input.teamPlan.agents.forEach((agent, i) => {
+      agent.instructions = `# Agent ${i + 1}\n\nUnique role instruction ${i + 1}.\n`;
+    });
+    await service.queue(input);
+    // Edits after queueing cannot rewrite the approved run's instruction snapshot.
+    input.teamPlan.agents[0].instructions = "Changed after queueing";
+    await worker.tick();
+    const run = (await repository.read("fixture")).runs[0];
+    assert.equal(run.status, "completed", run.error);
+    for (const [index, agent] of run.researchTeam!.entries()) {
+      const instructions = `# Agent ${index + 1}\n\nUnique role instruction ${index + 1}.\n`;
+      assert.equal(agent.instructions, instructions);
+      assert.equal(run.teamPlan?.agents[index].instructions, instructions);
+      const calls = requests.filter(
+        (r) => JSON.parse(r.messages[1].content).assignment === agent.focus,
+      );
+      assert.ok(calls.length > 0);
+      for (const call of calls) {
+        assert.match(call.messages[0].content, /untrusted DATA/);
+        assert.ok(
+          call.messages.some((m: any) => m.content?.includes(instructions)),
+        );
+        for (let sibling = 0; sibling < 3; sibling++)
+          if (sibling !== index)
+            assert.ok(
+              !JSON.stringify(call.messages).includes(
+                `Unique role instruction ${sibling + 1}`,
+              ),
+            );
+      }
+    }
+    const restored = new JsonWorkspaceRepository(filename);
+    await restored.initialize();
+    assert.deepEqual(
+      (await restored.read("fixture")).runs[0].teamPlan,
+      run.teamPlan,
+    );
+    for (const invalid of ["x".repeat(32001), "role\u0000instruction"])
+      assert.equal(
+        researchPlanSchema.safeParse({
+          ...plan,
+          agents: plan.agents.map((a) => ({ ...a, instructions: invalid })),
+        }).success,
+        false,
+      );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test("mixed evidence has collision-free IDs; web candidates alone are not citations; JSON reload preserves fields", async () => {

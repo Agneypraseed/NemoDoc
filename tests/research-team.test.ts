@@ -28,6 +28,19 @@ test("an edited team plan uses verified NemoClaw targets and runs its reviewer a
     const body = JSON.parse(String(init?.body));
     requested.push(body.model);
     const input = JSON.parse(body.messages[1].content);
+    const roleIndex = Number(input.assignment.split(" ").at(-1));
+    assert.ok(
+      body.messages.some((m: any) =>
+        m.content?.includes(`Unique runtime instruction ${roleIndex}`),
+      ),
+    );
+    for (let i = 0; i < 3; i++)
+      if (i !== roleIndex)
+        assert.ok(
+          !JSON.stringify(body.messages).includes(
+            `Unique runtime instruction ${i}`,
+          ),
+        );
     if (
       body.messages[0].content.includes("critical reviewer and final synthesis")
     ) {
@@ -69,6 +82,7 @@ test("an edited team plan uses verified NemoClaw targets and runs its reviewer a
           id: `role-${index}`,
           name: `Assigned role ${index}`,
           assignment: `Compare method ${index}`,
+          instructions: `# Runtime role\n\nUnique runtime instruction ${index}.\n`,
           role: index === 2 ? "reviewer" : "researcher",
           agentId: target.id,
         })),
@@ -80,6 +94,10 @@ test("an edited team plan uses verified NemoClaw targets and runs its reviewer a
     assert.equal(run.calls, 5);
     assert.equal(requested.at(-1), "openclaw/critical-review");
     assert.equal(run.researchTeam?.[0].name, "Assigned role 0");
+    assert.equal(
+      run.researchTeam?.[0].instructions,
+      "# Runtime role\n\nUnique runtime instruction 0.\n",
+    );
   } finally {
     await repo.close();
   }

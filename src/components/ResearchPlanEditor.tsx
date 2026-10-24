@@ -1,5 +1,6 @@
 import type { ResearchPlan } from "../workspace-types";
 import type { ResearchModelCatalog } from "../research-model-types";
+import { ResearchInstructions } from "./ResearchInstructions";
 
 export function ResearchPlanEditor({
   plan,
@@ -53,7 +54,7 @@ export function ResearchPlanEditor({
               : "Researcher"}
           </p>
           <label className="field-label">
-            Instructions
+            Task assignment
             <textarea
               aria-label={`Agent ${index + 1} assignment`}
               value={agent.assignment}
@@ -74,6 +75,11 @@ export function ResearchPlanEditor({
               }
             />
           </label>
+          <ResearchInstructions
+            name={agent.name}
+            content={agent.instructions ?? ""}
+            onChange={(instructions) => update(index, { instructions })}
+          />
           {route === "application" && (
             <>
               <label className="field-label">

@@ -17,6 +17,16 @@ Opening **Agent** starts on research. The optional runtime monitor remains under
 
 Research execution is read-only. Saving the result to Notes is a separate explicit action; research never applies proposals, sends mail or executes code. Search provider credentials stay in the server data directory, are masked in the UI and redacted from traces. Existing historical three-agent NemoClaw runs remain readable, and legacy API requests retain their original execution shape. Browser ZIP backups retain their existing format; server workspace/run persistence is separate.
 
+## Editable agent instructions
+
+In **Review team assignments**, each researcher and reviewer has its own **AGENTS.md instructions** editor. Import a `.md` file, edit or preview its Markdown, and download it for editing in your preferred editor or reuse in another plan. **Task assignment** describes this request; `AGENTS.md` describes the agent's approach, output format and limits. Files allow up to 32,000 characters. Starting the team saves an immutable copy with that run, available from each saved agent card. Imports change only the draft; they make no inference calls. Regenerating a plan replaces the draft, so download instructions you want to reuse first.
+
+This works with both the **NemoDoc** and **NemoClaw runtime** execution routes. Task-specific Markdown is sent only to its assigned agent, subject to NemoDoc's system instructions, citation requirements and enforced read-only tools. The planner cannot supply instruction files. Old runs without Markdown continue to work.
+
+For ongoing NemoClaw instructions, open **Agent settings → Instructions**, choose a runtime agent, and edit/import its `AGENTS.md` or `SOUL.md`. **Save AGENTS.md** or **Save SOUL.md** writes that agent's native workspace file; imported content remains a draft until saved. Runtime files apply to new sessions. These ongoing files are distinct from the task-specific snapshot above.
+
+See [agent architecture and SDK options](AGENT_ARCHITECTURE.md) for the current libraries, provider support and a proposed OpenAI Agents SDK migration.
+
 ## Try both workflows
 
 1. Save notes locally. In Agent choose documents and notes, then explicitly approve storing their extracted-text snapshots on this server. No original PDF/slide file is uploaded by this operation.
