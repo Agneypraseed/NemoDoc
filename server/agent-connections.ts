@@ -324,6 +324,29 @@ export class AgentConnectionStore {
       throw new Error("Save an API key for the agent model.");
     const url = c.baseUrl.replace(/\/$/, "") + "/chat/completions";
     const model = String((body as { model?: unknown })?.model ?? "");
+    if (
+      new URL(c.baseUrl).hostname === "api.openai.com" &&
+      body &&
+      typeof body === "object"
+    ) {
+      const request = { ...body } as Record<string, unknown>;
+      if (!Array.isArray(request.tools) || !request.tools.length)
+        delete request.tool_choice;
+      body = request;
+    }
+    if (
+      new URL(c.baseUrl).hostname === "api.openai.com" &&
+      /^gpt-5(?:[.-]|$)/.test(model) &&
+      body &&
+      typeof body === "object" &&
+      "max_tokens" in body
+    ) {
+      const { max_tokens, ...rest } = body as Record<string, unknown>;
+      body = {
+        ...rest,
+        max_completion_tokens: rest.max_completion_tokens ?? max_tokens,
+      };
+    }
     await notifyModelObserver(() =>
       observer?.onRequest?.({
         url,

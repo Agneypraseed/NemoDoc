@@ -17,6 +17,53 @@ const config = {
   baseUrl: "https://api.tokenfactory.nebius.com/v1",
   model: "nvidia/test-nemotron",
 };
+test("OpenAI GPT-5 agent requests use completion token limits without changing other providers", async () => {
+  const store = new AgentConnectionStore(new SettingsStore(config));
+  for (const [baseUrl, modelName, expectedField] of [
+    ["https://api.openai.com/v1", "gpt-5.4", "max_completion_tokens"],
+    ["https://api.openai.com/v1", "gpt-5.4-mini", "max_completion_tokens"],
+    ["https://api.openai.com/v1", "gpt-4.1", "max_tokens"],
+    ["https://api.tokenfactory.nebius.com/v1", config.model, "max_tokens"],
+  ]) {
+    const body = {
+      model: modelName,
+      messages: [],
+      max_tokens: 300,
+      tool_choice: "none",
+    };
+    let observed: unknown;
+    await store.modelJSON(
+      (async (_url, init) => {
+        const sent = JSON.parse(String(init?.body));
+        assert.equal(sent[expectedField], 300);
+        assert.equal(
+          sent[
+            expectedField === "max_tokens"
+              ? "max_completion_tokens"
+              : "max_tokens"
+          ],
+          undefined,
+        );
+        assert.deepEqual(observed, sent);
+        assert.equal(
+          sent.tool_choice,
+          baseUrl === "https://api.openai.com/v1" ? undefined : "none",
+        );
+        return Response.json({ choices: [{ message: { content: "ready" } }] });
+      }) as typeof fetch,
+      body,
+      undefined,
+      undefined,
+      {
+        onRequest: (request) => {
+          observed = request.body;
+        },
+      },
+      { baseUrl, model: modelName, apiKey: "test-key" },
+    );
+    assert.equal(body.max_tokens, 300);
+  }
+});
 const tool = (name: string, args: unknown) => ({
   content: null,
   tool_calls: [
