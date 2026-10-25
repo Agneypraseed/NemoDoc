@@ -48,7 +48,7 @@ for (const live of [false, true]) {
           live && env.NEBIUS_API_KEY
             ? env.NEBIUS_MODEL || "nvidia/Nemotron-3_5-Lightning"
             : live
-              ? env.NVIDIA_MODEL || "nvidia/nemotron-3-nano-30b-a3b"
+              ? env.NVIDIA_MODEL || "nvidia/nemotron-3.5-lightning-30b-a3b"
               : "nvidia/test-nemotron",
       },
       live && existsSync("data/settings.json")

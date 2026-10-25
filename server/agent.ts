@@ -113,22 +113,17 @@ const descriptions: Record<keyof typeof toolSchemas, string> = {
     "Create a NEW .md, .txt, .csv or .json file in this notebook's local agent workspace (64 KiB maximum). Never overwrites files. Supply supporting retrieved citationIds. In Markdown, every declared citation ID must appear inline beside a supported claim; a URL or numbered source list does not replace [IDs]. JSON must be valid JSON; its numeric arrays are data, with provenance in citationIds. Returns the saved file ID. Do not claim a write succeeded until this tool confirms it.",
 };
 
-const traceModelObserver = (
-  span: TraceSpanHandle,
-  gatewayTarget?: string,
-): ModelRequestObserver => ({
-  onRequest: ({ url, model, target, body, at }) =>
+const traceModelObserver = (span: TraceSpanHandle): ModelRequestObserver => ({
+  onRequest: ({ url, model, body, at }) =>
     span.event("model.request", {
       url,
       configuredModel: model,
-      gatewayTarget: target ?? gatewayTarget,
       request: body,
       requestedAt: at,
     }),
   onResponse: (response) =>
     span.event("model.response", {
       httpStatus: response.status,
-      gatewayTarget,
       requestId: response.requestId,
       responseId: response.responseId,
       returnedModel: response.returnedModel,
@@ -411,10 +406,6 @@ export class AgentWorker {
             schedule: task.schedule,
             repeatHours: task.repeatHours,
             connectionMode: task.connectionMode || "notebook",
-            gatewayTarget:
-              (task.connectionMode || "notebook") === "openclaw"
-                ? task.connection.model
-                : undefined,
             configuredModel: task.connection.model,
             sourceIds: task.sourceIds,
             toolAccess: run.toolAccess,
@@ -540,17 +531,13 @@ export class AgentWorker {
             max_tokens: 4096,
             ...(/nemotron/i.test(config.model) ? chatOptions(config) : {}),
           };
-          const gatewayTarget =
-            this.connections.value.model.mode === "openclaw"
-              ? config.model
-              : undefined;
           const modelSpan = await trace?.span(
             `Model call ${run.calls}`,
             "model_call",
             {
               parentSpanId: agentSpan?.spanId,
               attempt: run.calls,
-              attributes: { configuredModel: config.model, gatewayTarget },
+              attributes: { configuredModel: config.model },
             },
           );
           let raw: unknown;
@@ -561,10 +548,7 @@ export class AgentWorker {
                     this.fetcher,
                     body,
                     controller.signal,
-                    undefined,
-                    modelSpan
-                      ? traceModelObserver(modelSpan, gatewayTarget)
-                      : undefined,
+                    modelSpan ? traceModelObserver(modelSpan) : undefined,
                   )
                 : await providerJSON(
                     this.fetcher,
@@ -573,9 +557,7 @@ export class AgentWorker {
                     config,
                     controller.signal,
                     "chat",
-                    modelSpan
-                      ? traceModelObserver(modelSpan, gatewayTarget)
-                      : undefined,
+                    modelSpan ? traceModelObserver(modelSpan) : undefined,
                   );
           } catch (error) {
             await modelSpan?.finish("failed", {}, (error as Error).message);
@@ -583,7 +565,6 @@ export class AgentWorker {
           }
           await modelSpan?.finish("completed", {
             configuredModel: config.model,
-            gatewayTarget,
           });
           check();
           const result = responseSchema.parse(raw);
@@ -1205,16 +1186,14 @@ export function registerAgent(
       connections.flush();
       const config = connections.runtime();
       const fingerprint = JSON.stringify(connections.value.model);
-      const openclaw = connections.value.model.mode === "openclaw";
       const messages = [
         {
           role: "user",
-          content: openclaw
-            ? "Call connection_probe with ok=true. After its result arrives, reply with only the receipt value from that result."
-            : "Call connection_probe with ok=true. Do not answer in text.",
+          content:
+            "Call connection_probe with ok=true. After its result arrives, reply with only the receipt value from that result.",
         },
       ];
-      const signal = AbortSignal.timeout(openclaw ? 60000 : 30000);
+      const signal = AbortSignal.timeout(60000);
       const value = responseSchema.parse(
         await connections.modelJSON(
           fetcher,
@@ -1236,14 +1215,7 @@ export function registerAgent(
                 },
               },
             ],
-            ...(openclaw
-              ? {
-                  tool_choice: {
-                    type: "function",
-                    function: { name: "connection_probe" },
-                  },
-                }
-              : {}),
+            tool_choice: "auto",
             max_tokens: 1024,
           },
           signal,
@@ -1258,44 +1230,40 @@ export function registerAgent(
         );
       if (fingerprint !== JSON.stringify(connections.value.model))
         throw new Error("Connection changed during test. Test again.");
-      if (openclaw) {
-        if (value.choices[0].message.tool_calls?.length !== 1)
-          throw new Error(
-            "OpenClaw must return exactly the requested probe tool call.",
-          );
-        const receipt = randomUUID();
-        const continued = responseSchema.parse(
-          await connections.modelJSON(
-            fetcher,
-            {
-              model: config.model,
-              stream: false,
-              messages: [
-                ...messages,
-                { role: "assistant", ...value.choices[0].message },
-                {
-                  role: "tool",
-                  tool_call_id: call.id,
-                  content: JSON.stringify({ receipt }),
-                },
-              ],
-              tools: [],
-              tool_choice: "none",
-              max_tokens: 256,
-            },
-            signal,
-          ),
+      if (value.choices[0].message.tool_calls?.length !== 1)
+        throw new Error("The model must return exactly one probe tool call.");
+      const receipt = randomUUID();
+      const continued = responseSchema.parse(
+        await connections.modelJSON(
+          fetcher,
+          {
+            model: config.model,
+            stream: false,
+            messages: [
+              ...messages,
+              { role: "assistant", ...value.choices[0].message },
+              {
+                role: "tool",
+                tool_call_id: call.id,
+                content: JSON.stringify({ receipt }),
+              },
+            ],
+            tools: [],
+            tool_choice: "none",
+            max_tokens: 256,
+          },
+          signal,
+        ),
+      );
+      if (
+        continued.choices[0].message.tool_calls?.length ||
+        continued.choices[0].message.content?.trim() !== receipt
+      )
+        throw new Error(
+          "The model did not complete the tool-result round trip. Check its function-tool support.",
         );
-        if (
-          continued.choices[0].message.tool_calls?.length ||
-          continued.choices[0].message.content?.trim() !== receipt
-        )
-          throw new Error(
-            "OpenClaw did not complete the tool-result round trip. Check gateway version and client function-tool support.",
-          );
-        if (fingerprint !== JSON.stringify(connections.value.model))
-          throw new Error("Connection changed during test. Test again.");
-      }
+      if (fingerprint !== JSON.stringify(connections.value.model))
+        throw new Error("Connection changed during test. Test again.");
       connections.value.model.tested = true;
       connections.flush();
       res.json({ ok: true, model: config.model });

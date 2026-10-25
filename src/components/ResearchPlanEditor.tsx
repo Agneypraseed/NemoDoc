@@ -5,14 +5,10 @@ import { ResearchInstructions } from "./ResearchInstructions";
 export function ResearchPlanEditor({
   plan,
   onChange,
-  route,
-  targets,
   models,
 }: {
   plan: ResearchPlan;
   onChange: (plan: ResearchPlan) => void;
-  route: "application" | "nemoclaw";
-  targets: { id: string; model: string; verified: boolean }[];
   models?: ResearchModelCatalog;
 }) {
   const update = (
@@ -28,11 +24,7 @@ export function ResearchPlanEditor({
   return (
     <fieldset className="research-plan-editor">
       <legend>Review team assignments</legend>
-      <p className="agent-fine">
-        Instructions apply to this task.
-        {route === "nemoclaw" &&
-          " Edit AGENTS.md in Settings for ongoing instructions."}
-      </p>
+      <p className="agent-fine">Instructions apply to this task.</p>
       {plan.agents.map((agent, index) => (
         <article
           className="agent-form"
@@ -80,58 +72,37 @@ export function ResearchPlanEditor({
             content={agent.instructions ?? ""}
             onChange={(instructions) => update(index, { instructions })}
           />
-          {route === "application" && (
-            <>
-              <label className="field-label">
-                Assigned model
-                <select
-                  aria-label={`Agent ${index + 1} model`}
-                  value={agent.modelProfileId ?? "default"}
-                  onChange={(e) =>
-                    update(index, {
-                      modelProfileId: e.target.value,
-                      modelSelection: "manual",
-                      modelReason: "Selected manually in the reviewed plan.",
-                    })
-                  }
-                >
-                  {models?.profiles.map((p) => (
-                    <option key={p.id} value={p.id} disabled={!p.tested}>
-                      {p.name} · {p.model}
-                      {p.tested ? "" : " (test required)"}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <p className="agent-fine">
-                {agent.modelSelection === "manual"
-                  ? "Manual choice"
-                  : "Planner suggestion"}
-                {agent.modelReason
-                  ? ` · ${agent.modelReason}`
-                  : " · Uses the current agent connection"}
-              </p>
-            </>
-          )}
-          {route === "nemoclaw" && (
+          <>
             <label className="field-label">
-              Runtime agent
+              Assigned model
               <select
-                aria-label={`Agent ${index + 1} runtime`}
-                value={agent.agentId ?? ""}
-                onChange={(e) => update(index, { agentId: e.target.value })}
+                aria-label={`Agent ${index + 1} model`}
+                value={agent.modelProfileId ?? "default"}
+                onChange={(e) =>
+                  update(index, {
+                    modelProfileId: e.target.value,
+                    modelSelection: "manual",
+                    modelReason: "Selected manually in the reviewed plan.",
+                  })
+                }
               >
-                <option value="">Choose verified agent</option>
-                {targets
-                  .filter((t) => t.verified)
-                  .map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.id} · {t.model}
-                    </option>
-                  ))}
+                {models?.profiles.map((p) => (
+                  <option key={p.id} value={p.id} disabled={!p.tested}>
+                    {p.name} · {p.model}
+                    {p.tested ? "" : " (test required)"}
+                  </option>
+                ))}
               </select>
             </label>
-          )}
+            <p className="agent-fine">
+              {agent.modelSelection === "manual"
+                ? "Manual choice"
+                : "Planner suggestion"}
+              {agent.modelReason
+                ? ` · ${agent.modelReason}`
+                : " · Uses the current agent connection"}
+            </p>
+          </>
           {agent.role !== "reviewer" && (
             <button
               type="button"

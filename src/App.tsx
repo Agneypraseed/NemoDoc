@@ -63,7 +63,6 @@ import { searchableNotes } from "./lib/search-notes";
 import { passageAction, passageTitle } from "./lib/passage-label";
 import { StudyStudio } from "./components/StudyStudio";
 import { AgentPanel } from "./components/AgentPanel";
-import type { AgentRoleDrafts } from "./agent-config-types";
 import type {
   AIStatus,
   Annotation,
@@ -236,17 +235,6 @@ function SavedAnswerCard({
 }
 
 export default function App() {
-  const agentRoleDrafts = useRef<AgentRoleDrafts>(new Map());
-  useEffect(() => {
-    const warn = (event: BeforeUnloadEvent) => {
-      if (agentRoleDrafts.current.size) {
-        event.preventDefault();
-        event.returnValue = "";
-      }
-    };
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, []);
   const { theme, setTheme } = useAppearance();
   const [compactLayout, setCompactLayout] = useState(
     () => window.matchMedia("(max-width: 960px)").matches,
@@ -300,7 +288,7 @@ export default function App() {
     [tab, setTab] = useState<"chat" | "notes" | "studio" | "agent">("chat");
   const [status, setStatus] = useState<AIStatus>({
     configured: false,
-    model: "nvidia/nemotron-3-nano-30b-a3b",
+    model: "nvidia/nemotron-3.5-lightning-30b-a3b",
     local: false,
   });
   const [settingsSection, setSettingsSection] = useState<"general" | "search">(
@@ -2210,7 +2198,6 @@ export default function App() {
           >
             {tab === "agent" ? (
               <AgentPanel
-                roleDrafts={agentRoleDrafts.current}
                 key={activeId}
                 notebookId={activeId}
                 notebookTitle={notebook?.title || "Notebook"}

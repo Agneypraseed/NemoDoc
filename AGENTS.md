@@ -30,4 +30,4 @@ NemoDoc is a local notebook for PDFs and lecture slides with source-grounded Nem
 ## Verification
 
 - `npm run lint` enforces browser/server and shared-contract import boundaries; `npm run verify` runs the local static, unit/API and build checks.
-- For agent UI journeys, use [.cursor/skills/verify-nemodoc/SKILL.md](.cursor/skills/verify-nemodoc/SKILL.md). `npm run verify:agents` owns an isolated server and retains browser traces; fixture coverage is not proof of a live NemoClaw run.
+- For agent UI journeys, use [.cursor/skills/verify-nemodoc/SKILL.md](.cursor/skills/verify-nemodoc/SKILL.md). `npm run verify:agents` owns an isolated server and retains browser traces; fixture coverage is not proof of live provider behavior.

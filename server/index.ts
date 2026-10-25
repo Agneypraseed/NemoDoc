@@ -13,7 +13,7 @@ const app = createApp(
       : (process.env.NVIDIA_BASE_URL ?? "https://integrate.api.nvidia.com/v1"),
     model: process.env.NEBIUS_API_KEY
       ? process.env.NEBIUS_MODEL || "nvidia/Nemotron-3_5-Lightning"
-      : (process.env.NVIDIA_MODEL ?? "nvidia/nemotron-3-nano-30b-a3b"),
+      : (process.env.NVIDIA_MODEL ?? "nvidia/nemotron-3.5-lightning-30b-a3b"),
   },
   fetch,
   {
@@ -23,10 +23,7 @@ const app = createApp(
     databaseUrl: process.env.DATABASE_URL,
     readDatabaseUrl: process.env.AGENT_READ_DATABASE_URL,
     startWorkspaceWorker: true,
-    nemoclawSandbox: process.env.NEMODOC_NEMOCLAW_SANDBOX || "nemodoc",
     traceSpoolFile: path.resolve(dataDirectory, "agent-traces.jsonl"),
-    nvidiaModel:
-      process.env.NVIDIA_MODEL || "nvidia/nemotron-3-nano-30b-a3b",
   },
 );
 if (existsSync("dist/index.html")) {

@@ -6,13 +6,13 @@ NemoDoc uses the **OpenAI Agents SDK for TypeScript** (`@openai/agents`) for res
 
 `server/agent-runner.ts` creates SDK `Agent` instances with explicit instructions, `FunctionTool` definitions and a model adapter. SDK `Runner` owns the model/tool loop, tool dispatch and conversation history. Local tools execute serially within each agent; separate researchers can run concurrently. Only domain validation (such as citation repair) can request another SDK run, using the same cumulative call budget. Validated proposal tools can finish through SDK `toolUseBehavior` without another model call. Provider failures are not automatically retried.
 
-`server/workspace/service.ts` runs the planner and snapshots reviewed research teams. `application-research.ts` defines researcher/reviewer behavior, scoped tool handlers, source budgets and citation validation. `research-team.ts` retains the legacy three-agent gateway workflow using the same SDK runner. `worker.ts` owns evidence/proposal workflows, cancellation, deadlines and recovery; `server/agent.ts` supplies personal/scheduled tools, audited file access and delivery lifecycle. The application still controls the explicit researcher fan-out and reviewer fan-in. It does not ask a triage model to decide whether required stages should run.
+`server/workspace/service.ts` runs the planner and snapshots reviewed research teams. `application-research.ts` defines researcher/reviewer behavior, scoped tool handlers, source budgets and citation validation. `worker.ts` owns evidence/proposal workflows, cancellation, deadlines and recovery; `server/agent.ts` supplies personal/scheduled tools, audited file access and delivery lifecycle. The application controls the researcher fan-out and reviewer fan-in. Every model/tool turn uses the same SDK runner.
 
 The `NotebookModel` adapter implements the SDK's public `Model` interface for NemoDoc's text-and-function-call protocol. It maps SDK history to Chat Completions messages and maps provider outputs back to SDK items. `model-routing.ts` resolves each agent's tested model profile; `agent-connections.ts` retains its credential-scoped, revision-checked `fetch` transport. This preserves provider-specific request controls and redacted local request/response traces. The adapter deliberately accepts extracted text rather than original PDF/file uploads. Missing usage remains unknown in application records even though SDK accounting requires numeric fields.
 
 The SDK handles repeated tool-call IDs without replaying the tool. Duplicate IDs in one response are rejected before execution. Tests issuing separate actions use separate call IDs. Scoped read/write tools, permissions, citation checks, proposal review and delivery approvals remain server-enforced.
 
-The optional NemoClaw route sends SDK-controlled requests to verified `openclaw/<agent-id>` targets. OpenClaw owns native agent workspaces and ongoing `AGENTS.md`/`SOUL.md` files. NemoDoc's runtime configuration editor uses its native RPC interface. The SDK does not replace that sandbox or its policy enforcement. Existing runs, schedules, proposals and browser backups keep their format; interrupted work is not automatically replayed.
+Existing runs, schedules, proposals and browser backups keep their format; interrupted work is not automatically replayed. Saved legacy runtime connections are reset to the notebook connection on startup.
 
 ## Providers
 
@@ -25,7 +25,7 @@ Application-managed research already supports separate endpoint/model/key profil
 | Gemini compatibility API | `https://generativelanguage.googleapis.com/v1beta/openai` | Gemini API key |
 | Local compatible server  | Your loopback `/v1` endpoint                              | Optional       |
 
-Use an exact model ID available to your account and test the selected model. Compatibility varies for tool calling, structured output, reasoning controls, token limits and request parameters. The optional NemoClaw route configures provider credentials and allowed inference routes in NemoClaw itself.
+Use an exact model ID available to your account and test the selected model. Compatibility varies for tool calling, structured output, reasoning controls, token limits and request parameters.
 
 References: [NVIDIA LLM API](https://docs.api.nvidia.com/nim/reference/llm-apis), [Gemini OpenAI compatibility](https://ai.google.dev/gemini-api/docs/openai).
 
@@ -43,6 +43,6 @@ SDK remote tracing is disabled on every NemoDoc `Runner`, and sensitive-data tra
 
 ## Verification
 
-Run `npm run verify` for boundaries, TypeScript, unit/API regressions and the build. `tests/agent-runner.test.ts` exercises actual SDK execution, tool/result history, citation repair, serial effects, terminal proposal behavior, unknown-tool auditing, duplicate/repeated call IDs, cancellation, call caps and disabled remote tracing. Workflow tests use deterministic provider/gateway fixtures. Run `npm run verify:agents -- agent-configuration.spec.ts research-team.spec.ts agent.spec.ts autonomous-tools.spec.ts` for isolated browser journeys. These tests do not establish live model quality, native Gemini support or NemoClaw containment; live tests remain opt-in.
+Run `npm run verify` for boundaries, TypeScript, unit/API regressions and the build. `tests/agent-runner.test.ts` exercises actual SDK execution, tool/result history, citation repair, serial effects, terminal proposal behavior, unknown-tool auditing, duplicate/repeated call IDs, cancellation, call caps and disabled remote tracing. Workflow tests use deterministic provider fixtures. Run `npm run verify:agents -- research-team.spec.ts agent.spec.ts autonomous-tools.spec.ts` for isolated browser journeys. These tests do not establish live model quality; live tests remain opt-in.
 
 References: [TypeScript quickstart](https://openai.github.io/openai-agents-js/guides/quickstart/), [models](https://openai.github.io/openai-agents-js/guides/models/), [AI SDK adapter](https://openai.github.io/openai-agents-js/extensions/ai-sdk/).

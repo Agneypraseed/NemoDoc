@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { roleContent } from "../agent-config-types";
+import { roleContent } from "../role-content";
 
 export function MarkdownFileInput({
   name = "AGENTS.md",

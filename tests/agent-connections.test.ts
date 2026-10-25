@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createApp } from "../server/app.ts";
@@ -53,7 +53,6 @@ test("OpenAI GPT-5 agent requests use completion token limits without changing o
       }) as typeof fetch,
       body,
       undefined,
-      undefined,
       {
         onRequest: (request) => {
           observed = request.body;
@@ -62,6 +61,33 @@ test("OpenAI GPT-5 agent requests use completion token limits without changing o
       { baseUrl, model: modelName, apiKey: "test-key" },
     );
     assert.equal(body.max_tokens, 300);
+  }
+});
+test("retired runtime connections reset to the notebook model and discard their gateway token", () => {
+  const directory = mkdtempSync(
+    path.join(tmpdir(), "nemodoc-retired-runtime-"),
+  );
+  const filename = path.join(directory, "connections.json");
+  try {
+    const previous = new AgentConnectionStore(
+      new SettingsStore(config),
+      filename,
+    );
+    (previous.value.model as { mode: string }).mode = "openclaw";
+    previous.value.model.model = "openclaw/nemodoc";
+    previous.value.model.apiKey = "private-gateway-token";
+    previous.flush();
+    const current = new AgentConnectionStore(
+      new SettingsStore(config),
+      filename,
+    );
+    assert.equal(current.public().model.mode, "notebook");
+    assert.equal(current.public().model.model, config.model);
+    assert.ok(
+      !readFileSync(filename, "utf8").includes("private-gateway-token"),
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
   }
 });
 const tool = (name: string, args: unknown) => ({
@@ -178,12 +204,18 @@ test("Gemma tool test gates tasks; notes alone provide scoped evidence without c
   const h = await harness((async (url, init) => {
     const body = JSON.parse(String(init?.body));
     requests.push({ url: String(url), body, headers: init?.headers });
-    if (body.tools[0].function.name === "connection_probe")
-      return reply(
-        probePass
-          ? tool("connection_probe", { ok: true })
-          : { content: "Connected, but no tool support" },
+    if (body.messages[0]?.content?.includes("connection_probe")) {
+      const result = body.messages.find(
+        (message: any) => message.role === "tool",
       );
+      return reply(
+        result
+          ? { content: JSON.parse(result.content).receipt }
+          : probePass
+            ? tool("connection_probe", { ok: true })
+            : { content: "Connected, but no tool support" },
+      );
+    }
     if (!body.messages.some((m: any) => m.role === "tool"))
       return reply(tool("search_sources", { query: "recall" }));
     return reply({ content: "Use spaced practice. [1]" });
@@ -236,51 +268,6 @@ test("Gemma tool test gates tasks; notes alone provide scoped evidence without c
       false,
     );
     assert.equal((await h.api("/api/agent/task", task)).status, 409);
-  } finally {
-    await h.close();
-  }
-});
-
-test("OpenClaw tasks use the dedicated agent and scoped note tools after a two-turn gateway test", async () => {
-  const requests: any[] = [];
-  const h = await harness((async (_url, init) => {
-    const body = JSON.parse(String(init?.body));
-    requests.push(body);
-    assert.equal(body.model, "openclaw/nemodoc");
-    assert.equal(
-      new Headers(init?.headers).get("Authorization"),
-      "Bearer gateway-fixture",
-    );
-    if (body.tools[0]?.function.name === "connection_probe")
-      return reply(tool("connection_probe", { ok: true }));
-    const result = body.messages.find((m: any) => m.role === "tool");
-    if (body.messages[0].content.includes("connection_probe"))
-      return reply({ content: JSON.parse(result.content).receipt });
-    return reply(
-      result
-        ? { content: "Use spaced practice. [1]" }
-        : tool("search_sources", { query: "recall" }),
-    );
-  }) as typeof fetch);
-  try {
-    await approve(h.api);
-    await h.api("/api/agent/connections", {
-      ...model,
-      mode: "openclaw",
-      baseUrl: "http://127.0.0.1:18789/v1",
-      model: "openclaw/nemodoc",
-      apiKey: "gateway-fixture",
-    });
-    assert.equal((await h.api("/api/agent/task", task)).status, 409);
-    assert.equal((await h.api("/api/agent/connections/test", {})).status, 200);
-    assert.equal((await h.api("/api/agent/task", task)).status, 200);
-    await h.app.locals.agent.tick(1);
-    const state = (await h.api("/api/agent")).data;
-    assert.equal(state.tasks[0].connectionMode, "openclaw");
-    assert.equal(state.runs[0].status, "completed");
-    assert.equal(state.runs[0].citations[0].sourceId, "notes:notebook");
-    assert.equal(requests.length, 4);
-    assert.equal(h.smtpMessages.length, 0);
   } finally {
     await h.close();
   }

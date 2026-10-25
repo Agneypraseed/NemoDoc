@@ -1,18 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
-import { AgentRuntimeMonitor } from "../server/agent-monitor.ts";
-import {
-  AgentConnectionStore,
-  connectionInput,
-} from "../server/agent-connections.ts";
-import { SettingsStore } from "../server/settings.ts";
 import { createApp } from "../server/app.ts";
-import {
-  runtimeRoster,
-  runtimeSessions,
-  runtimeReader,
-} from "./fixtures/agent-monitor.ts";
 import { snapshot, selected } from "./fixtures/evidence-workspace.ts";
 import { PostgresWorkspaceRepository } from "../server/workspace/repository.ts";
 
@@ -21,226 +10,11 @@ const config = {
   baseUrl: "https://api.tokenfactory.nebius.com/v1",
   model: "nvidia/test-nemotron",
 };
-const connections = () => new AgentConnectionStore(new SettingsStore(config));
 const noFetch = (async () => {
   throw new Error("Monitoring must not invoke inference");
 }) as typeof fetch;
-
-test("native monitoring reads only the roster and bounded session RPC, stripping paths, transcripts and hidden sessions", async () => {
-  const calls: string[][] = [];
-  const monitor = new AgentRuntimeMonitor(
-    connections(),
-    noFetch,
-    "nemodoc",
-    async (args) => {
-      calls.push(args);
-      return JSON.stringify(
-        args.includes("agents")
-          ? runtimeRoster
-          : {
-              ...runtimeSessions,
-              sessions: [
-                ...runtimeSessions.sessions,
-                {
-                  key: "agent:nemodoc:stale",
-                  status: "running",
-                  hasActiveRun: false,
-                },
-                { key: "agent:nemodoc:unknown", updatedAt: Date.now() },
-                {
-                  key: "agent:nemodoc:nemoclaw-onboard-warmup-hidden",
-                  status: "done",
-                },
-                { key: "agent:foreign:other", status: "running" },
-                { key: "global:secret", status: "running" },
-              ],
-            },
-      );
-    },
-  );
-  const result = await monitor.snapshot();
-  assert.equal(result.status, "connected");
-  assert.equal(result.agents.length, 3);
-  assert.equal(result.agents[0].name, "Study partner");
-  assert.deepEqual(
-    result.activity.map((row) => row.status),
-    ["running", "waiting", "failed", "unknown", "unknown"],
-  );
-  assert.equal(
-    result.activity[0].summary,
-    "Reading selected notes and checking citations",
-  );
-  assert.doesNotMatch(
-    JSON.stringify(result),
-    /private-path|apiKey|never-return|warmup|private gateway diagnostic|agent:nemodoc:study/,
-  );
-  assert.deepEqual(calls[0], ["nemodoc", "agents", "list", "--json"]);
-  assert.deepEqual(calls[1].slice(0, 7), [
-    "nemodoc",
-    "exec",
-    "--",
-    "openclaw",
-    "gateway",
-    "call",
-    "sessions.list",
-  ]);
-  assert.deepEqual(JSON.parse(calls[1][8]), {
-    limit: 100,
-    includeGlobal: false,
-    includeUnknown: false,
-    includeDerivedTitles: false,
-    includeLastMessage: false,
-  });
-  await monitor.snapshot();
-  assert.equal(calls.length, 2, "polls within five seconds reuse the snapshot");
-});
-
-test("concurrent monitor polls share native reads and unknown failures never become an idle status", async () => {
-  let release!: () => void;
-  const gate = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  let calls = 0;
-  const monitor = new AgentRuntimeMonitor(
-    connections(),
-    noFetch,
-    "nemodoc",
-    async (args) => {
-      calls++;
-      await gate;
-      if (!args.includes("agents")) throw new Error("secret diagnostic");
-      return JSON.stringify(runtimeRoster);
-    },
-  );
-  const a = monitor.snapshot(),
-    b = monitor.snapshot();
-  release();
-  const [one, two] = await Promise.all([a, b]);
-  assert.equal(one, two);
-  assert.equal(calls, 2);
-  assert.equal(one.status, "partial");
-  assert.equal(one.agents.length, 3);
-  assert.deepEqual(one.activity, []);
-  assert.doesNotMatch(one.message, /secret diagnostic/);
-});
-
-test("native failure replaces previous running data on the next poll", async (t) => {
-  let now = Date.now(),
-    fail = false;
-  t.mock.method(Date, "now", () => now);
-  const monitor = new AgentRuntimeMonitor(
-    connections(),
-    noFetch,
-    "nemodoc",
-    async (args) => {
-      if (fail) throw new Error("private failure");
-      return runtimeReader(args);
-    },
-  );
-  assert.equal((await monitor.snapshot()).activity[0].status, "running");
-  fail = true;
-  now += 5001;
-  const snapshot = await monitor.snapshot();
-  assert.equal(snapshot.status, "unavailable");
-  assert.deepEqual(snapshot.activity, []);
-  assert.deepEqual(snapshot.agents, []);
-});
-
-test("remote gateway inventory uses the saved bearer token but never claims live activity", async () => {
-  const store = connections();
-  store.save(
-    connectionInput.parse({
-      section: "model",
-      mode: "openclaw",
-      baseUrl: "https://runtime.example.com/v1",
-      model: "openclaw/nemodoc",
-      apiKey: "gateway-fixture",
-    }),
-  );
-  let calls = 0;
-  const fetcher = (async (url, init) => {
-    calls++;
-    assert.equal(url, "https://runtime.example.com/v1/models");
-    assert.equal(
-      new Headers(init?.headers).get("Authorization"),
-      "Bearer gateway-fixture",
-    );
-    assert.equal(init?.redirect, "error");
-    assert.equal(init?.body, undefined);
-    return Response.json({
-      data: [
-        { id: "openclaw/nemodoc" },
-        { id: "openclaw/research" },
-        { id: "openclaw/research" },
-        { id: "nvidia/a-model" },
-      ],
-    });
-  }) as typeof fetch;
-  const monitor = new AgentRuntimeMonitor(store, fetcher);
-  const result = await monitor.snapshot();
-  assert.equal(result.status, "partial");
-  assert.equal(result.source, "gateway");
-  assert.deepEqual(
-    result.agents.map((a) => a.id),
-    ["nemodoc", "research"],
-  );
-  assert.deepEqual(result.activity, []);
-  assert.equal(calls, 1);
-  store.save(
-    connectionInput.parse({
-      section: "model",
-      mode: "openclaw",
-      baseUrl: "https://runtime.example.com/v1",
-      model: "openclaw/nemodoc",
-      clearApiKey: true,
-    }),
-  );
-  assert.equal((await monitor.snapshot()).status, "not_configured");
-  assert.equal(
-    calls,
-    1,
-    "a cleared token must invalidate the cached roster and prevent requests",
-  );
-});
-
-test("invalid sandbox arguments and malformed output do not dispatch arbitrary commands or invent agents", async () => {
-  let calls = 0;
-  const reader = async () => {
-    calls++;
-    return "not JSON: secret diagnostics";
-  };
-  assert.equal(
-    (
-      await new AgentRuntimeMonitor(
-        connections(),
-        noFetch,
-        "name; touch /tmp/injected",
-        reader,
-      ).snapshot()
-    ).status,
-    "unavailable",
-  );
-  assert.equal(calls, 0);
-  const failed = await new AgentRuntimeMonitor(
-    connections(),
-    noFetch,
-    "nemodoc",
-    reader,
-  ).snapshot();
-  assert.equal(failed.status, "unavailable");
-  assert.deepEqual(failed.agents, []);
-  assert.doesNotMatch(JSON.stringify(failed), /secret diagnostics/);
-});
-
 test("overview API keeps notebook runs scoped and strips credentials without loading approved PDF text", async (t) => {
-  const calls: string[][] = [];
-  const app = createApp(config, noFetch, {
-    nemoclawSandbox: "nemodoc",
-    nemoclawReader: async (args) => {
-      calls.push(args);
-      return runtimeReader(args);
-    },
-  });
+  const app = createApp(config, noFetch);
   await app.locals.workspace.ready;
   const worker = app.locals.agent;
   worker.connections.value.email.password = "smtp-fixture-secret";
@@ -252,7 +26,7 @@ test("overview API keeps notebook runs scoped and strips credentials without loa
     status: "running",
     startedAt: 10,
     answer: "Do not expose answer body",
-    connection: { baseUrl: config.baseUrl, model: "openclaw/nemodoc" },
+    connection: { baseUrl: config.baseUrl, model: config.model },
     steps: [
       { tool: "search_sources", summary: "Reading chosen notes", at: 12 },
     ],
@@ -289,7 +63,6 @@ test("overview API keeps notebook runs scoped and strips credentials without loa
     );
     assert.equal(response.headers.get("Cache-Control"), "no-store");
     const data = await response.json();
-    assert.equal(data.runtime.agents.length, 3);
     assert.equal(data.notebookActivity.length, 2);
     assert.equal(fullRead.mock.callCount(), 0);
     assert.ok(
@@ -306,9 +79,8 @@ test("overview API keeps notebook runs scoped and strips credentials without loa
     );
     assert.doesNotMatch(
       JSON.stringify(data),
-      /Foreign private|foreign-run|private prompt|answer body|smtp-fixture-secret|private-path|never-return/,
+      /Foreign private|foreign-run|private prompt|answer body|smtp-fixture-secret/,
     );
-    assert.ok(calls.every((args) => args[0] === "nemodoc"));
   } finally {
     worker.stop();
     server.closeAllConnections();

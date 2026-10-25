@@ -50,7 +50,7 @@ Web queries go to the search provider. Retrieved file/page text, task context an
 
 For a paid live run, explicitly set `NEMODOC_AUTONOMOUS_LIVE=1` and run the same browser command. It reads only the saved model configuration (or `.env` Nemotron defaults) and `TAVILY_API_KEY` from ignored `data/autonomous-live.env`. Keep keys out of commands and Git. Setup saves/tests Tavily in a separate verification workspace. The input is a public synthetic brief; the ordinary worker chooses real tool calls, with no mocked model responses or tool results. Evidence stays under `output/autonomous-live-*` and `output/verification/`.
 
-The README screenshot is captured from the live UI. Security tests separately cover denied tools, out-of-scope IDs, invalid arguments, traversal, links, citation integrity, changed search settings and unavailable audit storage. A screenshot or live sample does not prove general factual accuracy or NemoClaw containment.
+The README screenshot is captured from the live UI. Security tests separately cover denied tools, out-of-scope IDs, invalid arguments, traversal, links, citation integrity, changed search settings and unavailable audit storage. A screenshot or live sample does not prove general factual accuracy.
 
 ## Live record — 2026-10-23
 

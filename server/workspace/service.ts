@@ -53,16 +53,7 @@ const revisionOf = (s: WorkspaceState) =>
       }),
     )
     .digest("hex");
-const availableModel = (targets: RuntimeResearchTarget[], id: string) =>
-  targets.find((target) => target.id === id)!.model;
-
 export class WorkspaceConflict extends Error {}
-export interface RuntimeResearchTarget {
-  id: string;
-  model: string;
-  fallbacks?: string[];
-}
-const modelProvider = (model: string) => model.split("/", 1)[0].toLowerCase();
 export const scopeId = z
   .string()
   .trim()
@@ -89,11 +80,6 @@ export class WorkspaceService {
   constructor(
     readonly repository: WorkspaceRepository,
     readonly connections: AgentConnectionStore,
-    private readonly listRuntimeAgentIds?: () => Promise<string[]>,
-    private readonly listRuntimeAgentTargets?: () => Promise<
-      RuntimeResearchTarget[]
-    >,
-    private readonly expectedNvidiaModel?: string,
     private readonly traces?: TraceStore,
     readonly web?: WebResearch,
     readonly models: ResearchModels = new ResearchModels(connections),
@@ -107,47 +93,6 @@ export class WorkspaceService {
       configurationRevision: createHash("sha256")
         .update(JSON.stringify(c))
         .digest("hex"),
-    };
-  }
-  async researchPrerequisites() {
-    const connection = this.connections.value.model;
-    const targets = (await this.listRuntimeAgentTargets?.()) ?? [];
-    const expectedModel = this.expectedNvidiaModel;
-    const expectedProvider = expectedModel
-      ? modelProvider(expectedModel)
-      : "nvidia";
-    const routed = (target: RuntimeResearchTarget) =>
-      !!target.model &&
-      (expectedModel
-        ? target.model === expectedModel &&
-          (target.fallbacks ?? []).every(
-            (fallback) => modelProvider(fallback) === expectedProvider,
-          )
-        : /^nvidia\//i.test(target.model) &&
-          (target.fallbacks ?? []).every((fallback) =>
-            /^nvidia\//i.test(fallback),
-          ));
-    const matching = targets.filter(routed);
-    const gatewayReady =
-      connection.mode === "openclaw" &&
-      connection.tested &&
-      !!connection.apiKey;
-    const available = gatewayReady && matching.length >= 3;
-    return {
-      available,
-      connectionMode: connection.mode,
-      gatewayTested: connection.tested,
-      configuredModel: expectedModel,
-      targets: targets.map((target) => ({
-        id: target.id,
-        model: target.model,
-        verified: routed(target),
-      })),
-      message: !gatewayReady
-        ? "Save and test the NemoClaw gateway connection. Its gateway token is separate from NVIDIA inference credentials."
-        : matching.length < 3
-          ? `The runtime must expose at least three agents configured for ${expectedModel || "an NVIDIA model"} with no fallback outside its NVIDIA provider route.`
-          : "Three or more NemoClaw agents use the configured NVIDIA model.",
     };
   }
   checkRun(state: WorkspaceState, run: WorkflowRun) {
@@ -279,10 +224,7 @@ export class WorkspaceService {
       throw new WorkspaceConflict("Choose the research team workflow.");
     const state = await this.repository.read(scopeId.parse(input.notebookId));
     const connection = this.connection();
-    const application =
-      input.executionRoute === "application" ||
-      (!input.executionRoute && connection.mode !== "openclaw");
-    const catalog = application ? this.models.catalog() : undefined;
+    const catalog = this.models.catalog();
     const planner = catalog
       ? this.models.snapshot(
           catalog.plannerProfileId,
@@ -417,7 +359,6 @@ export class WorkspaceService {
                 fetcher,
                 request,
                 signal,
-                undefined,
                 observer,
               ),
       });
@@ -521,20 +462,10 @@ export class WorkspaceService {
       throw new WorkspaceConflict(
         "Research options are available only for research teams.",
       );
-    const application =
-      input.workflow === "research_team" &&
-      input.executionRoute === "application";
-    if (application) {
+    if (input.workflow === "research_team") {
       if (!input.teamPlan)
         throw new WorkspaceConflict(
           "Generate and review a team plan before starting.",
-        );
-      if (
-        input.agentIds?.length ||
-        input.teamPlan.agents.some((a) => a.agentId)
-      )
-        throw new WorkspaceConflict(
-          "Application-managed agents do not use runtime agent IDs.",
         );
       if (
         input.teamPlan.routingRevision &&
@@ -545,80 +476,17 @@ export class WorkspaceService {
         );
       for (const agent of input.teamPlan.agents)
         this.models.resolve(agent.modelProfileId ?? "default");
-    } else if (input.teamPlan?.agents.some((a) => a.modelProfileId)) {
-      throw new WorkspaceConflict(
-        "Research model profiles apply to application-managed agents. NemoClaw uses its verified runtime assignments.",
-      );
     }
     if (input.webEnabled && (!this.web?.value.tested || !this.web.value.apiKey))
       throw new WorkspaceConflict(
         "Connect a search provider in Settings before enabling web research.",
       );
-    let researchTargets: RuntimeResearchTarget[] = [];
-    if (input.workflow === "research_team" && !application) {
-      if (
-        this.connections.value.model.mode !== "openclaw" ||
-        !this.connections.value.model.tested ||
-        !this.connections.value.model.apiKey
-      )
-        throw new WorkspaceConflict(
-          "Three-agent research requires a tested NemoClaw gateway connection and its separate gateway token. Direct model fallback is disabled.",
-        );
-      const assigned =
-        input.teamPlan?.agents.map((a) => a.agentId || "") ?? input.agentIds;
-      if (
-        !assigned ||
-        assigned.some((id) => !id) ||
-        new Set(assigned).size !== assigned.length
-      )
-        throw new WorkspaceConflict(
-          "Assign three different NemoClaw agents to this research run.",
-        );
-      researchTargets = (await this.listRuntimeAgentTargets?.()) ?? [];
-      const available = new Map(
-        researchTargets.map((target) => [target.id, target]),
-      );
-      if (assigned.some((id) => !available.has(id)))
-        throw new WorkspaceConflict(
-          "One or more assigned agents are no longer in the connected runtime. Refresh the agent list and assign the three researchers again.",
-        );
-      if (!this.listRuntimeAgentTargets || researchTargets.length === 0)
-        throw new WorkspaceConflict(
-          "NemoClaw agent model routes could not be verified on this host. Start NemoClaw and reload its agent configuration before dispatch.",
-        );
-      const expected = this.expectedNvidiaModel;
-      const expectedProvider = expected ? modelProvider(expected) : "nvidia";
-      const invalid = assigned.filter((id) => {
-        const target = available.get(id);
-        const model = target?.model;
-        const fallbacks = target?.fallbacks ?? [];
-        return (
-          !model ||
-          (expected
-            ? model !== expected ||
-              fallbacks.some(
-                (fallback) => modelProvider(fallback) !== expectedProvider,
-              )
-            : !/^nvidia\//i.test(model) ||
-              fallbacks.some((fallback) => !/^nvidia\//i.test(fallback)))
-        );
-      });
-      if (invalid.length)
-        throw new WorkspaceConflict(
-          `Assign three agents configured for the verified NVIDIA model${expected ? ` ${expected}` : ""} and NVIDIA-only fallback routes. Unverified targets: ${invalid.join(", ")}.`,
-        );
-    } else if (input.agentIds?.length) {
-      throw new WorkspaceConflict(
-        "Runtime agent assignments are available only through an OpenClaw connection.",
-      );
-    }
     const run = await this.repository.transaction(
       scopeId.parse(input.notebookId),
       (s) => {
         if (!s.revision)
           throw new WorkspaceConflict("Approve the workspace first.");
         if (
-          application &&
           input.teamPlan?.routingRevision &&
           input.teamPlan.routingRevision !== this.models.revision()
         )
@@ -670,7 +538,7 @@ export class WorkspaceService {
           steps: [],
           citations: [],
           evidence: [],
-          ...(application && input.teamPlan?.plannerProfileId
+          ...(input.teamPlan?.plannerProfileId
             ? {
                 plannerModel: this.models.snapshot(
                   input.teamPlan.plannerProfileId,
@@ -688,98 +556,29 @@ export class WorkspaceService {
           ...(input.workflow === "research_team"
             ? {
                 stage: "queued" as const,
-                researchTeam: input.teamPlan
-                  ? input.teamPlan.agents.map((a) => ({
-                      id: a.id,
-                      name: a.name,
-                      focus: a.assignment,
-                      ...(a.instructions !== undefined
-                        ? { instructions: a.instructions }
-                        : {}),
-                      role: a.role,
-                      agentId: a.agentId,
-                      assignedModel: application
-                        ? this.models.resolve(a.modelProfileId ?? "default")
-                            .model
-                        : availableModel(researchTargets, a.agentId!),
-                      ...(application
-                        ? {
-                            modelRoute: this.models.snapshot(
-                              a.modelProfileId ?? "default",
-                              a.modelSelection ?? "default",
-                              a.modelReason ||
-                                (a.modelProfileId
-                                  ? "Selected in the reviewed plan."
-                                  : "Uses the current agent connection."),
-                            ),
-                          }
-                        : {}),
-                      status: "queued" as const,
-                      stage: "queued" as const,
-                      citationIds: [],
-                    }))
-                  : [
-                      {
-                        id: "foundations",
-                        name: "Foundations researcher",
-                        focus:
-                          "Definitions, mathematics, and source-grounded foundations",
-                        ...(input.agentIds?.[0]
-                          ? { agentId: input.agentIds[0] }
-                          : {}),
-                        ...(input.agentIds?.[0]
-                          ? {
-                              assignedModel: availableModel(
-                                researchTargets,
-                                input.agentIds[0],
-                              ),
-                            }
-                          : {}),
-                        status: "queued" as const,
-                        stage: "queued" as const,
-                        citationIds: [],
-                      },
-                      {
-                        id: "neural-networks",
-                        name: "Comparison researcher",
-                        focus:
-                          "Compare methods, findings and their supporting evidence",
-                        ...(input.agentIds?.[1]
-                          ? { agentId: input.agentIds[1] }
-                          : {}),
-                        ...(input.agentIds?.[1]
-                          ? {
-                              assignedModel: availableModel(
-                                researchTargets,
-                                input.agentIds[1],
-                              ),
-                            }
-                          : {}),
-                        status: "queued" as const,
-                        stage: "queued" as const,
-                        citationIds: [],
-                      },
-                      {
-                        id: "critical-review",
-                        name: "Critical reviewer",
-                        focus:
-                          "Applications, assumptions, and limits of the evidence",
-                        ...(input.agentIds?.[2]
-                          ? { agentId: input.agentIds[2] }
-                          : {}),
-                        ...(input.agentIds?.[2]
-                          ? {
-                              assignedModel: availableModel(
-                                researchTargets,
-                                input.agentIds[2],
-                              ),
-                            }
-                          : {}),
-                        status: "queued" as const,
-                        stage: "queued" as const,
-                        citationIds: [],
-                      },
-                    ],
+                researchTeam: input.teamPlan!.agents.map((a) => ({
+                  id: a.id,
+                  name: a.name,
+                  focus: a.assignment,
+                  ...(a.instructions !== undefined
+                    ? { instructions: a.instructions }
+                    : {}),
+                  role: a.role,
+                  assignedModel: this.models.resolve(
+                    a.modelProfileId ?? "default",
+                  ).model,
+                  modelRoute: this.models.snapshot(
+                    a.modelProfileId ?? "default",
+                    a.modelSelection ?? "default",
+                    a.modelReason ||
+                      (a.modelProfileId
+                        ? "Selected in the reviewed plan."
+                        : "Uses the current agent connection."),
+                  ),
+                  status: "queued" as const,
+                  stage: "queued" as const,
+                  citationIds: [],
+                })),
               }
             : {}),
         };
@@ -808,10 +607,8 @@ export class WorkspaceService {
         plannerModel: run.plannerModel,
         planningTraceId: run.teamPlan?.planningTraceId,
         connectionMode: run.connection.mode,
-        gatewayTarget: run.connection.model,
-        configuredModel: this.expectedNvidiaModel,
         assignedAgents: run.researchTeam?.map((agent) => ({
-          id: agent.agentId ?? agent.id,
+          id: agent.id,
           model: agent.assignedModel,
           modelRoute: agent.modelRoute,
         })),

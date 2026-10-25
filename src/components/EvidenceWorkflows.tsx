@@ -64,14 +64,6 @@ const stageLabels: Record<string, string> = {
   failed: "Failed",
   interrupted: "Interrupted",
 };
-type ResearchPrerequisites = {
-  available: boolean;
-  connectionMode: string;
-  gatewayTested: boolean;
-  configuredModel?: string;
-  targets: { id: string; model: string; verified: boolean }[];
-  message: string;
-};
 const workflowNames = {
   study_revision: "Revision plan",
   research_synthesis: "Research synthesis",
@@ -123,15 +115,7 @@ export function EvidenceWorkflows({
   }, [focusRunId, state]);
   const [runStatusVisible, setRunStatusVisible] = useState(true);
   const [backend, setBackend] = useState("");
-  const [connection, setConnection] = useState<{
-    mode: string;
-    model: string;
-    tested: boolean;
-    runtimeRevision?: string;
-  }>();
-  const [runtimeMessage, setRuntimeMessage] = useState("");
   const [modelCatalog, setModelCatalog] = useState<ResearchModelCatalog>();
-  const [prerequisites, setPrerequisites] = useState<ResearchPrerequisites>();
   const [traces, setTraces] = useState<TraceSummary[]>([]);
   const [metrics, setMetrics] = useState<TraceMetrics>();
   const [selectedTraceId, setSelectedTraceId] = useState("");
@@ -147,9 +131,6 @@ export function EvidenceWorkflows({
   const [traceDetail, setTraceDetail] = useState<TraceDetail>();
   const [traceEvents, setTraceEvents] = useState<TraceEvent[]>([]);
   const [traceCursor, setTraceCursor] = useState(0);
-  const [executionRoute, setExecutionRoute] = useState<
-    "application" | "nemoclaw"
-  >("application");
   const [webEnabled, setWebEnabled] = useState(false);
   const [teamPlan, setTeamPlan] = useState<ResearchPlan>();
   const [planKey, setPlanKey] = useState("");
@@ -165,8 +146,7 @@ export function EvidenceWorkflows({
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   useEffect(() => {
-    if (workflow !== "research_team" || executionRoute !== "application")
-      return;
+    if (workflow !== "research_team") return;
     const controller = new AbortController();
     const update = () =>
       void apiJSON<ResearchModelCatalog>(
@@ -184,7 +164,7 @@ export function EvidenceWorkflows({
       clearInterval(timer);
       controller.abort();
     };
-  }, [workflow, executionRoute, notebookId]);
+  }, [workflow, notebookId]);
   const refresh = async () => {
     const next = await apiJSON<WorkspaceState>(
       `${root}/${encodeURIComponent(notebookId)}`,
@@ -229,40 +209,6 @@ export function EvidenceWorkflows({
       controller.abort();
     };
   }, [notebookId]);
-  useEffect(() => {
-    const controller = new AbortController();
-    void apiJSON<{ model: { mode: string; model: string; tested: boolean } }>(
-      "/api/agent/connections",
-      undefined,
-      controller.signal,
-    )
-      .then((value) => setConnection(value.model))
-      .catch(() => {});
-    return () => controller.abort();
-  }, [notebookId]);
-  useEffect(() => {
-    if (workflow !== "research_team" || executionRoute !== "nemoclaw") return;
-    const controller = new AbortController();
-    void apiJSON<ResearchPrerequisites>(
-      `${root}/research-prerequisites`,
-      undefined,
-      controller.signal,
-    )
-      .then((result) => {
-        setPrerequisites(result);
-        setRuntimeMessage(result.message);
-      })
-      .catch((e) => {
-        if (!controller.signal.aborted) setRuntimeMessage(e.message);
-      });
-    return () => controller.abort();
-  }, [
-    connection?.mode,
-    connection?.tested,
-    notebookId,
-    workflow,
-    executionRoute,
-  ]);
   useEffect(() => {
     const controller = new AbortController();
     const update = async () => {
@@ -385,30 +331,16 @@ export function EvidenceWorkflows({
     sourceIds,
     noteIds,
     webEnabled,
-    executionRoute,
     state?.revision,
-    connection?.mode,
-    connection?.model,
-    connection?.tested,
-    connection?.runtimeRevision,
-    executionRoute === "application" ? modelCatalog?.revision : undefined,
+    modelCatalog?.revision,
   ]);
   const validPlan = teamPlan && researchPlanSchema.safeParse(teamPlan).success;
-  const runtimeIds = teamPlan?.agents.map((a) => a.agentId) ?? [];
-  const routeReady =
-    executionRoute === "application"
-      ? teamPlan?.agents.every((a) =>
-          modelCatalog?.profiles.some(
-            (p) => p.id === (a.modelProfileId ?? "default") && p.tested,
-          ),
-        )
-      : connection?.mode === "openclaw" &&
-        connection.tested &&
-        runtimeIds.every(Boolean) &&
-        new Set(runtimeIds).size === runtimeIds.length &&
-        runtimeIds.every((id) =>
-          prerequisites?.targets.some((t) => t.id === id && t.verified),
-        );
+  const routeReady = teamPlan?.agents.every((agent) =>
+    modelCatalog?.profiles.some(
+      (profile) =>
+        profile.id === (agent.modelProfileId ?? "default") && profile.tested,
+    ),
+  );
   const researchReady =
     validPlan && reviewed && planKey === researchKey && routeReady;
   return (
@@ -569,26 +501,7 @@ export function EvidenceWorkflows({
                 before it starts.
               </p>
               <details className="research-options">
-                <summary>Execution settings</summary>
-                <label className="field-label">
-                  Execution route
-                  <select
-                    aria-label="Research execution route"
-                    value={executionRoute}
-                    onChange={(e) => {
-                      setExecutionRoute(
-                        e.target.value as "application" | "nemoclaw",
-                      );
-                      setTeamPlan(undefined);
-                      setReviewed(false);
-                    }}
-                  >
-                    <option value="application">
-                      NemoDoc · application-managed
-                    </option>
-                    <option value="nemoclaw">NemoClaw runtime</option>
-                  </select>
-                </label>
+                <summary>Research models</summary>
                 <button
                   type="button"
                   className="text-button"
@@ -609,22 +522,6 @@ export function EvidenceWorkflows({
                 <p className="agent-fine">
                   Queries based on your selected sources are sent to your search
                   provider.
-                </p>
-              )}
-              {executionRoute === "application" &&
-                connection?.mode === "openclaw" &&
-                !modelCatalog?.profiles.some(
-                  (p) => p.id !== "default" && p.tested,
-                ) && (
-                  <p role="status">
-                    Configure and test research model profiles in Connections,
-                    or choose a notebook/custom connection for
-                    application-managed research.
-                  </p>
-                )}
-              {executionRoute === "nemoclaw" && (
-                <p role="status">
-                  {runtimeMessage || "Checking NemoClaw routes…"}
                 </p>
               )}
             </>
@@ -686,10 +583,9 @@ export function EvidenceWorkflows({
                   busy ||
                   !prompt.trim() ||
                   (!sourceIds.length && !webEnabled) ||
-                  (executionRoute === "application" &&
-                    !modelCatalog?.profiles.some(
-                      (p) => p.id === modelCatalog.plannerProfileId && p.tested,
-                    ))
+                  !modelCatalog?.profiles.some(
+                    (p) => p.id === modelCatalog.plannerProfileId && p.tested,
+                  )
                 }
                 onClick={() =>
                   void act(async () => {
@@ -703,7 +599,7 @@ export function EvidenceWorkflows({
                         sourceIds,
                         noteIds,
                         webEnabled,
-                        executionRoute,
+                        executionRoute: "application",
                       },
                     );
                     setTeamPlan(plan);
@@ -717,8 +613,6 @@ export function EvidenceWorkflows({
               {teamPlan && (
                 <ResearchPlanEditor
                   plan={teamPlan}
-                  route={executionRoute}
-                  targets={prerequisites?.targets ?? []}
                   models={modelCatalog}
                   onChange={(plan) => {
                     setTeamPlan(plan);
@@ -769,7 +663,7 @@ export function EvidenceWorkflows({
                   noteIds,
                   includeProgress: progress,
                   ...(workflow === "research_team"
-                    ? { executionRoute, teamPlan, webEnabled }
+                    ? { executionRoute: "application", teamPlan, webEnabled }
                     : {}),
                 });
                 setSelectedTraceId(queued.traceId ?? queued.id);
@@ -857,7 +751,6 @@ export function EvidenceWorkflows({
                   onClick={() => {
                     setWorkflow("research_team");
                     setPrompt(run.prompt);
-                    setExecutionRoute(run.executionRoute ?? "nemoclaw");
                     setWebEnabled(!!run.webEnabled);
                     setSources(
                       run.sourceIds.filter((id) =>
@@ -1384,10 +1277,7 @@ function ResearchTeamRun({
               <details className="research-agent-details">
                 <summary>Model & usage</summary>
                 <p className="research-agent-runtime">
-                  {run.executionRoute === "application"
-                    ? "Application agent"
-                    : "Runtime agent"}
-                  : <code>{agent.agentId || agent.id}</code>
+                  Agent: <code>{agent.id}</code>
                   <br />
                   Model: <code>{agent.assignedModel || "Unverified"}</code>
                   {agent.modelRoute && (

@@ -261,7 +261,7 @@ export class WebResearch {
       provider === "exa"
         ? { query, numResults: 5, type: "auto" }
         : provider === "firecrawl"
-          ? { query, limit: 5, sources: ["web"] }
+          ? { query, limit: 5, sources: [{ type: "web" }] }
           : {
               query,
               max_results: 5,

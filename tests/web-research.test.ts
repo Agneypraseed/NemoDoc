@@ -84,6 +84,20 @@ for (const provider of webProvider.options) {
       provider === "exa" ? "private-key" : "Bearer private-key",
     );
     assert.deepEqual(
+      search.body,
+      provider === "exa"
+        ? { query: "NVIDIA research", numResults: 5, type: "auto" }
+        : provider === "firecrawl"
+          ? { query: "NVIDIA research", limit: 5, sources: [{ type: "web" }] }
+          : {
+              query: "NVIDIA research",
+              max_results: 5,
+              search_depth: "basic",
+              include_answer: false,
+              include_raw_content: false,
+            },
+    );
+    assert.deepEqual(
       read.body,
       provider === "exa"
         ? { urls: [url], text: true }

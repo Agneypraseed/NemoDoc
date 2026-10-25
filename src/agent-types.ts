@@ -86,7 +86,7 @@ export type AgentTask = z.infer<typeof taskInput> & {
   status: "active" | "paused" | "done" | "cancelled";
   connection: { baseUrl: string; model: string };
   createdAt: number;
-  connectionMode?: "notebook" | "custom" | "openclaw";
+  connectionMode?: "notebook" | "custom";
   manualRun?: boolean;
   deliveries?: DeliveryTarget[];
 };
@@ -165,7 +165,7 @@ export interface AgentDelivery extends DeliveryTarget {
 }
 export interface AgentConnections {
   model: {
-    mode: "notebook" | "custom" | "openclaw";
+    mode: "notebook" | "custom";
     baseUrl: string;
     model: string;
     hasApiKey: boolean;

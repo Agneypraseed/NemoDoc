@@ -15,7 +15,6 @@
     "check": "tsc -b",
     "test": "tsx --test tests/*.test.ts",
     "test:e2e": "playwright test",
-    "agent:preflight": "node scripts/agent-preflight.mjs",
     "test:postgres": "tsx --test tests/postgres.integration.ts",
     "test:mml:stress": "tsx --test tests/mml-stress.integration.ts",
     "eval:mml": "tsx scripts/evaluate-mml.ts",

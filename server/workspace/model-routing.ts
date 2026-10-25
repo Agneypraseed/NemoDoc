@@ -91,7 +91,6 @@ export class ResearchModels {
       costTier: "unspecified" as const,
       strengths: "The existing notebook or custom agent model.",
       tested:
-        this.connections.value.model.mode !== "openclaw" &&
         (this.connections.value.model.mode === "notebook" ||
           this.connections.value.model.tested) &&
         (!!c.apiKey || isLocal(c.baseUrl)),
@@ -218,7 +217,6 @@ export class ResearchModels {
       fetcher,
       { ...body, ...chatOptions(p), model: p.model },
       signal,
-      undefined,
       observer,
       p,
     );
@@ -267,7 +265,6 @@ export class ResearchModels {
             ...body,
           },
           signal,
-          undefined,
           undefined,
           saved,
         ),

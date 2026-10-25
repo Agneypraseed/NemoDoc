@@ -5,7 +5,6 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { PDFDocument, StandardFonts } from "pdf-lib";
-import type { NemoClawReader } from "../../server/agent-monitor.ts";
 
 const modelId = "nvidia/test-nemotron";
 const webURL = "https://93.184.216.34/research";
@@ -31,11 +30,6 @@ const assignments = {
     },
   ],
 };
-const roster = [
-  { id: "foundations", name: "Foundations researcher", model: modelId },
-  { id: "neural-networks", name: "Neural networks researcher", model: modelId },
-  { id: "critical-review", name: "Critical reviewer", model: modelId },
-];
 
 function modelResponse(message: unknown, model = modelId) {
   return new Response(
@@ -71,34 +65,6 @@ for (const multiModel of [false, true]) {
       { x: 45, y: 720, size: 12, font, maxWidth: 500 },
     );
     writeFileSync(pdfPath, await pdf.save());
-
-    const agentRows = roster.map((agent) => ({
-      id: agent.id,
-      name: agent.name,
-      identity: { name: agent.name },
-      model: { primary: modelId, fallbacks: [] },
-    }));
-    const nativeReader: NemoClawReader = async (args) => {
-      if (args[1] === "agents" && args[2] === "list")
-        return JSON.stringify(roster);
-      if (args[1] === "exec" && args[6] === "sessions.list")
-        return JSON.stringify({ sessions: [] });
-      if (args[1] === "exec" && args[6] === "agents.list")
-        return JSON.stringify({ agents: agentRows });
-      if (args[1] === "exec" && args[6] === "models.list")
-        return JSON.stringify({
-          models: [
-            {
-              id: "test-nemotron",
-              name: "Fixture NVIDIA model",
-              provider: "nvidia",
-              available: true,
-              supportsTools: true,
-            },
-          ],
-        });
-      throw new Error("Unexpected native read in isolated browser fixture.");
-    };
 
     const modelRequests: string[] = [];
     const firstTargets = new Set<string>();
@@ -256,9 +222,6 @@ for (const multiModel of [false, true]) {
       {
         workspaceFile: path.join(directory, "workspace.json"),
         traceSpoolFile: path.join(directory, "traces.jsonl"),
-        nvidiaModel: modelId,
-        nemoclawSandbox: "nemodoc",
-        nemoclawReader: nativeReader,
       },
     );
     await app.locals.workspace.ready;

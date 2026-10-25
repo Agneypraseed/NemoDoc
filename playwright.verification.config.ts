@@ -5,7 +5,7 @@ export default defineConfig({
   testDir: "./tests/e2e",
   testMatch: [
     "agent-overview.spec.ts",
-    "agent-configuration.spec.ts",
+    "agent-connections.spec.ts",
     "search-connections.spec.ts",
     "research-team.spec.ts",
     "research-team-live.spec.ts",

@@ -6,10 +6,10 @@ The Agent tab can use its own OpenAI-compatible model endpoint, independently of
 
 To use the NVIDIA Nemotron model you already use in notebook chat, keep **Use notebook’s Nemotron connection** selected in **Agent → Connections**. This is the default. Its current model ID and endpoint are displayed; no separate model or key is needed when the notebook connection is configured. The agent runs a real tool loop with this same model.
 
-1. Open **Agent → Connections** and choose **Use a separate open model**.
+1. Open **Agent → Connections** and choose **Use a separate OpenAI-compatible model**.
 2. For local Gemma 4, install [Ollama](https://ollama.com), start its server and run `ollama pull gemma4:e4b`. Use `http://localhost:11434/v1` and model ID `gemma4:e4b`. Local endpoints do not need an API key. Choose a model size that fits your hardware.
-3. Alternatively enter a hosted OpenAI-compatible chat API base URL, exact model ID and that provider's API key. A Qwen, Gemma or other model must support function calling through the chosen endpoint.
-4. **Save model connection**, then **Test saved model**. The test requests and validates an actual function call; a text-only answer does not pass. Separate models must pass this test before tasks can run.
+3. For OpenAI, choose **Use OpenAI API**, enter an API key, and select the exact model ID. For NVIDIA or another hosted endpoint, enter its OpenAI-compatible chat API base URL, exact model ID and provider key. The model must support function calling through that endpoint.
+4. **Save model connection**, then **Test saved model**. The test requires a function call and a reply that uses its result. Separate models must pass before tasks can run.
 
 Existing notebook Chat and Studio generation keep their Nemotron policy. Switching an agent connection does not change them. Agent study materials can still be saved to Studio.
 
@@ -19,13 +19,9 @@ Under **Agent → Connections → Research models & task routing**, add named Op
 
 Select a **Planner model** and **Routing priority** (balanced, cost or quality), then save preferences. Generating a research plan asks that planner to match each assignment to the available tested models and explain its choices. Review or override each **Assigned model** before starting. One model can still handle the whole team using the current notebook/custom connection; additional installations are unnecessary. Custom profiles can use different providers or models on the same provider. Notebook Chat and Studio retain their existing policy.
 
-Runs snapshot their planner, assignments, selected profiles, configured model IDs and selection reasons. Agent cards show those choices, provider-reported model IDs when returned, progress, findings and usage. Changing evidence, requests or routing configuration invalidates a draft. Editing/removing a selected connection prevents queued work or subsequent requests from using a changed route; errors never silently switch models. This routing applies to application-managed research. NemoClaw keeps its separately verified native agent routes.
+Runs snapshot their planner, assignments, selected profiles, configured model IDs and selection reasons. Agent cards show those choices, provider-reported model IDs when returned, progress, findings and usage. Changing evidence, requests or routing configuration invalidates a draft. Editing/removing a selected connection prevents queued work or subsequent requests from using a changed route; errors never silently switch models.
 
 Profile credentials remain in the local server settings beside the workspace file (`*.model-profiles.json`), with masked API/UI responses and trace redaction. Back up this settings file securely alongside other connection settings; it is separate from PostgreSQL workspace records and browser ZIP backups. Changing provider origin clears the old key unless explicitly replaced. Each configured provider receives the task context and retrieved evidence needed for its assignment.
-
-## Sandboxed OpenClaw through NemoClaw
-
-Choose **OpenClaw agent through NemoClaw** to route tasks and evidence workflows to a dedicated agent in NVIDIA's OpenShell sandbox. Save its private gateway URL, `openclaw/nemodoc` target and gateway token, then run **Test gateway tool support**. The NVIDIA inference key belongs in NemoClaw. Follow the [NemoClaw setup guide](NEMOCLAW.md) for the agent manifest, host checks and isolation boundary. The app test verifies a tool-call/result round trip; verify the actual sandbox separately on its host.
 
 ## Approve notebook notes
 

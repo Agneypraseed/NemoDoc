@@ -16,8 +16,7 @@ import { registerAgent } from "./agent.ts";
 import { registerWorkspace } from "./workspace/routes.ts";
 import type { SmtpTransportFactory } from "./smtp.ts";
 import { isNemotron } from "../src/lib/model-policy.ts";
-import { registerAgentMonitor, type NemoClawReader } from "./agent-monitor.ts";
-import { registerAgentConfiguration } from "./agent-config.ts";
+import { registerAgentMonitor } from "./agent-monitor.ts";
 import { TraceStore } from "./trace-store.ts";
 import { WebResearch } from "./workspace/web-research.ts";
 import { ResearchModels } from "./workspace/model-routing.ts";
@@ -72,10 +71,7 @@ export function createApp(
     databaseUrl?: string;
     readDatabaseUrl?: string;
     startWorkspaceWorker?: boolean;
-    nemoclawSandbox?: string;
-    nemoclawReader?: NemoClawReader;
     traceSpoolFile?: string;
-    nvidiaModel?: string;
   } = {},
 ) {
   const providerFetch = fetcher;
@@ -152,19 +148,7 @@ export function createApp(
       ...webResearch.secrets(),
       ...researchModels.secrets(),
     ].filter((secret): secret is string => !!secret);
-  const monitor = registerAgentMonitor(
-    app,
-    agent.worker,
-    providerFetch,
-    options.nemoclawSandbox,
-    options.nemoclawReader,
-  );
-  const agentConfiguration = registerAgentConfiguration(
-    app,
-    agent.worker,
-    options.nemoclawSandbox,
-    options.nemoclawReader,
-  );
+  registerAgentMonitor(app, agent.worker);
   const workspace = registerWorkspace(
     app,
     agent.worker.connections,
@@ -176,21 +160,7 @@ export function createApp(
       databaseUrl: options.databaseUrl,
       readDatabaseUrl: options.readDatabaseUrl,
       startWorker: options.startWorkspaceWorker,
-      expectedNvidiaModel: options.nvidiaModel ?? initialConfig.model,
       traces: traceStore,
-      listRuntimeAgentIds: async () =>
-        (await monitor.snapshot()).agents.map(
-          (runtimeAgent) => runtimeAgent.id,
-        ),
-      listRuntimeAgentTargets: async () => {
-        const configuration = await agentConfiguration.manager.configuration();
-        if (!configuration.available) return [];
-        return configuration.agents.map(({ id, primary, fallbacks }) => ({
-          id,
-          model: primary,
-          fallbacks,
-        }));
-      },
     },
   );
   app.locals.traceStore = traceStore;

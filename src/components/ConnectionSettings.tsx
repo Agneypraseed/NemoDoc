@@ -176,7 +176,7 @@ export function ConnectionSettings({ onSaved }: { onSaved: () => void }) {
       model:
         kind === "nebius"
           ? "nvidia/Nemotron-3_5-Lightning"
-          : "nvidia/nemotron-3-nano-30b-a3b",
+          : "nvidia/nemotron-3.5-lightning-30b-a3b",
       embeddingModel:
         kind === "nebius" ? "" : "nvidia/llama-nemotron-embed-1b-v2",
       visionModel:

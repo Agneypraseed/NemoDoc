@@ -28,8 +28,10 @@ test("open model reads approved notebook notes and previews email before deliver
           },
         ],
       });
-      if (body.tools[0].function.name === "connection_probe")
-        message = call("connection_probe", { ok: true });
+      if (body.messages[0]?.content?.includes("connection_probe"))
+        message = results.length
+          ? { content: JSON.parse(results[0].content).receipt }
+          : call("connection_probe", { ok: true });
       else if (!results.length)
         message = call("search_sources", { query: "spaced practice" });
       else if (results.length === 1)
@@ -107,8 +109,8 @@ test("open model reads approved notebook notes and previews email before deliver
     await expect(
       page
         .getByRole("status")
-        .filter({ hasText: "successfully returned a tool call" }),
-    ).toContainText("successfully returned a tool call");
+        .filter({ hasText: "completed a tool-call and result round trip" }),
+    ).toContainText("completed a tool-call and result round trip");
     await page
       .getByLabel("SMTP host", { exact: true })
       .fill("smtp.example.com");

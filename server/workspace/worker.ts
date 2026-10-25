@@ -20,25 +20,19 @@ import type {
   TraceStore,
 } from "../trace-store.ts";
 import type { ModelRequestObserver } from "../model-observer.ts";
-import { executeResearchTeam as runResearchTeam } from "./research-team.ts";
 import { executePlannedResearch } from "./application-research.ts";
 
-const traceModelObserver = (
-  span: TraceSpanHandle,
-  gatewayTarget?: string,
-): ModelRequestObserver => ({
-  onRequest: ({ url, model, target, body, at }) =>
+const traceModelObserver = (span: TraceSpanHandle): ModelRequestObserver => ({
+  onRequest: ({ url, model, body, at }) =>
     span.event("model.request", {
       url,
       configuredModel: model,
-      gatewayTarget: target ?? gatewayTarget,
       request: body,
       requestedAt: at,
     }),
   onResponse: (response) =>
     span.event("model.response", {
       httpStatus: response.status,
-      gatewayTarget,
       requestId: response.requestId,
       responseId: response.responseId,
       returnedModel: response.returnedModel,
@@ -296,7 +290,6 @@ export class WorkspaceWorker {
                 plannerModel: run.plannerModel,
                 planningTraceId: run.teamPlan?.planningTraceId,
                 connectionMode: run.connection.mode,
-                gatewayTarget: run.connection.model,
                 assignedAgents: run.researchTeam?.map((agent) => ({
                   id: agent.agentId ?? agent.id,
                   model: agent.assignedModel,
@@ -387,10 +380,6 @@ export class WorkspaceWorker {
             attempt: run.calls,
             attributes: {
               configuredModel: run.connection.model,
-              gatewayTarget:
-                run.connection.mode === "openclaw"
-                  ? run.connection.model
-                  : undefined,
             },
           });
           let responseValue: unknown;
@@ -421,9 +410,8 @@ export class WorkspaceWorker {
                   : {}),
               },
               controller.signal,
-              undefined,
               modelSpan
-                ? traceModelObserver(modelSpan, run.connection.model)
+                ? traceModelObserver(modelSpan)
                 : undefined,
             );
           } catch (error) {
@@ -671,7 +659,11 @@ export class WorkspaceWorker {
     >,
     trace?: TraceHandle,
   ) {
-    return (run.teamPlan ? executePlannedResearch : runResearchTeam)({
+    if (!run.teamPlan)
+      throw new Error(
+        "This research run needs a reviewed team plan. Start a new run.",
+      );
+    return executePlannedResearch({
       run,
       state,
       signal,

@@ -38,7 +38,7 @@ Review a plan for three agents: two researchers work in parallel, then a reviewe
 
 ## Work traces
 
-Follow each agent’s assignment, model, stage, usage, and findings. **Run history and trace inspection** shows model calls, supplied excerpts, tool inputs and results, citations, timing, and errors. Traces save to local JSONL or PostgreSQL and can be downloaded as redacted JSON. They may include your request and approved source text; inspect before sharing. Connected NemoClaw agents can have reusable instructions in their own `AGENTS.md` files.
+Follow each agent’s assignment, model, stage, usage, and findings. **Run history and trace inspection** shows model calls, supplied excerpts, tool inputs and results, citations, timing, and errors. Traces save to local JSONL or PostgreSQL and can be downloaded as redacted JSON. They may include your request and approved source text; inspect before sharing.
 
 ## Run locally
 
@@ -55,7 +55,7 @@ Open the notebook at [http://127.0.0.1:5173/app](http://127.0.0.1:5173/app). Rea
 
 Your notebooks and source files stay on your device. When you use hosted AI, NemoDoc sends the relevant source text or selected page images to your configured provider. Export notes or back up and restore a notebook as a ZIP file.
 
-For optional agent setup, see the [personal agent guide](docs/PERSONAL_AGENT.md) and [NemoClaw guide](docs/NEMOCLAW.md).
+For agent setup, see the [personal agent guide](docs/PERSONAL_AGENT.md) and [model connections](docs/AGENT_CONNECTIONS.md).
 
 Agent execution uses the [OpenAI Agents SDK for TypeScript](https://openai.github.io/openai-agents-js/). SDK agents run research planning, parallel researchers, final review, evidence proposals and personal/scheduled tasks. Existing OpenAI-compatible model profiles support separate providers per agent; using NVIDIA, Gemini's compatibility endpoint or a local model does not require an OpenAI inference key. See [agent architecture](docs/AGENT_ARCHITECTURE.md) for the runner, model adapter, tool permissions, Markdown instructions and provider limitations.
 

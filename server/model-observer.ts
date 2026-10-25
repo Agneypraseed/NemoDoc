@@ -1,7 +1,6 @@
 export interface ModelRequestDetails {
   url: string;
   model: string;
-  target?: string;
   body: unknown;
   at: number;
 }

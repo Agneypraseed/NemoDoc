@@ -45,8 +45,6 @@ The rules require an actual Nebius runtime call or eligible Nebius AI Cloud exec
 
 ## Configure agent instructions
 
-Open **Agent → Settings** and choose the agent. **Instructions** opens first: write its role, goals, output format and limits in that agent’s `AGENTS.md`, or expand **Start from a template**. Use `SOUL.md` for personality and tone. Save the file to apply it to new runtime sessions. Each runtime agent has a separate workspace; drafts are kept separately when switching agents, and conflicting saves preserve your edits.
-
-Use **Models** to select the primary model and ordered fallbacks. **Advanced** contains the display name and runtime permissions. **Add an agent** creates another workspace. Native file configuration requires a connected NemoClaw runtime. For application-managed research teams, edit each agent’s **Instructions** in the team plan before starting the task.
+For research teams, edit each agent’s **Instructions** in the reviewed team plan before starting the task. The instructions are saved with that run. Choose and test model profiles in **Agent → Connections**.
 
 The research page opens directly; **Task type** selects research teams, revision plans or synthesis without replacing your request. Ordinary notebook chat sends your question as written. Quick and Deep control answer detail.

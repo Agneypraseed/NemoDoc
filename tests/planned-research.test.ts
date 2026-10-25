@@ -191,15 +191,7 @@ async function setup(
     filename ? filename + ".web" : undefined,
     fetcher,
   );
-  const service = new WorkspaceService(
-    repository,
-    connections,
-    undefined,
-    undefined,
-    undefined,
-    trace,
-    web,
-  );
+  const service = new WorkspaceService(repository, connections, trace, web);
   await service.snapshot(snapshot);
   const worker = new WorkspaceWorker(service, fetcher, trace);
   const input = {

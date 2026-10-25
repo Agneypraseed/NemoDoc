@@ -1,13 +1,13 @@
 # Evidence-based notebook agents
 
-NemoDoc's **Agent → Research** opens on **Research team**, with **Plan revision** and **Synthesize research** also available. Research teams run directly in NemoDoc using tested model profiles or your existing notebook/custom connection; NemoClaw is optional. Each agent has a separate conversation, assignment, tool budget, progress record and findings.
+NemoDoc's **Agent → Research** opens on **Research team**, with **Plan revision** and **Synthesize research** also available. Research teams use tested model profiles or your existing notebook/custom connection. Each agent has a separate conversation, assignment, tool budget, progress record and findings.
 
 ## Research team
 
-Opening **Agent** starts on research. The optional runtime monitor remains under **More → Agents**; no NemoClaw connection is needed to use the research team. Saved runs open with the new-request form collapsed, so the report is easy to revisit. Model review is still an AI draft: validate important claims against the cited original pages.
+Opening **Agent** starts on research. Local activity remains under **More → Agents**. Saved runs open with the new-request form collapsed, so the report is easy to revisit. Model review is still an AI draft: validate important claims against the cited original pages.
 
 1. Approve the selected extracted-text snapshots, choose **Research team**, and enter your research request.
-2. NemoDoc runs the team by default. **Execution settings** contains the optional **NemoClaw runtime** route and a shortcut to model connections. There is no automatic route fallback.
+2. **Research models** links to the model connections used by the team. There is no automatic route fallback.
 3. Select notebook evidence. To include the web, choose Tavily, Exa or Firecrawl under **Settings → Search** and select **Save & test search**, then enable web research for this run. Search queries may contain information from selected evidence and are sent to the selected search provider. Notebook-only runs require at least one selected source; web-enabled runs may omit notebook sources.
 4. **Generate team plan** proposes two complementary researchers and one reviewer for your topic. The configured planner can assign different tested models by task using declared capability, strength and cost hints. Configure these in **Connections → Research models & task routing**; the current agent connection remains available by default. Edit names, assignments and model choices, add/remove researchers (2–5 agents total, exactly one reviewer), and review the assignments. A request, evidence, or connection change requires a new plan. The run retains each selected model and its selection reason; changing a selected profile stops subsequent requests without a model fallback. See [model setup](AGENT_CONNECTIONS.md#research-models-and-automatic-task-routing).
 5. **Start research team** runs up to three researchers concurrently. Once every researcher completes, the reviewer compares their findings against original excerpts and writes the final cited report. Each researcher has five model calls/eight tool actions; the reviewer has four calls/six actions. Research has a ten-minute deadline. Each agent may make at most three web searches and extract five pages within its tool budget.
@@ -15,15 +15,13 @@ Opening **Agent** starts on research. The optional runtime monitor remains under
 7. **Cancel research** stops active inference and queued work while retaining completed findings. Failure of any researcher prevents a successful synthesis. Restarted active runs are interrupted and never automatically replay inference. Start a new run to try again.
 8. **Save report to Notes** explicitly appends a completed report and cited original excerpts to this local notebook. It preserves existing notes, prevents duplicate saves, and retains save state through reload and ZIP backup/restore. **Download report** exports Markdown, including retained partial findings on failed runs. **Use request again** opens the request and evidence for a new plan; it makes no inference call until you generate and review that plan. Scheduled tasks remain under **Scheduled tasks & activity inbox**.
 
-Research execution is read-only. Saving the result to Notes is a separate explicit action; research never applies proposals, sends mail or executes code. Search provider credentials stay in the server data directory, are masked in the UI and redacted from traces. Existing historical three-agent NemoClaw runs remain readable, and legacy API requests retain their original execution shape. Browser ZIP backups retain their existing format; server workspace/run persistence is separate.
+Research execution is read-only. Saving the result to Notes is a separate explicit action; research never applies proposals, sends mail or executes code. Search provider credentials stay in the server data directory, are masked in the UI and redacted from traces. Existing historical runs remain readable. Browser ZIP backups retain their existing format; server workspace/run persistence is separate.
 
 ## Editable agent instructions
 
 In **Review team assignments**, each researcher and reviewer has its own **AGENTS.md instructions** editor. Import a `.md` file, edit or preview its Markdown, and download it for editing in your preferred editor or reuse in another plan. **Task assignment** describes this request; `AGENTS.md` describes the agent's approach, output format and limits. Files allow up to 32,000 characters. Starting the team saves an immutable copy with that run, available from each saved agent card. Imports change only the draft; they make no inference calls. Regenerating a plan replaces the draft, so download instructions you want to reuse first.
 
-This works with both the **NemoDoc** and **NemoClaw runtime** execution routes. Task-specific Markdown is sent only to its assigned agent, subject to NemoDoc's system instructions, citation requirements and enforced read-only tools. The planner cannot supply instruction files. Old runs without Markdown continue to work.
-
-For ongoing NemoClaw instructions, open **Agent settings → Instructions**, choose a runtime agent, and edit/import its `AGENTS.md` or `SOUL.md`. **Save AGENTS.md** or **Save SOUL.md** writes that agent's native workspace file; imported content remains a draft until saved. Runtime files apply to new sessions. These ongoing files are distinct from the task-specific snapshot above.
+Task-specific Markdown is sent only to its assigned agent, subject to NemoDoc's system instructions, citation requirements and enforced read-only tools. The planner cannot supply instruction files. Old runs without Markdown continue to work.
 
 See [agent architecture](AGENT_ARCHITECTURE.md) for the OpenAI Agents SDK execution model, provider support and extension points.
 
@@ -112,7 +110,7 @@ The recorded walkthrough and verification status are described in [EVIDENCE_VERI
 
 ## Agent dashboard and research interface
 
-Open **Agent → Dashboard** for the current notebook’s recorded work. The dashboard expands across the workspace; **Research** returns to the document-side team view. Connections remain in the main navigation. Runtime monitoring, memory, skills, source permissions and role settings are under **More**.
+Open **Agent → Dashboard** for the current notebook’s recorded work. The dashboard expands across the workspace; **Research** returns to the document-side team view. Connections remain in the main navigation. Activity, memory, skills and source permissions are under **More**.
 
 The dashboard reads saved traces, including planning and scheduled tasks, from PostgreSQL or the local JSONL activity log. Period (7/30/90/365 days), outcome and model filters apply to the displayed totals, timeline, model usage and history. Model filters count traces containing that model and sum only that model’s calls and tokens. Daily chart buckets use UTC; task timestamps use the browser’s local time. A zero activity count is distinct from unavailable token usage. The API returns an explicit partial-results flag at its 5,000-trace/100,000-telemetry-event limit or a database read failure.
 

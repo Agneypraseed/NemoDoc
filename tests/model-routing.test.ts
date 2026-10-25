@@ -216,9 +216,6 @@ async function setup(
   const service = new WorkspaceService(
     repository,
     connections,
-    undefined,
-    undefined,
-    undefined,
     traces,
     undefined,
     models,
@@ -349,7 +346,7 @@ test("stale plans, untested profiles, invented IDs and unsupported routing are r
       executionRoute: "nemoclaw",
       teamPlan: selectedPlan,
     }),
-    /profiles apply/,
+    /application/,
   );
 });
 

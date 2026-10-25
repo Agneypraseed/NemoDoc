@@ -27,21 +27,14 @@ import { notifyModelObserver } from "./model-observer.ts";
 
 const secret = z.string().trim().max(2048).optional();
 export const connectionInput = z.discriminatedUnion("section", [
-  z
-    .object({
-      section: z.literal("model"),
-      mode: z.enum(["notebook", "custom", "openclaw"]),
-      baseUrl: endpoint,
-      model: z.string().trim().min(1).max(200),
-      apiKey: secret,
-      clearApiKey: z.boolean().optional(),
-    })
-    .refine(
-      (value) =>
-        value.mode !== "openclaw" ||
-        /^openclaw\/[a-z0-9][a-z0-9_-]{0,63}$/.test(value.model),
-      "Choose an OpenClaw agent target such as openclaw/nemodoc.",
-    ),
+  z.object({
+    section: z.literal("model"),
+    mode: z.enum(["notebook", "custom"]),
+    baseUrl: endpoint,
+    model: z.string().trim().min(1).max(200),
+    apiKey: secret,
+    clearApiKey: z.boolean().optional(),
+  }),
   z.object({
     section: z.literal("email"),
     smtpHost: z
@@ -70,12 +63,11 @@ export const connectionInput = z.discriminatedUnion("section", [
 ]);
 type Stored = {
   model: {
-    mode: "notebook" | "custom" | "openclaw";
+    mode: "notebook" | "custom";
     baseUrl: string;
     model: string;
     apiKey: string;
     tested: boolean;
-    runtimeRevision?: string;
   };
   email: SmtpConnection & {
     revision: string;
@@ -127,6 +119,7 @@ export class AgentConnectionStore {
     if (filename && existsSync(filename)) {
       const saved = JSON.parse(readFileSync(filename, "utf8"));
       let retiredEmail = false;
+      let retiredRuntime = false;
       for (const section of ["model", "email", "whatsapp"] as const) {
         if (section === "email" && typeof saved.email?.smtpHost !== "string") {
           // Retire the previous API integration without carrying its credential
@@ -137,26 +130,22 @@ export class AgentConnectionStore {
           retiredEmail = true;
           continue;
         }
+        // Retired runtime connections cannot be used for new SDK runs.
+        if (section === "model" && saved.model?.mode === "openclaw") {
+          retiredRuntime = true;
+          continue;
+        }
         const parsed = connectionInput.parse({ ...saved[section], section });
         const { section: _section, ...fields } = parsed;
         Object.assign(
           this.value[section],
           fields,
           section === "model"
-            ? {
-                tested: saved.model.tested === true,
-                ...(saved.model.runtimeRevision
-                  ? {
-                      runtimeRevision: z
-                        .uuid()
-                        .parse(saved.model.runtimeRevision),
-                    }
-                  : {}),
-              }
+            ? { tested: saved.model.tested === true }
             : { revision: z.uuid().parse(saved[section].revision) },
         );
       }
-      if (retiredEmail) this.flush();
+      if (retiredEmail || retiredRuntime) this.flush();
     }
   }
   public(): AgentConnections {
@@ -214,7 +203,7 @@ export class AgentConnectionStore {
       ...fields,
       apiKey: clearApiKey ? "" : apiKey || (retain ? previous.apiKey : ""),
       ...(section === "model"
-        ? { tested: false, runtimeRevision: randomUUID() }
+        ? { tested: false }
         : { revision: randomUUID() }),
     };
     Object.assign(previous, next);
@@ -232,17 +221,6 @@ export class AgentConnectionStore {
     return this.value.model.mode !== "notebook"
       ? { ...this.value.model }
       : this.settings.value;
-  }
-  invalidateAgentRuntime(agentId: string) {
-    if (
-      this.value.model.mode !== "openclaw" ||
-      this.value.model.model !== `openclaw/${agentId}`
-    )
-      return false;
-    this.value.model.tested = false;
-    this.value.model.runtimeRevision = randomUUID();
-    this.flush();
-    return true;
   }
   target(channel: AgentChannel): DeliveryTarget {
     const c = this.value[channel];
@@ -287,14 +265,9 @@ export class AgentConnectionStore {
     fetcher: typeof fetch,
     body: unknown,
     signal = AbortSignal.timeout(120000),
-    agentId?: string,
     observer?: ModelRequestObserver,
     connectionOverride?: { baseUrl: string; model: string; apiKey: string },
   ) {
-    if (connectionOverride && agentId)
-      throw new Error(
-        "Choose either a research model profile or a runtime agent.",
-      );
     if (connectionOverride) {
       endpoint.parse(connectionOverride.baseUrl);
       if ((body as { model?: unknown })?.model !== connectionOverride.model)
@@ -303,23 +276,6 @@ export class AgentConnectionStore {
         );
     }
     const c = connectionOverride ?? this.runtime();
-    if (
-      agentId &&
-      (this.value.model.mode !== "openclaw" ||
-        !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(agentId))
-    )
-      throw new Error("Choose an agent from the connected OpenClaw runtime.");
-    const target = agentId ? `openclaw/${agentId}` : c.model;
-    if (!connectionOverride && this.value.model.mode === "openclaw") {
-      if (!c.apiKey)
-        throw new Error(
-          "Save the dedicated OpenClaw gateway token in Connections. Your NVIDIA API key is configured inside NemoClaw, not used as a gateway token.",
-        );
-      if ((body as { model?: unknown })?.model !== target)
-        throw new Error(
-          "OpenClaw requests must use the selected agent target.",
-        );
-    }
     if (!c.apiKey && !isLocal(c.baseUrl))
       throw new Error("Save an API key for the agent model.");
     const url = c.baseUrl.replace(/\/$/, "") + "/chat/completions";
@@ -351,7 +307,6 @@ export class AgentConnectionStore {
       observer?.onRequest?.({
         url,
         model,
-        target: agentId ? `openclaw/${agentId}` : undefined,
         body,
         at: Date.now(),
       }),
@@ -391,11 +346,9 @@ export class AgentConnectionStore {
         }),
       );
       throw new Error(
-        !connectionOverride && this.value.model.mode === "openclaw"
-          ? `OpenClaw gateway returned HTTP ${response.status}. Check the gateway token, agent target and enabled Chat Completions endpoint.`
-          : response.status >= 500
-            ? `Agent model returned HTTP ${response.status}. The provider could not complete the request. Test this model again or choose another tested model in a new reviewed plan.`
-            : `Agent model returned HTTP ${response.status}. Check its connection and tool support.`,
+        response.status >= 500
+          ? `Agent model returned HTTP ${response.status}. The provider could not complete the request. Test this model again or choose another tested model in a new reviewed plan.`
+          : `Agent model returned HTTP ${response.status}. Check its connection and tool support.`,
       );
     }
     try {

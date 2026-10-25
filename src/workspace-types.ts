@@ -6,7 +6,7 @@ import type {
 } from "./agent-types";
 import type { ResearchStage } from "./trace-types";
 import type { ResearchModelRoute } from "./research-model-types";
-import { roleContent } from "./agent-config-types";
+import { roleContent } from "./role-content";
 
 const id = z
   .string()
@@ -182,10 +182,6 @@ export const researchPlanSchema = z
             modelSelection: z
               .enum(["automatic", "manual", "default"])
               .optional(),
-            agentId: z
-              .string()
-              .regex(/^[a-z0-9][a-z0-9_-]{0,63}$/)
-              .optional(),
           })
           .strict(),
       )
@@ -219,13 +215,9 @@ export const workflowTaskSchema = z
     sourceIds: z.array(id).max(30),
     noteIds: z.array(id).max(1000),
     includeProgress: z.boolean().default(false),
-    executionRoute: z.enum(["application", "nemoclaw"]).optional(),
+    executionRoute: z.literal("application").optional(),
     teamPlan: researchPlanSchema.optional(),
     webEnabled: z.boolean().optional(),
-    agentIds: z
-      .array(z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/))
-      .length(3)
-      .optional(),
   })
   .strict();
 export type WorkflowTask = z.infer<typeof workflowTaskSchema>;

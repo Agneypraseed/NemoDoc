@@ -176,17 +176,13 @@ export function AgentConnections() {
         ? "SMTP password / app password"
         : section === "whatsapp"
           ? "WhatsApp access token"
-          : data.model.mode === "openclaw"
-            ? "OpenClaw gateway token"
-            : "Agent model API key";
+          : "Agent model API key";
     const hasSecret =
       section === "email" ? data.email.hasPassword : data[section].hasApiKey;
     const placeholder = hasSecret
       ? "••••••••••••"
       : section === "model"
-        ? data.model.mode === "openclaw"
-          ? "Paste the gateway bearer token"
-          : "Optional for local models"
+        ? "Optional for local models"
         : section === "email"
           ? "Enter your mailbox app password"
           : "Paste your Meta access token";
@@ -377,20 +373,15 @@ export function AgentConnections() {
                   ...data.model,
                   mode,
                   hasApiKey: false,
-                  ...(mode === "openclaw"
-                    ? {
-                        baseUrl: "http://127.0.0.1:18789/v1",
-                        model: "openclaw/nemodoc",
-                      }
-                    : {}),
                   tested: false,
                 },
               });
             }}
           >
             <option value="notebook">Use notebook’s Nemotron connection</option>
-            <option value="custom">Use a separate open model</option>
-            <option value="openclaw">OpenClaw agent through NemoClaw</option>
+            <option value="custom">
+              Use a separate OpenAI-compatible model
+            </option>
           </select>
         </label>
         {data.model.mode === "custom" && (
@@ -412,6 +403,24 @@ export function AgentConnections() {
             >
               Use local Gemma 4 / Ollama
             </button>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() =>
+                setData({
+                  ...data,
+                  model: {
+                    ...data.model,
+                    baseUrl: "https://api.openai.com/v1",
+                    model: "gpt-4.1-mini",
+                    hasApiKey: false,
+                    tested: false,
+                  },
+                })
+              }
+            >
+              Use OpenAI API
+            </button>
             {field(
               "model",
               "baseUrl",
@@ -427,36 +436,6 @@ export function AgentConnections() {
               Start your inference server first. Ollama:{" "}
               <code>ollama pull gemma4:e4b</code>. Hosted models need their
               endpoint, exact model ID and API key.
-            </p>
-          </>
-        )}
-        {data.model.mode === "openclaw" && (
-          <>
-            <p className="agent-fine">
-              Connect a dedicated OpenClaw agent running inside NemoClaw /
-              OpenShell. NVIDIA model credentials belong in NemoClaw; this
-              connection uses the gateway token.
-            </p>
-            {field(
-              "model",
-              "baseUrl",
-              "OpenClaw gateway base URL",
-              data.model.baseUrl,
-              { type: "url", placeholder: "http://127.0.0.1:18789/v1" },
-            )}
-            {field(
-              "model",
-              "model",
-              "OpenClaw agent target",
-              data.model.model,
-              { placeholder: "openclaw/nemodoc" },
-            )}
-            {credential("model")}
-            <p className="agent-fine">
-              Only approved notebook context and tool results are shared.
-              NemoDoc keeps control of evidence, proposals and delivery. Verify
-              OpenShell isolation on the runtime host; the gateway test verifies
-              tool support, not sandbox enforcement.
             </p>
           </>
         )}
@@ -478,9 +457,7 @@ export function AgentConnections() {
               );
               setData((old) => (old ? { ...old, model: saved.model } : saved));
               setMessage(
-                saved.model.mode === "openclaw"
-                  ? "Gateway tool-call and result round trip passed. Verify the NemoClaw sandbox on its runtime host before using private notes."
-                  : "Saved model successfully returned a tool call. Ready for agent tasks.",
+                "Saved model completed a tool-call and result round trip.",
               );
             } catch (e) {
               setError((e as Error).message);
@@ -489,9 +466,7 @@ export function AgentConnections() {
             }
           }}
         >
-          {data.model.mode === "openclaw"
-            ? "Test gateway tool support"
-            : "Test saved model"}
+          Test saved model
         </button>
         <p className="agent-fine">
           Save before testing. A separate model must pass the tool-call test

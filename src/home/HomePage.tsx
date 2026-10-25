@@ -104,7 +104,7 @@ export default function HomePage() {
               ],
               [
                 "Can I use different models for my agents?",
-                "Yes. Agents can use the notebook connection or a separate tested model connection. With a configured NemoClaw/OpenClaw runtime, you can assign a primary model, ordered fallbacks, and Markdown role instructions to each agent.",
+                "Yes. Agents use the notebook connection or tested OpenAI-compatible model profiles. Research plans can assign different profiles and task-specific Markdown instructions to each agent.",
               ],
               [
                 "Can an agent send me a revision summary?",

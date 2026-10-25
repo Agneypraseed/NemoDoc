@@ -7,15 +7,6 @@ export const test = base.extend({
       await page.route("**/api/agent/overview?*", (route) =>
         route.fulfill({
           json: {
-            runtime: {
-              status: "not_configured",
-              source: "none",
-              checkedAt: 0,
-              message: "No runtime is connected in this browser fixture.",
-              agents: [],
-              activity: [],
-              hasMore: false,
-            },
             connection: {
               mode: "notebook",
               model: "nvidia/test-nemotron",

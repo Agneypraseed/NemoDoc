@@ -8,7 +8,6 @@ import {
 } from "./repository.ts";
 import { scopeId, WorkspaceService } from "./service.ts";
 import { WorkspaceWorker } from "./worker.ts";
-import type { RuntimeResearchTarget } from "./service.ts";
 import type { TraceStore } from "../trace-store.ts";
 import { WebResearch } from "./web-research.ts";
 import type { ResearchModels } from "./model-routing.ts";
@@ -23,9 +22,6 @@ export function registerWorkspace(
     readDatabaseUrl?: string;
     repository?: WorkspaceRepository;
     startWorker?: boolean;
-    listRuntimeAgentIds?: () => Promise<string[]>;
-    listRuntimeAgentTargets?: () => Promise<RuntimeResearchTarget[]>;
-    expectedNvidiaModel?: string;
     traces?: TraceStore;
     web?: WebResearch;
     models?: ResearchModels;
@@ -46,9 +42,6 @@ export function registerWorkspace(
   const service = new WorkspaceService(
       repository,
       connections,
-      options.listRuntimeAgentIds,
-      options.listRuntimeAgentTargets,
-      options.expectedNvidiaModel,
       options.traces,
       options.web,
       options.models,
@@ -100,19 +93,6 @@ export function registerWorkspace(
       res.status(503).json({
         error:
           "Agent workspace is unavailable. Check database migrations and permissions.",
-      });
-    }
-  });
-  app.get("/api/agent/workspace/research-prerequisites", async (_req, res) => {
-    try {
-      await ready;
-      res.setHeader("Cache-Control", "no-store");
-      res.json(await service.researchPrerequisites());
-    } catch (error) {
-      res.status(503).json({
-        available: false,
-        message: (error as Error).message,
-        targets: [],
       });
     }
   });

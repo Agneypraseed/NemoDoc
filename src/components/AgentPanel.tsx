@@ -19,8 +19,6 @@ import { citationReferences } from "../lib/citations";
 import { download } from "../lib/storage";
 import { AgentConnections } from "./AgentConnections";
 import { AgentOverview } from "./AgentOverview";
-import { AgentConfiguration } from "./AgentConfiguration";
-import type { AgentRoleDrafts } from "../agent-config-types";
 import { AgentDelivery } from "./AgentDelivery";
 import { EvidenceWorkflows } from "./EvidenceWorkflows";
 import { AgentDashboard } from "./AgentDashboard";
@@ -65,7 +63,6 @@ export function AgentPanel({
   onSaveResearch,
   savedResearchRuns,
   onSettings,
-  roleDrafts,
 }: {
   notebookId: string;
   notebookTitle: string;
@@ -77,7 +74,6 @@ export function AgentPanel({
   onSaveResearch: (run: WorkflowRun) => Promise<void>;
   savedResearchRuns: string[];
   onSettings: () => void;
-  roleDrafts: AgentRoleDrafts;
 }) {
   const [data, setData] = useState<Overview>();
   const [view, setView] = useState<
@@ -88,7 +84,6 @@ export function AgentPanel({
     | "skills"
     | "access"
     | "connections"
-    | "settings"
   >("tasks");
   const [inspectionTraceId, setInspectionTraceId] = useState("");
   const [startNewResearch, setStartNewResearch] = useState(false);
@@ -99,7 +94,6 @@ export function AgentPanel({
       return false;
     }
   });
-  const [configureAgentId, setConfigureAgentId] = useState("");
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState("");
@@ -247,24 +241,21 @@ export function AgentPanel({
         className="agent-subtabs agent-primary-nav"
         aria-label="Agent sections"
       >
-        {(["tasks", "settings", "dashboard", "connections"] as const).map(
-          (v) => (
-            <button
-              key={v}
-              aria-label={v === "settings" ? "Agent settings" : undefined}
-              className={view === v ? "active" : ""}
-              aria-current={view === v ? "page" : undefined}
-              onClick={() => {
-                setView(v);
-                setInspectionTraceId("");
-                setError("");
-                setMessage("");
-              }}
-            >
-              {v === "tasks" ? "Research" : v[0].toUpperCase() + v.slice(1)}
-            </button>
-          ),
-        )}
+        {(["tasks", "dashboard", "connections"] as const).map((v) => (
+          <button
+            key={v}
+            className={view === v ? "active" : ""}
+            aria-current={view === v ? "page" : undefined}
+            onClick={() => {
+              setView(v);
+              setInspectionTraceId("");
+              setError("");
+              setMessage("");
+            }}
+          >
+            {v === "tasks" ? "Research" : v[0].toUpperCase() + v.slice(1)}
+          </button>
+        ))}
         <details className="agent-more-nav">
           <summary>
             More <ChevronDown size={13} />
@@ -330,23 +321,12 @@ export function AgentPanel({
           }}
         />
       )}
-      {view === "settings" && (
-        <AgentConfiguration
-          initialAgentId={configureAgentId}
-          drafts={roleDrafts}
-          onConnections={() => setView("connections")}
-        />
-      )}
       {view === "agents" && (
         <AgentOverview
           key={notebookId}
           notebookId={notebookId}
           onConnections={() => setView("connections")}
           onTasks={() => setView("tasks")}
-          onConfigure={(id) => {
-            setConfigureAgentId(id || "");
-            setView("settings");
-          }}
         />
       )}
       {view === "tasks" && (

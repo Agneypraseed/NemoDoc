@@ -5,7 +5,9 @@ import { VisibleAnswerStream } from "../visible-answer.ts";
 import { chatOptions } from "../providers.ts";
 import { readSchemas, researchReadCandidates } from "./read-tools.ts";
 import { textReferences } from "./evidence.ts";
-import type { ResearchContext } from "./research-team.ts";
+import type { WorkspaceService } from "./service.ts";
+import type { WorkspaceState } from "../../src/workspace-types.ts";
+import type { TraceHandle } from "../trace-store.ts";
 import type {
   ResearchTeamAgent,
   WorkflowRun,
@@ -35,6 +37,17 @@ const nextId = (run: WorkflowRun) =>
     ...(run.webEvidence ?? []).map((c) => c.id),
     ...run.evidence.map((c) => c.id),
   ) + 1;
+
+export interface ResearchContext {
+  run: WorkflowRun;
+  state: WorkspaceState;
+  signal: AbortSignal;
+  check: () => Promise<WorkspaceState>;
+  service: WorkspaceService;
+  fetcher: typeof fetch;
+  trace?: TraceHandle;
+  save: (run: WorkflowRun) => Promise<void>;
+}
 
 export async function executePlannedResearch(context: ResearchContext) {
   const { run, state, service, check, save, signal, fetcher, trace } = context;
@@ -198,13 +211,9 @@ export async function executePlannedResearch(context: ResearchContext) {
           );
           let raw: unknown;
           try {
-            const target =
-              run.executionRoute === "nemoclaw"
-                ? `openclaw/${agent.agentId}`
-                : run.connection.model;
             const body = {
-              model: agent.modelRoute?.model ?? target,
-              ...(run.executionRoute === "application" && !agent.modelRoute
+              model: agent.modelRoute?.model ?? run.connection.model,
+              ...(!agent.modelRoute
                 ? chatOptions(service.connections.runtime())
                 : {}),
               messages,
@@ -255,7 +264,6 @@ export async function executePlannedResearch(context: ResearchContext) {
                   fetcher,
                   body,
                   signal,
-                  run.executionRoute === "nemoclaw" ? agent.agentId : undefined,
                   observer,
                 );
             await callSpan?.finish("completed");
