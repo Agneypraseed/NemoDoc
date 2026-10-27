@@ -119,11 +119,8 @@ test("personal agent remembers preferences, reuses skills, runs while browser is
     await expect(page.locator(".agent-source-cache")).toContainText(
       "Currently approved",
     );
-    await page.getByRole("button", { name: "Research", exact: true }).click();
-    await page
-      .getByText("Scheduled tasks & activity inbox", { exact: true })
-      .click();
-    await page.getByRole("button", { name: "New task", exact: true }).click();
+    await page.getByRole("button", { name: "Assistant", exact: true }).click();
+    await page.getByText("Task settings", { exact: true }).click();
     await page
       .getByLabel("Task name", { exact: true })
       .fill("Browser closed review");
@@ -137,7 +134,7 @@ test("personal agent remembers preferences, reuses skills, runs while browser is
       .getByLabel("What should I do?", { exact: true })
       .fill("Make a short study guide and update my plan.");
     await page.getByRole("button", { name: "Run task", exact: true }).click();
-    await expect(page.getByRole("status")).toContainText("Task queued");
+    await expect(page.locator(".form-success")).toContainText("Task queued");
     const task = app.locals.agent.data.state.tasks[0];
     // Ensure it becomes due only after the browser tab has closed.
     task.dueAt = Date.now() + 2500;
@@ -152,10 +149,7 @@ test("personal agent remembers preferences, reuses skills, runs while browser is
     const next = await context.newPage();
     await next.goto("/app");
     await next.getByRole("button", { name: "Agent", exact: true }).click();
-    await next.getByRole("button", { name: "Research", exact: true }).click();
-    await next
-      .getByText("Scheduled tasks & activity inbox", { exact: true })
-      .click();
+    await next.getByRole("button", { name: "Assistant", exact: true }).click();
     await expect(next.locator("article.agent-result")).toContainText(
       "Your study guide and plan are saved.",
     );
@@ -185,7 +179,7 @@ test("personal agent remembers preferences, reuses skills, runs while browser is
       .getByRole("button", { name: "Delete memory", exact: true })
       .click();
     await expect(next.locator(".agent-memory")).toHaveCount(0);
-    await next.getByRole("button", { name: "Research", exact: true }).click();
+    await next.getByRole("button", { name: "Assistant", exact: true }).click();
     await next.screenshot({
       path: "test-results/agent-desktop.png",
       fullPage: true,

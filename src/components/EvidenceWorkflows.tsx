@@ -1,3 +1,4 @@
+import { AgentActivityFeed } from "./AgentActivityFeed";
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -494,6 +495,16 @@ export function EvidenceWorkflows({
               ? "2 · New research"
               : "Run with approved evidence"}
           </summary>
+          <label className="field-label">
+            Request
+            <textarea
+              aria-label="Request"
+              placeholder="What would you like to investigate in these sources?"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              rows={4}
+            />
+          </label>
           {workflow === "research_team" && (
             <>
               <p className="agent-fine">
@@ -554,16 +565,6 @@ export function EvidenceWorkflows({
               ))}
             </fieldset>
           )}
-          <label className="field-label">
-            Request
-            <textarea
-              aria-label="Request"
-              placeholder="What would you like to investigate in these sources?"
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              rows={4}
-            />
-          </label>
           {workflow !== "research_team" && (
             <label>
               <input
@@ -785,6 +786,12 @@ export function EvidenceWorkflows({
                 Cancel research
               </button>
             )}
+          <AgentActivityFeed
+            key={run.id}
+            notebookId={notebookId}
+            traceId={run.traceId}
+            active={run.status === "running" || run.status === "queued"}
+          />
           {run.workflow === "research_team" ? (
             <ResearchTeamRun
               run={run}

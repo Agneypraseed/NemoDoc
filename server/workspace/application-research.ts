@@ -14,7 +14,7 @@ import type {
 } from "../../src/workspace-types.ts";
 import type { WebCandidate } from "./web-research.ts";
 import { researchLimits } from "../../src/workspace-types.ts";
-import { citationIssues } from "../../src/lib/citations.ts";
+import { citationIssues, normalizeCitations } from "../../src/lib/citations.ts";
 
 const schemas = {
   search_sources: readSchemas.search_sources,
@@ -452,7 +452,10 @@ export async function executePlannedResearch(context: ResearchContext) {
             ]),
           });
           if (valid) {
-            agent.answer = answer;
+            agent.answer = normalizeCitations(answer, [
+              ...run.citations,
+              ...(run.webEvidence ?? []),
+            ]);
             agent.status = "completed";
             agent.stage = "completed";
             await span?.event("stage.changed", {
@@ -460,6 +463,13 @@ export async function executePlannedResearch(context: ResearchContext) {
               agentId: agent.id,
             });
             await save(run);
+            await span?.event("agent.completed", {
+              agentId: agent.id,
+              name: agent.name,
+              role: agent.role,
+              answer: agent.answer,
+              citationIds: cited,
+            });
             await span?.finish("completed", {
               citationIds: cited,
               modelCalls: agent.modelCalls,

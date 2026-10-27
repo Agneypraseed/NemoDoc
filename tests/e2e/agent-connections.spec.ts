@@ -198,11 +198,8 @@ test("open model reads approved notebook notes and previews email before deliver
     await expect(page.locator(".agent-source-cache")).toContainText(
       "Notebook notes",
     );
-    await page.getByRole("button", { name: "Research", exact: true }).click();
-    await page
-      .getByText("Scheduled tasks & activity inbox", { exact: true })
-      .click();
-    await page.getByRole("button", { name: "New task", exact: true }).click();
+    await page.getByRole("button", { name: "Assistant", exact: true }).click();
+    await page.getByText("Task settings", { exact: true }).click();
     await page
       .getByLabel("Task name", { exact: true })
       .fill("My note briefing");
@@ -267,24 +264,22 @@ test("open model reads approved notebook notes and previews email before deliver
           exact: true,
         }),
     ).toBeVisible();
-    await page.getByRole("button", { name: "Research", exact: true }).click();
-    await page
-      .getByText("Scheduled tasks & activity inbox", { exact: true })
-      .click();
-    await page.getByRole("button", { name: "New task", exact: true }).click();
+    await page.getByRole("button", { name: "Assistant", exact: true }).click();
+    await page.getByText("Task settings", { exact: true }).click();
     await page
       .getByLabel("Task name", { exact: true })
       .fill("Weekday NVIDIA revision");
     await page
       .getByLabel("What should I do?", { exact: true })
       .fill("Read my selected notes and create a short revision summary.");
+    await page.getByText("Schedule & delivery", { exact: true }).click();
     await page.getByLabel("Repeat", { exact: true }).selectOption("weekdays");
     await expect(
       page.getByLabel("Weekday delivery time", { exact: true }),
     ).toHaveValue("08:00");
-    await expect(
-      page.getByLabel("Schedule time zone", { exact: true }),
-    ).toHaveValue("Europe/Berlin");
+    await page
+      .getByLabel("Schedule time zone", { exact: true })
+      .fill("Europe/Berlin");
     await page
       .getByLabel("Email to owner@example.com", { exact: true })
       .check();

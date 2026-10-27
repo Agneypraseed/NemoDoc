@@ -8,6 +8,7 @@ import {
   summarizeDashboard,
 } from "../lib/agent-dashboard";
 import { readCompleteTrace } from "../lib/trace-export";
+import { AgentActivityFeed } from "./AgentActivityFeed";
 import type {
   AgentDashboardData,
   DashboardModelUsage,
@@ -727,60 +728,68 @@ function TraceInspection({
         </button>
       </div>
       {!detail && !error && <p role="status">Loading activity…</p>}
-      <div className="dashboard-span-list">
-        {detail?.spans.map((span) => (
-          <details key={span.spanId}>
-            <summary>
-              {span.name}
-              <span>
-                {label(span.status)} · {duration(span.durationMs)}
-              </span>
-            </summary>
-            <pre>{JSON.stringify(span, null, 2)}</pre>
-          </details>
-        ))}
-      </div>
-      {page && (
-        <details>
-          <summary>
-            Recorded events · {page.events.length}
-            {page.hasMore ? "+" : ""}
-          </summary>
-          {page.events.map((event) => (
-            <details key={event.eventId}>
+      <AgentActivityFeed
+        notebookId={notebookId}
+        traceId={trace.traceId}
+        showExport={false}
+      />
+      <details className="dashboard-technical-trace">
+        <summary>Technical trace</summary>
+        <div className="dashboard-span-list">
+          {detail?.spans.map((span) => (
+            <details key={span.spanId}>
               <summary>
-                {event.sequence} · {event.type} ·{" "}
-                {new Date(event.at).toLocaleTimeString()}
+                {span.name}
+                <span>
+                  {label(span.status)} · {duration(span.durationMs)}
+                </span>
               </summary>
-              <pre>{JSON.stringify(event.payload, null, 2)}</pre>
+              <pre>{JSON.stringify(span, null, 2)}</pre>
             </details>
           ))}
-          {page.hasMore && (
-            <button
-              className="text-button"
-              disabled={busy}
-              onClick={async () => {
-                setBusy(true);
-                try {
-                  const next = await apiJSON<TraceEventPage>(
-                    `${root}/events?after=${page.nextCursor}&limit=100`,
-                  );
-                  setPage({
-                    ...next,
-                    events: [...page.events, ...next.events],
-                  });
-                } catch (e) {
-                  setError((e as Error).message);
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              Load more events
-            </button>
-          )}
-        </details>
-      )}
+        </div>
+        {page && (
+          <details>
+            <summary>
+              Recorded events · {page.events.length}
+              {page.hasMore ? "+" : ""}
+            </summary>
+            {page.events.map((event) => (
+              <details key={event.eventId}>
+                <summary>
+                  {event.sequence} · {event.type} ·{" "}
+                  {new Date(event.at).toLocaleTimeString()}
+                </summary>
+                <pre>{JSON.stringify(event.payload, null, 2)}</pre>
+              </details>
+            ))}
+            {page.hasMore && (
+              <button
+                className="text-button"
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  try {
+                    const next = await apiJSON<TraceEventPage>(
+                      `${root}/events?after=${page.nextCursor}&limit=100`,
+                    );
+                    setPage({
+                      ...next,
+                      events: [...page.events, ...next.events],
+                    });
+                  } catch (e) {
+                    setError((e as Error).message);
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                Load more events
+              </button>
+            )}
+          </details>
+        )}
+      </details>
     </section>
   );
 }

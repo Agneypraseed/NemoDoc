@@ -97,7 +97,7 @@ test("both evidence workflows: explicit snapshot, inspect queries, edit, approve
         "Attention is finite. Keep source evidence beside the ideas I save.",
       );
     await page.getByRole("button", { name: "Agent", exact: true }).click();
-    await page.getByRole("button", { name: "Research", exact: true }).click();
+    await page.getByRole("button", { name: "Research team", exact: true }).click();
     const flow = page.getByRole("region", { name: "Evidence workflows" });
     await expect(flow).toBeVisible();
     const sourceChoices = flow

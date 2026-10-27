@@ -315,7 +315,6 @@ test("real Nemotron MML research team records concurrent agents and their work i
     await page.getByRole("button", { name: "Agent", exact: true }).click();
     if (family) {
       await page
-        .getByLabel("Agent sections", { exact: true })
         .getByRole("button", { name: "Connections", exact: true })
         .click();
       const models = page.getByRole("region", {
@@ -357,7 +356,9 @@ test("real Nemotron MML research team records concurrent agents and their work i
         .click();
       await expect(models.getByRole("status")).toContainText("settings saved");
     }
-    await page.getByRole("button", { name: "Research", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Research team", exact: true })
+      .click();
     const flow = page.getByRole("region", { name: "Evidence workflows" });
     await flow
       .getByRole("group", { name: "Documents", exact: true })
@@ -705,7 +706,9 @@ test("real Nemotron MML research team records concurrent agents and their work i
       );
     else await page.reload();
     await page.getByRole("button", { name: "Agent", exact: true }).click();
-    await page.getByRole("button", { name: "Research", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Research team", exact: true })
+      .click();
     await expect(page.locator(`article[data-run-id="${runId}"]`)).toContainText(
       "Research report",
       { timeout: 15000 },
@@ -747,7 +750,9 @@ test("real Nemotron MML research team records concurrent agents and their work i
       ),
     );
     await page.getByRole("button", { name: "Agent", exact: true }).click();
-    await page.getByRole("button", { name: "Research", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Research team", exact: true })
+      .click();
     const repeated = page.locator(`article[data-run-id="${runId}"]`);
     const countBeforeReuse = requests.length;
     await repeated

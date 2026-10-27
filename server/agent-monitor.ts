@@ -49,6 +49,25 @@ export function registerAgentMonitor(
           ?.map((d) => `${d.channel}: ${d.status}`)
           .join(", "),
       }));
+    for (const run of worker.data.state.runs
+      .filter((run) => run.notebookId === notebookId)
+      .slice(0, 50))
+      for (const agent of run.agents ?? [])
+        activity.push({
+          id: agent.id,
+          agentId: agent.id,
+          kind: "task",
+          title: agent.name,
+          status: agent.status,
+          summary: agent.error || agent.answer || agent.assignment,
+          updatedAt: agent.finishedAt || agent.startedAt,
+          model: agent.model,
+          steps: run.steps
+            .filter((step) => step.agentId === agent.id)
+            .slice(-8),
+          pendingApproval: false,
+          delivery: "",
+        });
     let notebookError: string | undefined;
     try {
       const workspace: { service: WorkspaceService; ready: Promise<void> } =

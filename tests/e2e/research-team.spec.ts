@@ -277,7 +277,6 @@ for (const multiModel of [false, true]) {
         .setInputFiles(pdfPath);
       await pageUI.getByRole("button", { name: "Agent", exact: true }).click();
       await pageUI
-        .getByLabel("Agent sections", { exact: true })
         .getByRole("button", { name: "Connections", exact: true })
         .click();
       const web = pageUI.getByRole("region", {
@@ -352,7 +351,7 @@ for (const multiModel of [false, true]) {
         );
       }
       await pageUI
-        .getByRole("button", { name: "Research", exact: true })
+        .getByRole("button", { name: "Research team", exact: true })
         .click();
       const flow = pageUI.getByRole("region", { name: "Evidence workflows" });
       await expect(flow).toBeVisible();
@@ -414,26 +413,33 @@ for (const multiModel of [false, true]) {
         name: "Assignment 1",
         exact: true,
       });
+      await expect(
+        firstAssignment.getByLabel("How this agent should work", {
+          exact: true,
+        }),
+      ).toBeVisible();
       await firstAssignment
-        .getByText("AGENTS.md instructions", { exact: true })
+        .getByText("Import or export instructions", { exact: true })
         .click();
       const instructions =
         "# Research approach\n\nExplain definitions before comparing assumptions.\n";
       await firstAssignment
-        .getByLabel("Import AGENTS.md", { exact: true })
+        .getByLabel("Import Markdown file", { exact: true })
         .setInputFiles({
           name: "researcher.md",
           mimeType: "text/markdown",
           buffer: Buffer.from(instructions),
         });
       await expect(
-        firstAssignment.getByLabel("AGENTS.md content", { exact: true }),
+        firstAssignment.getByLabel("How this agent should work", {
+          exact: true,
+        }),
       ).toHaveValue(instructions);
       await firstAssignment
-        .getByRole("button", { name: "Preview Markdown", exact: true })
+        .getByRole("button", { name: "Preview", exact: true })
         .click();
       await expect(
-        firstAssignment.getByLabel("AGENTS.md preview", { exact: true }),
+        firstAssignment.getByLabel("Instructions preview", { exact: true }),
       ).toContainText("Research approach");
       await flow
         .getByRole("button", { name: "Add researcher", exact: true })
@@ -556,7 +562,7 @@ for (const multiModel of [false, true]) {
           .getByRole("button", { name: "Agent", exact: true })
           .click();
         await pageUI
-          .getByRole("button", { name: "Research", exact: true })
+          .getByRole("button", { name: "Research team", exact: true })
           .click();
         await expect(flow).toContainText("Manual choice");
         await expect(flow).toContainText("Model: review");

@@ -24,7 +24,9 @@ export function ResearchPlanEditor({
   return (
     <fieldset className="research-plan-editor">
       <legend>Review team assignments</legend>
-      <p className="agent-fine">Instructions apply to this task.</p>
+      <p className="agent-fine">
+        Give each agent a question to answer and any instructions to follow.
+      </p>
       {plan.agents.map((agent, index) => (
         <article
           className="agent-form"
@@ -40,13 +42,13 @@ export function ResearchPlanEditor({
               onChange={(e) => update(index, { name: e.target.value })}
             />
           </label>
-          <p>
+          <p className="agent-fine">
             {agent.role === "reviewer"
-              ? "Critical reviewer · final report"
+              ? "Reviewer · combines the findings into your final report"
               : "Researcher"}
           </p>
           <label className="field-label">
-            Task assignment
+            What should this agent investigate?
             <textarea
               aria-label={`Agent ${index + 1} assignment`}
               value={agent.assignment}

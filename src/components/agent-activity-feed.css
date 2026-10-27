@@ -1,0 +1,316 @@
+.agent-activity-feed {
+  margin: 20px 0;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.6;
+  min-width: 0;
+}
+.agent-feed-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 13px;
+}
+.agent-feed-heading h4 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+}
+.agent-feed-heading > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.agent-feed-heading .text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 4px 0;
+}
+.agent-feed-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.agent-feed-live svg,
+.agent-feed-spinner {
+  animation: agent-feed-spin 1.4s linear infinite;
+}
+.agent-feed-agents,
+.agent-feed-actions,
+.agent-feed-sources {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.agent-feed-agents {
+  border-left: 1px solid var(--line);
+  margin-left: 9px;
+}
+.agent-feed-agent {
+  position: relative;
+  padding: 0 0 17px 17px;
+}
+.agent-feed-agent:last-child {
+  padding-bottom: 0;
+}
+.agent-feed-agent::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: 11px;
+  width: 7px;
+  height: 7px;
+  background: var(--muted);
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px var(--surface);
+}
+.agent-feed-agent > details > summary {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 3px 0;
+  cursor: pointer;
+}
+.agent-activity-feed summary {
+  list-style: none;
+}
+.agent-activity-feed summary::-webkit-details-marker {
+  display: none;
+}
+.agent-activity-feed summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+.agent-feed-chevron {
+  flex-shrink: 0;
+  transition: transform 140ms ease;
+  color: var(--muted);
+}
+.agent-activity-feed details[open] > summary > .agent-feed-chevron {
+  transform: rotate(90deg);
+}
+.agent-feed-agent-icon {
+  flex-shrink: 0;
+  color: var(--text);
+}
+.agent-feed-agent-name {
+  font-weight: 600;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.agent-feed-state {
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.agent-feed-state.is-running {
+  color: var(--accent);
+}
+.agent-feed-state.is-failed,
+.agent-feed-state.is-interrupted,
+.agent-feed-state.is-rejected {
+  color: var(--danger);
+}
+.agent-feed-agent-content {
+  margin-left: 24px;
+  padding-top: 4px;
+  min-width: 0;
+}
+.agent-feed-assignment {
+  margin: 0 0 9px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.agent-feed-note,
+.agent-feed-persistence {
+  color: var(--muted);
+  font-size: 11px;
+  margin: 5px 0 9px;
+}
+.agent-feed-persistence {
+  margin: 16px 0 0;
+}
+.agent-feed-action {
+  margin: 2px 0;
+}
+.agent-feed-action > details > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+}
+.agent-feed-action > details > summary > svg {
+  flex-shrink: 0;
+}
+.agent-feed-action > details > summary > span:first-of-type {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.agent-feed-action.is-running > details > summary {
+  color: var(--text);
+}
+.agent-feed-action-status {
+  color: var(--danger);
+  font-size: 10px;
+}
+.agent-feed-action time {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.agent-feed-action-detail {
+  border-left: 1px solid var(--line);
+  margin: 3px 0 10px 6px;
+  padding: 2px 0 3px 25px;
+  overflow-wrap: anywhere;
+}
+.agent-feed-action-detail > p {
+  margin: 5px 0;
+}
+.agent-feed-action-detail > a {
+  font-size: 11px;
+}
+.agent-feed-query {
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-quiet);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+.agent-feed-query > span {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+.agent-feed-sources > li {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 6px 0;
+  font-size: 12px;
+}
+.agent-feed-sources > li > div {
+  min-width: 0;
+}
+.agent-feed-sources details {
+  margin-top: 2px;
+}
+.agent-feed-sources details > summary {
+  font-size: 10px;
+  color: var(--muted);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.agent-feed-sources details p {
+  margin: 7px 0;
+  font-size: 12px;
+  white-space: pre-wrap;
+  color: var(--text);
+}
+.agent-feed-citation {
+  color: var(--accent);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.agent-feed-error {
+  border-left: 2px solid var(--danger);
+  padding: 7px 12px;
+  font-size: 12px;
+  color: var(--danger);
+}
+.agent-feed-findings {
+  margin: 10px 0 4px;
+}
+.agent-feed-findings > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 500;
+}
+.agent-feed-findings-text {
+  margin: 8px 0 0 19px;
+  padding: 2px 0;
+  color: var(--text);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.agent-feed-findings-text p {
+  margin: 6px 0;
+}
+.agent-feed-findings-text :is(h1, h2, h3, h4, h5, h6) {
+  font-size: 13px;
+  margin: 12px 0 5px;
+}
+.agent-feed-findings-text :is(ul, ol) {
+  padding-left: 20px;
+}
+.agent-feed-findings-text pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.agent-feed-findings-text table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+@keyframes agent-feed-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (max-width: 600px) {
+  .agent-feed-agent {
+    padding-left: 11px;
+  }
+  .agent-feed-agent-content {
+    margin-left: 11px;
+  }
+  .agent-feed-action time {
+    display: none;
+  }
+  .agent-feed-action-detail {
+    padding-left: 13px;
+  }
+  .agent-feed-heading {
+    align-items: flex-start;
+  }
+  .agent-feed-heading > div {
+    justify-content: flex-end;
+    gap: 7px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent-feed-live svg,
+  .agent-feed-spinner {
+    animation: none;
+  }
+  .agent-feed-chevron {
+    transition: none;
+  }
+}
+[data-reduced-motion="true"] .agent-feed-live svg,
+[data-reduced-motion="true"] .agent-feed-spinner {
+  animation: none;
+}
+[data-reduced-motion="true"] .agent-feed-chevron {
+  transition: none;
+}

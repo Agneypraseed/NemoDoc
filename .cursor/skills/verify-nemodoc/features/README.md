@@ -4,6 +4,7 @@
 | --------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------ |
 | [Homepage](homepage.md)                 | Introduction, interactive demos, FAQ, workspace entry                        | `npm run verify:agents -- home.spec.ts`                |
 | [Agent activity](agent-activity.md)     | Local task history, search and status filters                            | `npm run verify:agents -- agent-overview.spec.ts`      |
+| Agent delegation                       | Assistant instructions, web and notebook specialists, activity and traces | `npm run verify:agents -- agent-orchestration.spec.ts` |
 | [Notebook library](notebooks.md)        | Search, create and reopen persisted notebooks                                | `npm run verify:agents -- library.spec.ts`             |
 | [Research teams](research-teams.md)     | Editable plans, task-based model routing, notebook/web evidence and traces   | `npm run verify:agents -- research-team.spec.ts`       |
 | [Save answers](save-answer.md)          | Preserve interruption state across reload and backup                         | `npm run test:e2e -- save-answer.spec.ts`              |

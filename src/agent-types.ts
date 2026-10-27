@@ -26,6 +26,15 @@ export const taskInput = z
     notebookId: id,
     title: z.string().trim().min(1).max(150),
     prompt: z.string().trim().min(1).max(8000),
+    instructions: z.string().trim().max(5000).optional(),
+    allowDelegation: z.boolean().optional(),
+    agentInstructions: z
+      .object({
+        researcher: z.string().trim().max(3000).optional(),
+        webResearcher: z.string().trim().max(3000).optional(),
+      })
+      .strict()
+      .optional(),
     skillId: id,
     sourceIds: z.array(id).max(30),
     fileIds: z.array(z.uuid()).max(20).optional(),
@@ -134,9 +143,18 @@ export interface AgentRun {
     at: number;
     status?: "succeeded" | "rejected" | "failed";
     callId?: string;
+    agentId?: string;
+    agentName?: string;
   }[];
   files?: AgentFile[];
-  toolAccess?: { web: boolean; fileIds: string[]; writeFiles: boolean };
+  toolAccess?: {
+    web: boolean;
+    fileIds: string[];
+    writeFiles: boolean;
+    delegation?: boolean;
+  };
+  agents?: AgentDelegate[];
+  modelCallLimit?: number;
   citations: AgentCitation[];
   materials: AgentMaterial[];
   sent: {
@@ -144,11 +162,30 @@ export interface AgentRun {
     sourceIds: string[];
     skill: string;
     prompt: string;
+    instructions?: string;
+    agentInstructions?: AgentTask["agentInstructions"];
     memories?: AgentMemory[];
     plan?: string;
   };
   calls: number;
   deliveries?: AgentDelivery[];
+}
+export interface AgentDelegate {
+  id: string;
+  name: string;
+  kind: "researcher" | "web_researcher";
+  assignment: string;
+  instructions: string;
+  status: "running" | "completed" | "failed" | "interrupted";
+  startedAt: number;
+  finishedAt?: number;
+  model: string;
+  answer?: string;
+  noEvidence?: boolean;
+  error?: string;
+  citationIds: number[];
+  calls: number;
+  spanId?: string;
 }
 export type AgentChannel = "email" | "whatsapp";
 export interface DeliveryTarget {

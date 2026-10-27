@@ -213,11 +213,8 @@ test("live Nebius document and personal agent workflow", async ({
     expect(semantic.citations.some((c: any) => c.page === 2)).toBe(true);
     evidence.semantic =
       "Keyword retrieval found the experiment on page 2 without an embedding inference call.";
-    await page.getByRole("button", { name: "Research", exact: true }).click();
-    await page
-      .getByText("Scheduled tasks & activity inbox", { exact: true })
-      .click();
-    await page.getByRole("button", { name: "New task", exact: true }).click();
+    await page.getByRole("button", { name: "Assistant", exact: true }).click();
+    await page.getByText("Task settings", { exact: true }).click();
     await page
       .getByLabel("Task name", { exact: true })
       .fill("Personal exam review");
@@ -339,7 +336,7 @@ test("live Nebius document and personal agent workflow", async ({
     const next = await context.newPage();
     await next.goto("/");
     await next.getByRole("button", { name: "Agent", exact: true }).click();
-    await next.getByRole("button", { name: "Research", exact: true }).click();
+    await next.getByRole("button", { name: "Assistant", exact: true }).click();
     await expect(next.locator("article.agent-result")).toContainText(
       closedRun.answer.slice(0, 40),
       { timeout: 10000 },

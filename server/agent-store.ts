@@ -79,6 +79,12 @@ export class AgentStore {
         value.autonomousToolsVersion = 1;
       }
       for (const run of value.runs) {
+        for (const agent of run.agents ?? [])
+          if (agent.status === "running") {
+            agent.status = "interrupted";
+            agent.finishedAt = Date.now();
+            agent.error = "The server stopped during this specialist's work.";
+          }
         const outputs = (value.files ?? []).filter(
           (file) => file.runId === run.id,
         );

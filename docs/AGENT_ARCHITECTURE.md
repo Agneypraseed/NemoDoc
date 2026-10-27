@@ -8,6 +8,10 @@ NemoDoc uses the **OpenAI Agents SDK for TypeScript** (`@openai/agents`) for res
 
 `server/workspace/service.ts` runs the planner and snapshots reviewed research teams. `application-research.ts` defines researcher/reviewer behavior, scoped tool handlers, source budgets and citation validation. `worker.ts` owns evidence/proposal workflows, cancellation, deadlines and recovery; `server/agent.ts` supplies personal/scheduled tools, audited file access and delivery lifecycle. The application controls the researcher fan-out and reviewer fan-in. Every model/tool turn uses the same SDK runner.
 
+Personal tasks can also let the main agent call `delegate_agents` dynamically. `server/agent-delegation.ts` starts notebook researchers or public web researchers as nested SDK runs; the main agent owns the final answer and any permitted actions. A batch can contain three concurrent specialists, with four specialists per run and four model calls per specialist. All agents share a 24-call, 40-tool-action, five-minute limit and the same cancellation signal. Without delegation, personal tasks retain eight model calls, 20 tool actions and three minutes.
+
+Task instructions and optional notebook/web specialist instructions are saved with the task and run. Specialists inherit the selected sources/files and tested search connection; they cannot write, deliver messages, modify memory or spawn more agents. Web discovery uses the existing Tavily, Exa or Firecrawl adapter. Only extracted content can receive a web citation; an empty search produces a recorded no-evidence outcome and extraction failures remain visible failures. Citation IDs are shared across the run and specialist answers must cite evidence they actually retrieved.
+
 The `NotebookModel` adapter implements the SDK's public `Model` interface for NemoDoc's text-and-function-call protocol. It maps SDK history to Chat Completions messages and maps provider outputs back to SDK items. `model-routing.ts` resolves each agent's tested model profile; `agent-connections.ts` retains its credential-scoped, revision-checked `fetch` transport. This preserves provider-specific request controls and redacted local request/response traces. The adapter deliberately accepts extracted text rather than original PDF/file uploads. Missing usage remains unknown in application records even though SDK accounting requires numeric fields.
 
 The SDK handles repeated tool-call IDs without replaying the tool. Duplicate IDs in one response are rejected before execution. Tests issuing separate actions use separate call IDs. Scoped read/write tools, permissions, citation checks, proposal review and delivery approvals remain server-enforced.
@@ -31,7 +35,7 @@ References: [NVIDIA LLM API](https://docs.api.nvidia.com/nim/reference/llm-apis)
 
 ## Agent definitions and maintenance
 
-The [OpenAI orchestration guide](https://developers.openai.com/api/docs/guides/agents/orchestration) distinguishes handoffs, where a specialist takes over, from agents as tools, where a manager owns the final answer. NemoDoc uses programmatic orchestration with SDK agents for its required workflow stages. A future conversational triage agent could use SDK handoffs without changing provider profiles or evidence permissions.
+The [OpenAI orchestration guide](https://developers.openai.com/api/docs/guides/agents/orchestration) distinguishes handoffs, where a specialist takes over, from agents as tools, where a manager owns the final answer. NemoDoc uses programmatic orchestration for reviewed research teams and agents as tools for optional dynamic delegation in personal tasks.
 
 The direct framework dependency is `@openai/agents`; Zod v4 is already installed. `runNotebookAgent` supplies the shared SDK lifecycle while each workflow supplies its request/usage observer, scoped tool implementation and final-answer validation. To add a tool, define its schema and permission checks in the relevant workflow, then register its definition with that agent. Avoid adding another hand-written model/tool loop.
 
@@ -40,6 +44,8 @@ Every research agent's reviewed Markdown snapshot is passed into SDK `Agent.inst
 Native Gemini or other provider-specific protocols could use `@openai/agents-extensions/ai-sdk` with an appropriate provider package, such as `@ai-sdk/google`. Those packages are not installed in this migration; Gemini currently uses its compatibility endpoint like the other saved profiles. Provider support remains capability-tested rather than an assurance that every model supports tools or every request option.
 
 SDK remote tracing is disabled on every NemoDoc `Runner`, and sensitive-data tracing is disabled as well. Existing redacted local traces continue to drive the dashboard and exports. NVIDIA, Gemini and local-model users do not need an OpenAI API key for orchestration. An OpenAI key is required only when using an OpenAI inference endpoint.
+
+Each notebook's dashboard and activity feed use persisted local traces. Nested agent spans retain assignments, tools, outcomes and validated findings; `agent.completed` events contain the accepted visible answer and citation IDs, never raw reasoning. Trace exports survive reload, and interrupted agents are marked interrupted on restart without replaying work.
 
 ## Verification
 

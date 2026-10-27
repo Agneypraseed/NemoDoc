@@ -1,10 +1,10 @@
 # Autonomous agent tools
 
-Personal tasks use a bounded Nemotron function-calling loop with `tool_choice: "auto"`. The model selects tools and their order; the application validates and executes each request and returns its actual result. Tools are advertised only when the task permits them. Forged calls to unadvertised tools are also rejected on the server.
+Personal tasks use the shared OpenAI Agents SDK runner with `tool_choice: "auto"` and the saved compatible model connection. The model selects tools and their order; the application validates and executes each request and returns its actual result. Tools are advertised only when the task permits them. Forged calls to unadvertised tools are also rejected on the server.
 
 ```mermaid
 flowchart LR
-  A[Request and task permissions] --> B[Nemotron chooses a tool]
+  A[Request and task permissions] --> B[Agent chooses a tool]
   B --> C[Validate arguments and scope]
   C -->|allowed| D[Persist audit entry]
   D --> E[Execute tool]
@@ -16,11 +16,12 @@ flowchart LR
 
 ## Create a task
 
-1. Configure and test a Nemotron connection. For web work, save and test a provider in **Settings → Search**.
-2. Open **Agent → Research → Scheduled tasks & activity inbox → New task** and choose **Research and write a file**.
+1. Configure and test the agent model connection. For web work, save and test a provider in **Settings → Search**.
+2. Open **Agent → Assistant** and describe the task. Add task instructions directly; choose a reusable skill under **Task settings** when needed.
 3. Select approved notebook sources, upload/select text files, or allow web research. A task needs at least one of these evidence sources. Uploading creates a local copy; selecting it grants the task read access.
 4. Enable **Allow public web search and page reading** and **Allow new output files…** when needed. Give a concrete request such as “Read my brief, search official documentation, and write a cited Markdown summary.”
-5. Inspect the cited excerpts, action outcomes and **Created files**. The download contains the actual generated file. **Run history and trace inspection** provides the detailed audit and redacted JSON export.
+5. Choose delegation when the main agent should assign independent questions to specialists. **Specialist instructions** lets you guide notebook researchers and web researchers separately. These instructions are saved with the run.
+6. Inspect expandable tool actions, specialist findings, cited excerpts and **Created files**. The notebook dashboard retains previous runs, and **Download trace** exports the saved audit. File downloads contain the actual generated files.
 
 ## Tool authority
 
@@ -30,17 +31,22 @@ flowchart LR
 | `list_files`, `read_file`                      | Only selected file IDs and files created in this run, in the same notebook.                                                                                               |
 | `search_web`, `read_web`                       | Task opt-in and the saved, tested search connection revision. Read URLs must come from this run’s search results. Only successfully extracted pages receive citation IDs. |
 | `write_file`                                   | Task opt-in; new files in the notebook’s dedicated agent workspace. Retrieved citation IDs are required; inline references must match them.                               |
+| `delegate_agents`                              | Task opt-in; notebook and web researchers use the same SDK runner with inherited read permissions. Specialists cannot mutate data or delegate recursively.                |
 | Study materials, plan, memory and review tools | Existing notebook scope and task-specific memory/scheduling permissions.                                                                                                  |
 
 Files support `.md`, `.txt`, `.csv` and `.json`, up to 64 KiB each, 20 selected inputs per task, and 100 files/2 MiB per notebook. Filenames cannot contain directories, traversal components, control characters or reserved device names. Physical paths use generated IDs under `data/agent.json.files/` (or the configured agent data filename plus `.files`). Symlinks/junctions, hard-linked files, non-regular files and oversized reads are rejected. Writes create new IDs exclusively, even for the same display name. There is no arbitrary host-path, shell or executable-file tool.
 
-Runs retain the limits of eight model calls, twenty tool actions and three minutes. Source revocation, cancellation and model changes stop subsequent actions; changed search settings require a new task. Output metadata survives restart and interrupted actions are not replayed. **Erase all agent data** removes registered sandbox copies and generated files with the agent history; notebook originals remain in browser storage. Redacted traces are stored separately and retained by this control.
+Ordinary runs retain the limits of eight model calls, twenty tool actions and three minutes. Delegated runs share 24 model calls, 40 tool actions and five minutes: at most four specialists, three concurrent per batch, and four model calls per specialist. The main agent owns the final response. Source revocation, cancellation and model changes stop subsequent actions; changed search settings require a new task. Output metadata and specialist results survive restart and interrupted actions are not replayed. **Erase all agent data** removes registered sandbox copies and generated files with the agent history; notebook originals remain in browser storage. Redacted traces are stored separately and retained by this control.
+
+Web specialists can discover papers or pages through the selected search provider and extract relevant text. Search snippets alone cannot support claims, and PDF extraction depends on the provider's supported content. Empty searches produce an explicit no-evidence result; failed page extraction records the error instead of inventing a finding.
 
 ## Audit and privacy
 
 Markdown writes require each declared supporting citation ID to appear inline. JSON outputs must parse as JSON; their numeric arrays remain data and their provenance is retained in file metadata.
 
 Tool requests record their call ID, validation/rejection decision, result/error and timing. An allowed decision must reach PostgreSQL or the local JSONL spool before execution; both destinations failing blocks the action. Successful, rejected and failed outcomes appear in the activity inbox. Traces redact configured credentials and private model reasoning. They can contain approved text; inspect exports before sharing.
+
+The activity feed groups work by agent and shows the actual persisted tool actions and validated findings. Nested trace spans retain each specialist's assignment, instructions, status and model. Dashboard queries and trace reads are scoped to the current notebook.
 
 Web queries go to the search provider. Retrieved file/page text, task context and accumulated tool results go to the model. Files and pages are untrusted text and cannot grant new tools or host paths. These controls enforce application permissions; they do not guarantee correct model claims or eliminate malicious instructions within granted authority. NemoDoc remains a single-user local application, not a multi-user authentication service or an operating-system sandbox.
 

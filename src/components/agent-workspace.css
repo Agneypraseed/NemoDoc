@@ -1,0 +1,300 @@
+.agent-workspace-heading {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.agent-workspace-heading h2 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: -0.025em;
+}
+.agent-workspace-heading > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+}
+.agent-workspace-heading > div > p {
+  border-left: 1px solid var(--line);
+  padding-left: 18px;
+}
+.agent-workspace-heading p {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 5px 0;
+  overflow-wrap: anywhere;
+}
+.agent-workspace-heading button {
+  font-size: 12px;
+}
+.agent-assistant-workspace {
+  max-width: 920px;
+  margin: 0 auto;
+}
+.agent-assistant-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 8px 0 20px;
+}
+.agent-assistant-heading h3 {
+  font-size: clamp(19px, 2vw, 28px);
+  font-weight: 550;
+  line-height: 1.3;
+  letter-spacing: -0.035em;
+  margin: 0;
+}
+.agent-composer {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.agent-composer-main {
+  padding: 20px;
+  display: grid;
+  gap: 18px;
+}
+.agent-composer .field-label {
+  font-size: 13px;
+  color: var(--text);
+  font-weight: 500;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  margin: 0;
+}
+.agent-composer textarea,
+.agent-composer input:not([type="checkbox"]),
+.agent-composer select {
+  width: 100%;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.6;
+  padding: 10px 12px;
+  color: var(--ink);
+  background: var(--surface-quiet);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-height: 0;
+}
+.agent-composer textarea::placeholder,
+.agent-composer input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+.agent-composer .field-label small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+.agent-mode-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.agent-mode-picker button {
+  border: 1px solid var(--line);
+  padding: 8px 15px;
+  border-radius: 20px;
+  font-size: 12px;
+  color: var(--text);
+}
+.agent-mode-picker button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--surface);
+  border-color: var(--accent);
+}
+:root[data-theme="dark"] .agent-mode-picker button[aria-pressed="true"] {
+  color: #171717;
+}
+.agent-instruction-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.agent-composer-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 22px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--line);
+}
+.agent-composer-toolbar .agent-source-toggle,
+.agent-composer-toolbar .agent-web-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  font-size: 12px;
+}
+.agent-source-toggle {
+  color: var(--text);
+}
+.agent-composer-toolbar .primary-button {
+  margin-left: auto;
+  min-height: 36px;
+  padding: 9px 17px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.agent-composer-settings {
+  border-top: 1px solid var(--line);
+  padding: 0 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 20px;
+}
+.agent-composer-settings > details {
+  flex: 1;
+  min-width: 180px;
+  border-top: 0;
+}
+.agent-composer-settings > details[open] {
+  flex-basis: 100%;
+  order: 2;
+}
+.agent-composer-options {
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+}
+.agent-composer-options > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 12px;
+  padding: 13px 0;
+  color: var(--text);
+}
+.agent-composer-options > summary::-webkit-details-marker {
+  display: none;
+}
+.agent-composer-options > summary svg:last-child {
+  margin-left: auto;
+}
+.agent-composer-options[open] > summary svg:last-child {
+  transform: rotate(180deg);
+}
+.agent-composer-options > .field-label {
+  margin-bottom: 15px;
+}
+.agent-composer-options + .agent-composer-options {
+  border-top: 0;
+}
+.agent-specialist-options {
+  border-top: 1px solid var(--line);
+}
+.agent-specialist-options > p {
+  margin-top: 0;
+}
+.agent-specialist-options > summary svg:last-child {
+  margin-left: 0;
+}
+.agent-composer fieldset {
+  border: 0;
+  padding: 0;
+  margin: 12px 0;
+}
+.agent-composer legend {
+  font-size: 12px;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+.agent-composer .check-field {
+  font-size: 12px;
+  line-height: 1.6;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0;
+}
+.agent-composer input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  accent-color: var(--accent);
+}
+.agent-composer-disclosure,
+.agent-composer-notice {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+  padding: 0 20px;
+  margin: 12px 0;
+}
+.agent-composer-notice button {
+  font-size: inherit;
+  padding: 0;
+  color: var(--accent);
+  text-decoration: underline;
+}
+.agent-composer > .form-error {
+  padding: 0 20px;
+}
+.agent-assistant-activity {
+  margin-top: 26px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+.agent-assistant-activity > h3 {
+  font-size: 16px;
+  margin: 0 0 16px;
+}
+.agent-scheduled-list {
+  margin-top: 24px;
+  border-top: 1px solid var(--line);
+  padding: 14px 0;
+}
+.agent-scheduled-list > summary {
+  font-size: 13px;
+  cursor: pointer;
+}
+.agent-assistant-activity .agent-result {
+  background: transparent;
+}
+.agent-assistant-empty {
+  padding: 22px 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+@media (max-width: 600px) {
+  .agent-panel {
+    padding: 16px 14px 24px;
+  }
+  .agent-instruction-grid {
+    grid-template-columns: 1fr;
+  }
+  .agent-composer-main {
+    padding: 15px;
+    gap: 15px;
+  }
+  .agent-composer-toolbar {
+    padding: 12px 15px;
+    gap: 12px;
+  }
+  .agent-composer-toolbar .primary-button {
+    margin-left: auto;
+  }
+  .agent-composer-settings {
+    padding: 0 15px;
+  }
+  .agent-workspace-heading h2 {
+    font-size: 17px;
+  }
+  .agent-assistant-heading h3 {
+    font-size: 22px;
+  }
+}

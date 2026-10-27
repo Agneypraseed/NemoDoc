@@ -14,65 +14,87 @@ export function ResearchInstructions({
   onChange?: (content: string) => void;
 }) {
   const [preview, setPreview] = useState(false);
+  const rendered = (
+    <div className="agent-markdown-preview" aria-label="Instructions preview">
+      <ReactMarkdown
+        skipHtml
+        remarkPlugins={[remarkGfm]}
+        components={{
+          a: ({ children }) => <span>{children}</span>,
+          img: ({ alt }) => <span>{alt || "Image omitted"}</span>,
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
+  const exportInstructions = () =>
+    download(
+      new Blob([content], { type: "text/markdown;charset=utf-8" }),
+      `${name.replace(/[^a-z0-9_-]/gi, "-")}-AGENTS.md`,
+    );
+  if (!onChange)
+    return (
+      <details className="agent-role-template">
+        <summary>Instructions</summary>
+        {rendered}
+        <button
+          type="button"
+          className="text-button"
+          onClick={exportInstructions}
+        >
+          Download .md
+        </button>
+      </details>
+    );
   return (
-    <details className="agent-role-template">
-      <summary>AGENTS.md instructions</summary>
-      {onChange && (
-        <>
-          <p className="agent-fine">
-            Saved with this run. Import a Markdown file to reuse it with another
-            agent or task. Evidence and tool permissions still apply.
-          </p>
-          <MarkdownFileInput onImport={onChange} />
-          <button
-            type="button"
-            className="text-button"
-            onClick={() => setPreview(!preview)}
-          >
-            {preview ? "Edit Markdown" : "Preview Markdown"}
-          </button>
-        </>
-      )}
-      {onChange && !preview ? (
+    <section
+      className="research-instructions"
+      aria-label={`${name} instructions`}
+    >
+      {!preview ? (
         <label className="field-label">
-          Agent instructions
+          How this agent should work
           <textarea
-            aria-label="AGENTS.md content"
-            className="agent-markdown-input"
+            aria-label="How this agent should work"
             value={content}
             maxLength={32000}
-            rows={8}
-            spellCheck={false}
-            placeholder="# Role\n\nGoals, approach, output format and limits…"
+            rows={3}
+            placeholder="Use plain language, compare the evidence, and cite source pages. Add any approach or output format you prefer."
             onChange={(e) => onChange(e.target.value)}
           />
         </label>
       ) : (
-        <div className="agent-markdown-preview" aria-label="AGENTS.md preview">
-          <ReactMarkdown
-            skipHtml
-            remarkPlugins={[remarkGfm]}
-            components={{
-              a: ({ children }) => <span>{children}</span>,
-              img: ({ alt }) => <span>{alt || "Image omitted"}</span>,
-            }}
-          >
-            {content}
-          </ReactMarkdown>
-        </div>
+        rendered
       )}
-      <button
-        type="button"
-        className="secondary-button"
-        onClick={() =>
-          download(
-            new Blob([content], { type: "text/markdown;charset=utf-8" }),
-            `${name.replace(/[^a-z0-9_-]/gi, "-")}-AGENTS.md`,
-          )
-        }
-      >
-        Download AGENTS.md
-      </button>
-    </details>
+      <div className="workflow-buttons">
+        <button
+          type="button"
+          className="text-button"
+          aria-pressed={preview}
+          onClick={() => setPreview(!preview)}
+        >
+          {preview ? "Edit instructions" : "Preview"}
+        </button>
+        <details className="agent-role-template">
+          <summary>Import or export instructions</summary>
+          <MarkdownFileInput
+            name="Markdown file"
+            onImport={(value) => {
+              onChange(value);
+              setPreview(false);
+            }}
+          />
+          <button
+            type="button"
+            className="text-button"
+            disabled={!content.trim()}
+            onClick={exportInstructions}
+          >
+            Download .md
+          </button>
+        </details>
+      </div>
+    </section>
   );
 }

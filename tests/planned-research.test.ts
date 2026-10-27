@@ -713,8 +713,16 @@ test("durable traces redact Tavily and model secrets while retaining tool and ci
       path.join(directory, "trace.jsonl"),
       () => ["fixture-web-secret", "fixture-model-key"],
     );
-    const { service, worker, web, input } = await setup(
-      fake.fetcher,
+    const { service, worker, web, input, repository } = await setup(
+      async (url, init) => {
+        const response = await fake.fetcher(url, init);
+        const value = await response.json();
+        const message = value.choices?.[0]?.message;
+        if (typeof message?.content === "string")
+          message.content =
+            "<think>private intermediate reasoning</think>" + message.content;
+        return Response.json(value, { status: response.status });
+      },
       undefined,
       trace,
     );
@@ -736,6 +744,37 @@ test("durable traces redact Tavily and model secrets while retaining tool and ci
     assert.ok(!text.includes("fixture-model-key"));
     assert.ok(text.includes("read_web_page"));
     assert.ok(text.includes("citation.validation"));
+    const completed = (
+      await trace.events("fixture", run.id, 0, 1000)
+    ).events.filter((event) => event.type === "agent.completed");
+    const saved = (await repository.read("fixture")).runs[0];
+    assert.equal(completed.length, 3);
+    for (const event of completed) {
+      const agent = saved.researchTeam!.find(
+        (agent) => agent.id === event.payload.agentId,
+      )!;
+      assert.equal(event.payload.name, agent.name);
+      assert.equal(event.payload.answer, agent.answer);
+      assert.deepEqual(
+        event.payload.citationIds,
+        citationReferences(agent.answer!, [
+          ...saved.citations,
+          ...(saved.webEvidence ?? []),
+        ]),
+      );
+      assert.doesNotMatch(
+        String(event.payload.answer),
+        /private intermediate reasoning|<think>/,
+      );
+      assert.ok(
+        detail.spans.some(
+          (span) =>
+            span.spanId === event.spanId &&
+            span.attributes.agentId === agent.id &&
+            ["agent", "synthesis"].includes(span.kind),
+        ),
+      );
+    }
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

@@ -189,7 +189,6 @@ test("search settings stay synchronized with agent connections", async ({
     await page.goto("/app");
     await page.getByRole("button", { name: "Agent", exact: true }).click();
     await page
-      .getByLabel("Agent sections", { exact: true })
       .getByRole("button", { name: "Connections", exact: true })
       .click();
     const inline = page.getByRole("region", {

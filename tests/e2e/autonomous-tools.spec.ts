@@ -207,10 +207,7 @@ for (const live of [false, true]) {
           exact: true,
         })
         .click();
-      await page
-        .getByText("Scheduled tasks & activity inbox", { exact: true })
-        .click();
-      await page.getByRole("button", { name: "New task", exact: true }).click();
+      await page.getByText("Task settings", { exact: true }).click();
       console.log("Autonomous journey: task form ready");
       await page
         .getByLabel("Task name", { exact: true })
@@ -222,6 +219,7 @@ for (const live of [false, true]) {
       await page
         .getByRole("combobox", { name: "Reusable skill", exact: true })
         .selectOption("autonomous-tools");
+      await page.getByText("Sources & files", { exact: true }).click();
       await page.getByLabel("Add a text file", { exact: true }).setInputFiles({
         name: "research-brief.md",
         mimeType: "text/markdown",
@@ -360,9 +358,6 @@ for (const live of [false, true]) {
       });
       await page.reload();
       await page.getByRole("button", { name: "Agent", exact: true }).click();
-      await page
-        .getByText("Scheduled tasks & activity inbox", { exact: true })
-        .click();
       await expect(
         page.getByRole("link", { name: /nemotron-tool-brief.md/ }),
       ).toBeVisible();
