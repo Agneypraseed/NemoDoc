@@ -511,7 +511,7 @@ export function AgentTaskComposer({
       </div>
       <p className="agent-composer-disclosure">
         {allowDelegation
-          ? "Up to 24 model calls across the team."
+          ? "Up to 34 model calls across the team."
           : "Up to 8 model calls."}{" "}
         Instructions, notebook memory, and retrieved evidence are sent to your
         selected model. Activity and redacted traces are saved in this notebook.

@@ -201,7 +201,7 @@ test("main SDK agent delegates notebook and web research concurrently, retains c
     const run = data.state.runs[0];
     assert.equal(run.status, "completed", run.error);
     assert.equal(run.calls, 7);
-    assert.equal(run.modelCallLimit, 24);
+    assert.equal(run.modelCallLimit, 34);
     assert.equal(searches, 1);
     assert.equal(reads, 1);
     assert.equal(run.agents?.length, 2);
@@ -246,6 +246,93 @@ test("main SDK agent delegates notebook and web research concurrently, retains c
     await traces.close();
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test("a main agent with evidence gets a final answer turn at its delegation limit", async () => {
+  let mainCalls = 0;
+  const { data, worker } = fixture(
+    (async (_url, init) => {
+      const body = JSON.parse(String(init?.body));
+      if (body.messages[0].content.includes("You are Source researcher")) {
+        const result = lastOutput(body);
+        return reply(
+          result
+            ? { content: "The source describes weighted values. [1]" }
+            : call("read_passage", { sourceId: "allowed", page: 1 }),
+        );
+      }
+      mainCalls++;
+      if (mainCalls === 1)
+        return reply(
+          call("delegate_agents", {
+            agents: [
+              {
+                name: "Source researcher",
+                kind: "researcher",
+                instructions: "Explain the source.",
+              },
+            ],
+          }),
+        );
+      if (mainCalls < 10)
+        return reply(call("read_passage", { sourceId: "allowed", page: 1 }));
+      assert.equal(body.tool_choice, "none");
+      assert.deepEqual(body.tools, []);
+      return reply({ content: "The source describes weighted values. [1]" });
+    }) as typeof fetch,
+    { allowDelegation: true },
+  );
+  await worker.tick(100);
+  assert.equal(mainCalls, 10);
+  assert.equal(
+    data.state.runs[0].status,
+    "completed",
+    data.state.runs[0].error,
+  );
+});
+
+test("a specialist with evidence gets a final answer turn instead of another tool call", async () => {
+  let childCalls = 0;
+  const { data, worker } = fixture(
+    (async (_url, init) => {
+      const body = JSON.parse(String(init?.body));
+      const system = body.messages[0].content;
+      if (system.includes("You are Patient researcher")) {
+        childCalls++;
+        if (childCalls < 6)
+          return reply(call("read_passage", { sourceId: "allowed", page: 1 }));
+        assert.equal(body.tool_choice, "none");
+        assert.deepEqual(body.tools, []);
+        assert.match(body.messages.at(-1).content, /final model call/);
+        return reply({
+          content: "The source describes weighted token values. [1]",
+        });
+      }
+      const output = lastOutput(body);
+      return reply(
+        output
+          ? { content: "The researcher found weighted token values. [1]" }
+          : call("delegate_agents", {
+              agents: [
+                {
+                  name: "Patient researcher",
+                  kind: "researcher",
+                  instructions: "Read and explain the source.",
+                },
+              ],
+            }),
+      );
+    }) as typeof fetch,
+    { allowDelegation: true },
+  );
+  await worker.tick(100);
+  assert.equal(childCalls, 6);
+  assert.equal(
+    data.state.runs[0].status,
+    "completed",
+    data.state.runs[0].error,
+  );
+  assert.equal(data.state.runs[0].agents?.[0].status, "completed");
 });
 
 for (const allowDelegation of [false, true])
