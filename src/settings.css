@@ -18,6 +18,98 @@
   margin: 0;
   font-size: 13px;
 }
+.conversation-prompt-settings {
+  display: grid;
+  gap: 16px;
+  color: var(--ink);
+  font-size: 13px;
+}
+.conversation-prompt-intro h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+.conversation-prompt-intro p {
+  max-width: 620px;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+.conversation-prompt-modes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-quiet);
+}
+.conversation-prompt-modes button {
+  min-height: 38px;
+  padding: 8px 12px;
+  border-radius: 7px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.conversation-prompt-modes button[aria-pressed="true"] {
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgb(20 22 27 / 10%);
+  color: var(--ink);
+  font-weight: 600;
+}
+.conversation-prompt-field {
+  display: grid;
+  gap: 8px;
+  font-weight: 600;
+}
+.conversation-prompt-field textarea {
+  width: 100%;
+  min-height: 300px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--ink);
+  font:
+    12px/1.6 ui-monospace,
+    SFMono-Regular,
+    Consolas,
+    monospace;
+  font-weight: 400;
+  resize: vertical;
+}
+.conversation-prompt-footer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.conversation-prompt-footer .save-status {
+  flex: 1 1 220px;
+}
+.conversation-prompt-footer .save-error {
+  flex: 1 1 220px;
+  color: #a5463a;
+}
+.conversation-prompt-footer .prompt-character-count {
+  white-space: nowrap;
+}
+.conversation-prompt-reset {
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+}
+.conversation-prompt-reset:not(:disabled):hover {
+  border-color: var(--ink);
+}
+.conversation-prompt-settings :is(button, textarea):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
 .web-search-settings h4 {
   font-size: 14px;
   margin: 0 0 18px;

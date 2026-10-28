@@ -50,6 +50,7 @@ import type { WorkflowRun } from "./workspace-types";
 import { createBackup, readBackup } from "./lib/backup";
 import { apiJSON } from "./lib/api";
 import { ConnectionSettings } from "./components/ConnectionSettings";
+import { ConversationPromptSettings } from "./components/ConversationPromptSettings";
 import { AppearanceSettings } from "./components/AppearanceSettings";
 import { WebResearchConnection } from "./components/WebResearchConnection";
 import { NotebookActions } from "./components/NotebookActions";
@@ -58,6 +59,11 @@ import type { AnswerMode } from "./components/AnswerMode";
 import { WorkspaceTabs } from "./components/WorkspaceTabs";
 import { AssistantPanel } from "./components/AssistantPanel";
 import { modelName, useAppearance } from "./lib/appearance";
+import {
+  readConversationPrompts,
+  saveConversationPrompts,
+} from "./lib/conversation-prompts";
+import type { ConversationPrompts } from "./conversation-prompt-types";
 import { NotebookSearch } from "./components/NotebookSearch";
 import { searchableNotes } from "./lib/search-notes";
 import { passageAction, passageTitle } from "./lib/passage-label";
@@ -291,9 +297,13 @@ export default function App() {
     model: "nvidia/nemotron-3.5-lightning-30b-a3b",
     local: false,
   });
-  const [settingsSection, setSettingsSection] = useState<"general" | "search">(
-    "general",
-  );
+  const [settingsSection, setSettingsSection] = useState<
+    "general" | "search" | "conversation"
+  >("general");
+  const [conversationPrompts, setConversationPrompts] =
+    useState<ConversationPrompts>(readConversationPrompts);
+  const [conversationPromptSaveError, setConversationPromptSaveError] =
+    useState(false);
   const [noteCitation, setNoteCitation] = useState<Citation>();
   const [modal, setModal] = useState<
       "settings" | "new" | "library" | "help" | null
@@ -637,6 +647,15 @@ export default function App() {
   const updateNotebook = (value: Notebook) => {
     setNotebooks((list) => list.map((n) => (n.id === value.id ? value : n)));
     void storage.notebook(value).catch(reportStorageError);
+  };
+  const updateConversationPrompts = (value: ConversationPrompts) => {
+    setConversationPrompts(value);
+    try {
+      saveConversationPrompts(value);
+      setConversationPromptSaveError(false);
+    } catch {
+      setConversationPromptSaveError(true);
+    }
   };
   const openNotebook = (id: string) => {
     abort.current?.abort();
@@ -1220,6 +1239,7 @@ export default function App() {
         {
           question,
           answerMode: nextNote.answerMode,
+          systemPrompt: conversationPrompts[nextNote.answerMode],
           selection: {
             sourceId: selected.sourceId,
             page: selected.page,
@@ -1513,7 +1533,9 @@ export default function App() {
           "/api/vision",
           {
             image: imageQuestion.image,
-            question: `${question}\n\n${answerMode === "quick" ? "Give a concise answer." : "Give a detailed, structured explanation."}`,
+            question,
+            answerMode,
+            systemPrompt: conversationPrompts[answerMode],
           },
           abort.current.signal,
         );
@@ -1539,6 +1561,7 @@ export default function App() {
           {
             question,
             answerMode,
+            systemPrompt: conversationPrompts[answerMode],
             selection:
               selected && !requestedPage
                 ? {
@@ -2908,14 +2931,18 @@ export default function App() {
       {modal === "settings" && (
         <Modal title="Settings" onClose={() => setModal(null)}>
           <nav className="settings-sections" aria-label="Settings sections">
-            {(["general", "search"] as const).map((section) => (
+            {(["general", "search", "conversation"] as const).map((section) => (
               <button
                 type="button"
                 key={section}
                 aria-pressed={settingsSection === section}
                 onClick={() => setSettingsSection(section)}
               >
-                {section === "general" ? "General" : "Search"}
+                {section === "general"
+                  ? "General"
+                  : section === "search"
+                    ? "Search"
+                    : "Conversation"}
               </button>
             ))}
           </nav>
@@ -2931,6 +2958,13 @@ export default function App() {
           </div>
           <div hidden={settingsSection !== "search"}>
             <WebResearchConnection />
+          </div>
+          <div hidden={settingsSection !== "conversation"}>
+            <ConversationPromptSettings
+              prompts={conversationPrompts}
+              onChange={updateConversationPrompts}
+              saveError={conversationPromptSaveError}
+            />
           </div>
         </Modal>
       )}

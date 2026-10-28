@@ -1,4 +1,5 @@
-export type AnswerMode = "quick" | "deep";
+import type { AnswerMode } from "../conversation-prompt-types";
+export type { AnswerMode } from "../conversation-prompt-types";
 
 export function AnswerModeControl({
   value,
