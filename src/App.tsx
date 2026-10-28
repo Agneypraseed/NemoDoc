@@ -1061,7 +1061,9 @@ export default function App() {
       }),
     );
   };
-  const saveResearch = async (run: WorkflowRun) => {
+  const saveResearch = async (
+    run: WorkflowRun | import("./agent-types").AgentRun,
+  ) => {
     const current = notebooks.find((n) => n.id === run.notebookId);
     if (!current)
       throw new Error("Open the original notebook before saving this report.");

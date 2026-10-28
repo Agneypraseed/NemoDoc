@@ -1,3 +1,4 @@
+import type { AgentRun } from "../src/agent-types.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { Notebook, Source } from "../src/types.ts";
@@ -179,4 +180,55 @@ test("research save state and notes survive ZIP backup and older notebooks remai
     }),
   );
   assert.equal(old.notebooks[0].savedResearchRuns, undefined);
+});
+
+test("automatic research saves cited notebook and web findings without losing edits or duplicating reports", () => {
+  const automatic = {
+    id: "automatic-1",
+    notebookId: notebook.id,
+    status: "completed",
+    answer: "Notebook finding [1]. Public finding [2]. Removed document [3].",
+    sent: { prompt: "Compare definitions" },
+    connection: { model: "nvidia/test-nemotron" },
+    citations: [
+      {
+        id: 1,
+        sourceId: source.id,
+        sourceName: source.name,
+        page: 1,
+        text: "Cited page",
+      },
+      {
+        id: 2,
+        sourceId: "web",
+        sourceName: "Primary paper",
+        kind: "web",
+        url: "https://example.org/paper",
+        page: 1,
+        text: "Cited web passage",
+      },
+      {
+        id: 3,
+        sourceId: "removed",
+        sourceName: "Removed.pdf",
+        page: 1,
+        text: "Removed passage",
+      },
+      {
+        id: 4,
+        sourceId: source.id,
+        sourceName: source.name,
+        page: 2,
+        text: "Uncited passage",
+      },
+    ],
+  } as unknown as AgentRun;
+  const saved = saveResearchToNotes(notebook, automatic, [source])!;
+  assert.ok(saved.notes.startsWith(notebook.notes));
+  assert.match(saved.notes, /Cited page/);
+  assert.match(saved.notes, /https:\/\/example.org\/paper/);
+  assert.ok(!saved.notes.includes("Removed passage"));
+  assert.ok(!saved.notes.includes("Uncited passage"));
+  assert.deepEqual(saved.messages, notebook.messages);
+  assert.equal(saveResearchToNotes(saved, automatic, [source]), undefined);
 });

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowUpRight, RefreshCw, X, Download } from "lucide-react";
 import { apiJSON } from "../lib/api";
 import { download } from "../lib/storage";
@@ -46,9 +46,11 @@ const duration = (ms?: number) =>
 export function AgentDashboard({
   notebookId,
   onResearch,
+  renderResult,
 }: {
   notebookId: string;
   onResearch: (traceId?: string) => void;
+  renderResult?: (traceId: string) => ReactNode;
 }) {
   const [data, setData] = useState<AgentDashboardData>();
   const [days, setDays] = useState(30),
@@ -435,13 +437,16 @@ export function AgentDashboard({
             )}
           </section>
           {selected && (
-            <TraceInspection
-              key={selected.traceId}
-              notebookId={notebookId}
-              trace={selected}
-              onClose={() => setSelected(undefined)}
-              onResearch={onResearch}
-            />
+            <>
+              {renderResult?.(selected.traceId)}
+              <TraceInspection
+                key={selected.traceId}
+                notebookId={notebookId}
+                trace={selected}
+                onClose={() => setSelected(undefined)}
+                onResearch={onResearch}
+              />
+            </>
           )}
           <p className="dashboard-caption">
             {data.persistence === "persisted"

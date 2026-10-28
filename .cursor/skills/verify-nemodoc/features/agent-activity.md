@@ -1,5 +1,5 @@
 # Agent activity
 
-Run `npm run verify:agents -- agent-overview.spec.ts`. The browser checks that Agent opens to Research without a task-type selector, that More retains tasks/schedules and study tools, and that Assistant has no duplicate activity list. It then opens Dashboard, filters recorded research/task activity by status, and confirms navigation makes no inference calls. Dashboard rows in this navigation test are deterministic fixtures; `research-team.spec.ts` separately exercises dashboard inspection against real stored fixture traces.
+Run `npm run verify:agents -- agent-overview.spec.ts`. Research opens the unified composer. Tasks & schedules shows the saved-job list and opens scheduling in that same composer. Study tasks use reusable skills in Research. Dashboard filters recorded task/research activity; navigation makes no inference calls.
 
-The API test in `tests/agent-monitor.test.ts` checks notebook scoping, credential redaction and bounded database reads. Deterministic fixtures do not prove live provider behavior.
+`agent-orchestration.spec.ts` verifies real stored fixture traces, source/web delegation and result inspection. `research-team.spec.ts` verifies scheduling and retained configuration. `tests/agent-monitor.test.ts` covers notebook scope, credential redaction and bounded reads. These are deterministic fixtures, not live provider proof.

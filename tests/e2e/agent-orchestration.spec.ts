@@ -165,8 +165,9 @@ test("notebook assistant delegates scoped research and keeps its activity and tr
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    expect(response.ok, `Fixture setup ${endpoint}`).toBe(true);
-    return response.json();
+    const text = await response.text();
+    expect(response.ok, `Fixture setup ${endpoint}: ${text}`).toBe(true);
+    return JSON.parse(text);
   };
   try {
     await post("/api/agent/workspace/web-connection", {
@@ -191,14 +192,17 @@ test("notebook assistant delegates scoped research and keeps its activity and tr
       .getByLabel("Agent instructions", { exact: true })
       .fill("Explain clearly and distinguish agreement from uncertainty.");
     await page.getByRole("button", { name: "Dashboard", exact: true }).click();
-    await page.getByRole("button", { name: "Assistant", exact: true }).click();
+    await page.getByRole("button", { name: "Research", exact: true }).click();
     await expect(
       composer.getByLabel("Agent instructions", { exact: true }),
     ).toHaveValue(
       "Explain clearly and distinguish agreement from uncertainty.",
     );
     await composer
-      .getByRole("button", { name: "Delegate as needed", exact: true })
+      .getByRole("button", { name: "Automatic team", exact: true })
+      .click();
+    await composer
+      .getByText("Specialist instructions", { exact: true })
       .click();
     await composer
       .getByLabel("Notebook researcher", { exact: true })
@@ -232,7 +236,13 @@ test("notebook assistant delegates scoped research and keeps its activity and tr
     ).toBeChecked();
     await composer.getByText("Sources & files", { exact: true }).click();
     await composer
-      .getByRole("button", { name: "Run task", exact: true })
+      .getByRole("button", { name: "Start research", exact: true })
+      .click();
+    await page
+      .getByRole("button", {
+        name: "Inspect Compare attention research",
+        exact: true,
+      })
       .click();
     const timeline = page.getByRole("region", { name: "Agent work timeline" });
     await expect(
@@ -314,9 +324,15 @@ test("notebook assistant delegates scoped research and keeps its activity and tr
     await expect(page.locator(".agent-result .markdown")).toContainText(
       "both describe attention",
     );
+    await page
+      .getByRole("button", { name: "Save report to Notes", exact: true })
+      .click();
+    await expect(
+      page.getByRole("button", { name: "Saved to Notes", exact: true }),
+    ).toBeDisabled();
     const downloadEvent = page.waitForEvent("download");
-    await timeline
-      .getByRole("button", { name: "Download trace", exact: true })
+    await page
+      .getByRole("button", { name: "Download activity log", exact: true })
       .click();
     const downloaded = await downloadEvent;
     const traceFile = path.join(directory, "exported-trace.json");
@@ -324,12 +340,6 @@ test("notebook assistant delegates scoped research and keeps its activity and tr
     expect(readFileSync(traceFile, "utf8")).toContain("agent.completed");
     await page.reload();
     await page.getByRole("button", { name: "Agent", exact: true }).click();
-    await expect(page.getByLabel("Run history", { exact: true })).toContainText(
-      "Compare attention research",
-    );
-    await expect(
-      page.getByRole("region", { name: "Agent work timeline" }),
-    ).toContainText("Web researcher");
     await page.getByRole("button", { name: "Dashboard", exact: true }).click();
     await page
       .getByRole("button", {
@@ -340,6 +350,9 @@ test("notebook assistant delegates scoped research and keeps its activity and tr
     const savedTimeline = page.getByRole("region", {
       name: "Agent work timeline",
     });
+    await expect(
+      page.getByRole("button", { name: "Saved to Notes", exact: true }),
+    ).toBeDisabled();
     await expect(savedTimeline).toContainText("Notebook researcher");
     await expect(savedTimeline).toContainText("Read a web page");
     await page.setViewportSize({ width: 390, height: 844 });

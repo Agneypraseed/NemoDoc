@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { agentSystemRules, SPECIALIST_SYSTEM_RULES } from "../agent-prompts";
 import { ChevronDown, FileText, Globe, Play, Settings2 } from "lucide-react";
 import { apiJSON } from "../lib/api";
 import { agentFileLimit, type AgentFile } from "../agent-file-types";
@@ -23,7 +24,10 @@ export function AgentTaskComposer({
   busy,
   onSubmit,
   onUpload,
-  onSources,
+  sourcePicker,
+  onOpenSources,
+  scheduleRequest = 0,
+  reuseRequest,
   onSettings,
 }: {
   notebookId: string;
@@ -35,14 +39,68 @@ export function AgentTaskComposer({
   busy: boolean;
   onSubmit: (draft: TaskDraft) => Promise<boolean>;
   onUpload: (file: File) => Promise<AgentFile | undefined>;
-  onSources: () => void;
+  sourcePicker: ReactNode;
+  onOpenSources: () => void;
+  scheduleRequest?: number;
+  reuseRequest?: { prompt: string };
   onSettings: () => void;
 }) {
   const [prompt, setPrompt] = useState("");
-  const [instructions, setInstructions] = useState("");
-  const [allowDelegation, setDelegation] = useState(false);
-  const [researcher, setResearcher] = useState("");
-  const [webResearcher, setWebResearcher] = useState("");
+  const readDefault = (role: string, fallback: string) => {
+    try {
+      return (
+        localStorage.getItem(`nemodoc.agent.instructions.${role}`) ?? fallback
+      );
+    } catch {
+      return fallback;
+    }
+  };
+  const [instructions, setInstructions] = useState(() =>
+    readDefault(
+      "lead",
+      "Answer the request clearly with supporting citations. Choose focused research assignments when specialists would help, review their evidence, resolve disagreements, and synthesize one useful answer.",
+    ),
+  );
+  const [allowDelegation, setDelegation] = useState(
+    () => readDefault("team", "true") !== "false",
+  );
+  const [researcher, setResearcher] = useState(() =>
+    readDefault(
+      "researcher",
+      "Investigate your assigned question in the selected sources. Cite findings, distinguish inference, and report evidence limits that affect the answer.",
+    ),
+  );
+  const [webResearcher, setWebResearcher] = useState(() =>
+    readDefault(
+      "web",
+      "Find relevant primary sources, read the pages before citing them, and report findings and evidence limits for your assignment.",
+    ),
+  );
+  const [saveError, setSaveError] = useState(false);
+  const scheduleOptions = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    try {
+      for (const [role, value] of Object.entries({
+        team: String(allowDelegation),
+        lead: instructions,
+        researcher,
+        web: webResearcher,
+      }))
+        localStorage.setItem(`nemodoc.agent.instructions.${role}`, value);
+      setSaveError(false);
+    } catch {
+      setSaveError(true);
+    }
+  }, [instructions, researcher, webResearcher, allowDelegation]);
+  useEffect(() => {
+    if (reuseRequest) setPrompt(reuseRequest.prompt);
+  }, [reuseRequest]);
+  useEffect(() => {
+    if (scheduleRequest && scheduleOptions.current) {
+      scheduleOptions.current.open = true;
+      scheduleOptions.current.scrollIntoView({ block: "nearest" });
+    }
+  }, [scheduleRequest]);
   const [selected, setSelected] = useState(() => sources.map((s) => s.id));
   const previousSourceIds = useRef(new Set(sources.map((s) => s.id)));
   const sourceOptions = useRef<HTMLDetailsElement>(null);
@@ -158,16 +216,19 @@ export function AgentTaskComposer({
           />
         </label>
         <label className="field-label">
-          Agent instructions
+          Lead agent instructions
           <textarea
             aria-label="Agent instructions"
             value={instructions}
             onChange={(e) => setInstructions(e.target.value)}
-            rows={1}
+            rows={3}
             maxLength={5000}
             placeholder="How should the agent approach this? For example: explain simply, compare evidence, and keep the answer concise."
           />
         </label>
+        <p className="agent-fine">
+          Role instructions save in this browser. Each job keeps its own copy.
+        </p>
         <div
           className="agent-mode-picker"
           role="group"
@@ -185,14 +246,21 @@ export function AgentTaskComposer({
             aria-pressed={allowDelegation}
             onClick={() => setDelegation(true)}
           >
-            Delegate as needed
+            Automatic team
           </button>
         </div>
+        <p className="agent-fine">
+          {allowDelegation
+            ? "The lead chooses specialists as needed, reviews their findings, and combines the result. Edit the role instructions below."
+            : "One agent carries out the whole request."}
+        </p>
+        {saveError && (
+          <p role="status">
+            Instructions apply now but could not be saved in this browser.
+          </p>
+        )}
         {allowDelegation && (
-          <details
-            className="agent-composer-options agent-specialist-options"
-            open
-          >
+          <details className="agent-composer-options agent-specialist-options">
             <summary>
               <ChevronDown size={15} /> Specialist instructions
             </summary>
@@ -255,7 +323,9 @@ export function AgentTaskComposer({
           }}
         >
           <FileText size={15} /> {selectedSources.length + selectedFiles.length}{" "}
-          sources
+          {selectedSources.length + selectedFiles.length === 1
+            ? "source"
+            : "sources"}
         </button>
         <button
           className="primary-button"
@@ -271,9 +341,9 @@ export function AgentTaskComposer({
           <Play size={15} />
           {busy
             ? "Starting…"
-            : when || repeat === "weekdays"
+            : when || repeat !== 0
               ? "Schedule task"
-              : "Run task"}
+              : "Start research"}
         </button>
       </div>
       {!webReady && (
@@ -314,9 +384,15 @@ export function AgentTaskComposer({
                 {s.name}
               </label>
             ))}
-            <button className="text-button" type="button" onClick={onSources}>
-              Choose notebook sources
-            </button>
+            <details
+              className="agent-inline-sources"
+              onToggle={(e) => {
+                if (e.currentTarget.open) onOpenSources();
+              }}
+            >
+              <summary>Choose notebook sources</summary>
+              {sourcePicker}
+            </details>
           </fieldset>
           <label className="field-label">
             Add a text file
@@ -418,7 +494,7 @@ export function AgentTaskComposer({
             main agent performs permitted actions.
           </p>
         </details>
-        <details className="agent-composer-options">
+        <details className="agent-composer-options" ref={scheduleOptions}>
           <summary>
             Schedule & delivery <ChevronDown size={14} />
           </summary>
@@ -509,6 +585,23 @@ export function AgentTaskComposer({
           </p>
         </details>
       </div>
+      <details className="agent-effective-instructions">
+        <summary>System instructions & selected skill</summary>
+        <p className="agent-fine">
+          The editable role instructions above are sent with these required
+          source, citation, and tool rules. The current time, permitted sources,
+          tool permissions, and notebook memory are attached for each run.
+        </p>
+        <pre>{agentSystemRules(allowDelegation)}</pre>
+        {allowDelegation && (
+          <>
+            <h4>Required specialist instructions</h4>
+            <pre>{SPECIALIST_SYSTEM_RULES}</pre>
+          </>
+        )}
+        <h4>Selected skill</h4>
+        <pre>{skills.find((s) => s.id === skillId)?.instructions}</pre>
+      </details>
       <p className="agent-composer-disclosure">
         {allowDelegation
           ? "Up to 34 model calls across the team."

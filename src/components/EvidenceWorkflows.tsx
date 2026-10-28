@@ -88,6 +88,8 @@ export function EvidenceWorkflows({
   inspectionTraceId,
   startNewResearch = false,
   initialWorkflow = "research_team",
+  historyOnly = false,
+  onReuseRequest,
 }: {
   notebookId: string;
   title: string;
@@ -101,6 +103,8 @@ export function EvidenceWorkflows({
   inspectionTraceId?: string;
   startNewResearch?: boolean;
   initialWorkflow?: EvidenceWorkflow;
+  historyOnly?: boolean;
+  onReuseRequest?: (prompt: string) => void;
 }) {
   const [state, setState] = useState<WorkspaceState>();
   const [focusRunId, setFocusRunId] = useState("");
@@ -378,391 +382,402 @@ export function EvidenceWorkflows({
       className="evidence-workflows"
       aria-label="Evidence workflows"
     >
-      <div className="research-heading">
-        <h2>
-          {workflow === "research_team" ? "Research a question" : "Study tools"}
-        </h2>
-        {workflow === "research_team" && (
-          <p className="agent-fine">
-            Choose sources, review how the agents will work, then start your
-            research.
-          </p>
-        )}
-      </div>
-      {error && (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
-      )}
-      {initialWorkflow !== "research_team" && (
-        <label className="field-label research-task-type">
-          Task type
-          <select
-            aria-label="Task type"
-            value={workflow}
-            onChange={(e) => {
-              setWorkflow(e.target.value as EvidenceWorkflow);
-              setComposeOpen(true);
-            }}
-          >
-            <option value="research_team">Research team</option>
-            <option value="study_revision">Revision plan</option>
-            <option value="research_synthesis">Research synthesis</option>
-          </select>
-        </label>
-      )}
-      <details className="agent-form research-evidence" open={!state?.revision}>
-        <summary>
-          1 · Sources
-          {state?.revision ? (
-            <span className="research-selection-count">
-              {state.sources.length} shared
-            </span>
-          ) : null}
-        </summary>
-        <p className="agent-fine">
-          Save extracted document text and selected notes for research runs.
-          Updates in your notebook are included when you refresh this copy.
-          Original files remain in this browser.
-        </p>
-        <fieldset>
-          <legend>Documents</legend>
-          {sources.map((s) => (
-            <label key={s.id}>
-              <input
-                type="checkbox"
-                checked={sourceIds.includes(s.id)}
-                onChange={() => {
-                  const ids = toggle(sourceIds, s.id);
-                  setSources(ids);
-                  setNotes(
-                    noteIds.filter(
-                      (id) =>
-                        !notes
-                          .find((n) => n.id === id)
-                          ?.references?.some((r) => !ids.includes(r.sourceId)),
-                    ),
-                  );
-                  setConsent(false);
+      {!historyOnly && (
+        <>
+          <div className="research-heading">
+            <h2>
+              {workflow === "research_team"
+                ? "Research a question"
+                : "Study tools"}
+            </h2>
+            {workflow === "research_team" && (
+              <p className="agent-fine">
+                Choose sources, review how the agents will work, then start your
+                research.
+              </p>
+            )}
+          </div>
+          {error && (
+            <p className="form-error" role="alert">
+              {error}
+            </p>
+          )}
+          {initialWorkflow !== "research_team" && (
+            <label className="field-label research-task-type">
+              Task type
+              <select
+                aria-label="Task type"
+                value={workflow}
+                onChange={(e) => {
+                  setWorkflow(e.target.value as EvidenceWorkflow);
+                  setComposeOpen(true);
                 }}
-              />
-              {s.name}
+              >
+                <option value="study_revision">Revision plan</option>
+                <option value="research_synthesis">Research synthesis</option>
+              </select>
             </label>
-          ))}
-        </fieldset>
-        {!!approvedNotes.length && (
-          <fieldset>
-            <legend>Notes</legend>
-            {approvedNotes.length ? (
-              approvedNotes.map((n) => (
-                <label key={n.id}>
+          )}
+          <details
+            className="agent-form research-evidence"
+            open={!state?.revision}
+          >
+            <summary>
+              1 · Sources
+              {state?.revision ? (
+                <span className="research-selection-count">
+                  {state.sources.length} shared
+                </span>
+              ) : null}
+            </summary>
+            <p className="agent-fine">
+              Save extracted document text and selected notes for research runs.
+              Updates in your notebook are included when you refresh this copy.
+              Original files remain in this browser.
+            </p>
+            <fieldset>
+              <legend>Documents</legend>
+              {sources.map((s) => (
+                <label key={s.id}>
                   <input
                     type="checkbox"
-                    checked={noteIds.includes(n.id)}
+                    checked={sourceIds.includes(s.id)}
                     onChange={() => {
-                      setNotes(toggle(noteIds, n.id));
+                      const ids = toggle(sourceIds, s.id);
+                      setSources(ids);
+                      setNotes(
+                        noteIds.filter(
+                          (id) =>
+                            !notes
+                              .find((n) => n.id === id)
+                              ?.references?.some(
+                                (r) => !ids.includes(r.sourceId),
+                              ),
+                        ),
+                      );
                       setConsent(false);
                     }}
                   />
-                  {n.title.slice(0, 100)}
-                </label>
-              ))
-            ) : (
-              <p>Select documents to include their linked notes.</p>
-            )}
-          </fieldset>
-        )}
-        <label>
-          <input
-            type="checkbox"
-            checked={consent}
-            onChange={(e) => setConsent(e.target.checked)}
-          />
-          Keep a copy of this selected text on the server for research.
-        </label>
-        <div className="workflow-buttons">
-          <button
-            className="primary-button"
-            disabled={busy || !consent || !sourceIds.length}
-            onClick={() =>
-              void act(() =>
-                apiJSON(`${root}/snapshot`, {
-                  notebookId,
-                  title,
-                  sources: sources
-                    .filter((s) => sourceIds.includes(s.id))
-                    .map(({ id, name, pages }) => ({ id, name, pages })),
-                  notes: approvedNotes
-                    .filter((n) => noteIds.includes(n.id))
-                    .map((n) => ({
-                      ...n,
-                      tags: n.tags ?? [],
-                      references: n.references ?? [],
-                    })),
-                  consent: true,
-                }),
-              )
-            }
-          >
-            {state?.revision
-              ? "Update research sources"
-              : "Use selected sources"}
-          </button>
-          {state?.revision && (
-            <button
-              className="secondary-button"
-              disabled={busy}
-              onClick={() =>
-                void act(() =>
-                  apiJSON(`${root}/revoke`, { notebookId, confirm: true }),
-                )
-              }
-            >
-              Revoke access
-            </button>
-          )}
-        </div>
-      </details>
-      {state && (
-        <details
-          className="agent-form research-compose"
-          open={composeOpen}
-          onToggle={(e) => setComposeOpen(e.currentTarget.open)}
-        >
-          <summary>
-            {workflow === "research_team"
-              ? "2 · Your research question"
-              : "Run with approved evidence"}
-          </summary>
-          <label className="field-label">
-            What would you like to investigate?
-            <textarea
-              aria-label="What would you like to investigate?"
-              placeholder="What would you like to investigate in these sources?"
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              rows={4}
-            />
-          </label>
-          {workflow === "research_team" && (
-            <>
-              <ResearchPromptEditor
-                value={researchPrompts}
-                onChange={(next) => {
-                  setResearchPrompts(next);
-                  try {
-                    localStorage.setItem(
-                      "nemodoc-research-prompts",
-                      JSON.stringify(next),
-                    );
-                    setPromptSaveError(false);
-                  } catch {
-                    setPromptSaveError(true);
-                  }
-                }}
-              />
-              {promptSaveError && (
-                <p role="status" className="form-error">
-                  Instructions apply to this session, but could not be saved in
-                  this browser.
-                </p>
-              )}
-              <details className="research-options">
-                <summary>Research models</summary>
-                <button
-                  type="button"
-                  className="text-button"
-                  onClick={onConnections}
-                >
-                  Manage research models
-                </button>
-              </details>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={webEnabled}
-                  onChange={(e) => setWebEnabled(e.target.checked)}
-                />
-                Enable web research
-              </label>
-              {webEnabled && (
-                <p className="agent-fine">
-                  Queries based on your selected sources are sent to your search
-                  provider.
-                </p>
-              )}
-            </>
-          )}
-          <fieldset>
-            <legend>Approved documents</legend>
-            {state.sources.map((s) => (
-              <label key={s.id}>
-                <input
-                  type="checkbox"
-                  checked={sourceIds.includes(s.id)}
-                  onChange={() => setSources(toggle(sourceIds, s.id))}
-                />
-                {s.name}
-              </label>
-            ))}
-          </fieldset>
-          {!!state.notes.length && (
-            <fieldset>
-              <legend>Approved notes</legend>
-              {state.notes.map((n) => (
-                <label key={n.id}>
-                  <input
-                    type="checkbox"
-                    checked={noteIds.includes(n.id)}
-                    onChange={() => setNotes(toggle(noteIds, n.id))}
-                  />
-                  {n.title.slice(0, 100)}
+                  {s.name}
                 </label>
               ))}
             </fieldset>
-          )}
-          {workflow !== "research_team" && (
+            {!!approvedNotes.length && (
+              <fieldset>
+                <legend>Notes</legend>
+                {approvedNotes.length ? (
+                  approvedNotes.map((n) => (
+                    <label key={n.id}>
+                      <input
+                        type="checkbox"
+                        checked={noteIds.includes(n.id)}
+                        onChange={() => {
+                          setNotes(toggle(noteIds, n.id));
+                          setConsent(false);
+                        }}
+                      />
+                      {n.title.slice(0, 100)}
+                    </label>
+                  ))
+                ) : (
+                  <p>Select documents to include their linked notes.</p>
+                )}
+              </fieldset>
+            )}
             <label>
               <input
                 type="checkbox"
-                checked={progress}
-                onChange={(e) => setProgress(e.target.checked)}
+                checked={consent}
+                onChange={(e) => setConsent(e.target.checked)}
               />
-              Use shared quiz progress ({state.attempts.length} attempts)
+              Keep a copy of this selected text on the server for research.
             </label>
-          )}
-          {workflow === "research_team" && (
-            <>
+            <div className="workflow-buttons">
               <button
-                type="button"
-                className="secondary-button"
+                className="primary-button"
+                disabled={busy || !consent || !sourceIds.length}
+                onClick={() =>
+                  void act(() =>
+                    apiJSON(`${root}/snapshot`, {
+                      notebookId,
+                      title,
+                      sources: sources
+                        .filter((s) => sourceIds.includes(s.id))
+                        .map(({ id, name, pages }) => ({ id, name, pages })),
+                      notes: approvedNotes
+                        .filter((n) => noteIds.includes(n.id))
+                        .map((n) => ({
+                          ...n,
+                          tags: n.tags ?? [],
+                          references: n.references ?? [],
+                        })),
+                      consent: true,
+                    }),
+                  )
+                }
+              >
+                {state?.revision
+                  ? "Update research sources"
+                  : "Use selected sources"}
+              </button>
+              {state?.revision && (
+                <button
+                  className="secondary-button"
+                  disabled={busy}
+                  onClick={() =>
+                    void act(() =>
+                      apiJSON(`${root}/revoke`, { notebookId, confirm: true }),
+                    )
+                  }
+                >
+                  Revoke access
+                </button>
+              )}
+            </div>
+          </details>
+          {state && (
+            <details
+              className="agent-form research-compose"
+              open={composeOpen}
+              onToggle={(e) => setComposeOpen(e.currentTarget.open)}
+            >
+              <summary>
+                {workflow === "research_team"
+                  ? "2 · Your research question"
+                  : "Run with approved evidence"}
+              </summary>
+              <label className="field-label">
+                What would you like to investigate?
+                <textarea
+                  aria-label="What would you like to investigate?"
+                  placeholder="What would you like to investigate in these sources?"
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  rows={4}
+                />
+              </label>
+              {workflow === "research_team" && (
+                <>
+                  <ResearchPromptEditor
+                    value={researchPrompts}
+                    onChange={(next) => {
+                      setResearchPrompts(next);
+                      try {
+                        localStorage.setItem(
+                          "nemodoc-research-prompts",
+                          JSON.stringify(next),
+                        );
+                        setPromptSaveError(false);
+                      } catch {
+                        setPromptSaveError(true);
+                      }
+                    }}
+                  />
+                  {promptSaveError && (
+                    <p role="status" className="form-error">
+                      Instructions apply to this session, but could not be saved
+                      in this browser.
+                    </p>
+                  )}
+                  <details className="research-options">
+                    <summary>Research models</summary>
+                    <button
+                      type="button"
+                      className="text-button"
+                      onClick={onConnections}
+                    >
+                      Manage research models
+                    </button>
+                  </details>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={webEnabled}
+                      onChange={(e) => setWebEnabled(e.target.checked)}
+                    />
+                    Enable web research
+                  </label>
+                  {webEnabled && (
+                    <p className="agent-fine">
+                      Queries based on your selected sources are sent to your
+                      search provider.
+                    </p>
+                  )}
+                </>
+              )}
+              <fieldset>
+                <legend>Approved documents</legend>
+                {state.sources.map((s) => (
+                  <label key={s.id}>
+                    <input
+                      type="checkbox"
+                      checked={sourceIds.includes(s.id)}
+                      onChange={() => setSources(toggle(sourceIds, s.id))}
+                    />
+                    {s.name}
+                  </label>
+                ))}
+              </fieldset>
+              {!!state.notes.length && (
+                <fieldset>
+                  <legend>Approved notes</legend>
+                  {state.notes.map((n) => (
+                    <label key={n.id}>
+                      <input
+                        type="checkbox"
+                        checked={noteIds.includes(n.id)}
+                        onChange={() => setNotes(toggle(noteIds, n.id))}
+                      />
+                      {n.title.slice(0, 100)}
+                    </label>
+                  ))}
+                </fieldset>
+              )}
+              {workflow !== "research_team" && (
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={progress}
+                    onChange={(e) => setProgress(e.target.checked)}
+                  />
+                  Use shared quiz progress ({state.attempts.length} attempts)
+                </label>
+              )}
+              {workflow === "research_team" && (
+                <>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={
+                      busy ||
+                      !state.revision ||
+                      !prompt.trim() ||
+                      (!sourceIds.length && !webEnabled) ||
+                      !modelCatalog?.profiles.some(
+                        (p) =>
+                          p.id === modelCatalog.plannerProfileId && p.tested,
+                      )
+                    }
+                    onClick={() =>
+                      void act(async () => {
+                        const key = researchKey;
+                        const plan = await apiJSON<ResearchPlan>(
+                          `${root}/research-plan`,
+                          {
+                            notebookId,
+                            workflow,
+                            prompt,
+                            sourceIds,
+                            noteIds,
+                            webEnabled,
+                            executionRoute: "application",
+                            researchPrompts,
+                          },
+                        );
+                        setTeamPlan(plan);
+                        setPlanKey(key);
+                        setReviewed(false);
+                      })
+                    }
+                  >
+                    {teamPlan ? "Regenerate assignments" : "Plan research"}
+                  </button>
+                  {teamPlan && (
+                    <ResearchPlanEditor
+                      plan={teamPlan}
+                      models={modelCatalog}
+                      researcherInstructions={researchPrompts.researcher}
+                      onChange={(plan) => {
+                        setTeamPlan(plan);
+                        setReviewed(false);
+                      }}
+                    />
+                  )}
+                  {teamPlan && planKey !== researchKey && (
+                    <p role="status">
+                      The request, evidence, or connection changed. Regenerate
+                      the team plan before starting.
+                    </p>
+                  )}
+                  {teamPlan && (
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={reviewed}
+                        disabled={planKey !== researchKey}
+                        onChange={(e) => setReviewed(e.target.checked)}
+                      />
+                      I reviewed the team assignments
+                    </label>
+                  )}
+                </>
+              )}
+              <button
+                className="primary-button"
                 disabled={
                   busy ||
                   !state.revision ||
+                  (!sourceIds.length &&
+                    !(workflow === "research_team" && webEnabled)) ||
+                  (workflow === "research_team" && !researchReady) ||
+                  (workflow === "research_synthesis" && sourceIds.length < 2) ||
+                  (workflow === "study_revision" && !noteIds.length) ||
                   !prompt.trim() ||
-                  (!sourceIds.length && !webEnabled) ||
-                  !modelCatalog?.profiles.some(
-                    (p) => p.id === modelCatalog.plannerProfileId && p.tested,
+                  state.runs.some(
+                    (r) => r.status === "queued" || r.status === "running",
                   )
                 }
                 onClick={() =>
                   void act(async () => {
-                    const key = researchKey;
-                    const plan = await apiJSON<ResearchPlan>(
-                      `${root}/research-plan`,
-                      {
-                        notebookId,
-                        workflow,
-                        prompt,
-                        sourceIds,
-                        noteIds,
-                        webEnabled,
-                        executionRoute: "application",
-                        researchPrompts,
-                      },
-                    );
-                    setTeamPlan(plan);
-                    setPlanKey(key);
-                    setReviewed(false);
+                    const queued = await apiJSON<WorkflowRun>(`${root}/run`, {
+                      notebookId,
+                      workflow,
+                      prompt,
+                      sourceIds,
+                      noteIds,
+                      includeProgress: progress,
+                      ...(workflow === "research_team"
+                        ? {
+                            executionRoute: "application",
+                            teamPlan,
+                            webEnabled,
+                            researchPrompts,
+                          }
+                        : {}),
+                    });
+                    setSelectedTraceId(queued.traceId ?? queued.id);
+                    setFocusRunId(queued.id);
+                    setComposeOpen(false);
                   })
                 }
               >
-                {teamPlan ? "Regenerate assignments" : "Plan research"}
+                {workflow === "research_team"
+                  ? "Start research"
+                  : "Create proposal"}
               </button>
-              {teamPlan && (
-                <ResearchPlanEditor
-                  plan={teamPlan}
-                  models={modelCatalog}
-                  researcherInstructions={researchPrompts.researcher}
-                  onChange={(plan) => {
-                    setTeamPlan(plan);
-                    setReviewed(false);
-                  }}
-                />
-              )}
-              {teamPlan && planKey !== researchKey && (
-                <p role="status">
-                  The request, evidence, or connection changed. Regenerate the
-                  team plan before starting.
+              {workflow === "research_synthesis" && sourceIds.length < 2 ? (
+                <p className="agent-fine" role="status">
+                  Select at least two sources to compare papers.
                 </p>
-              )}
-              {teamPlan && (
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={reviewed}
-                    disabled={planKey !== researchKey}
-                    onChange={(e) => setReviewed(e.target.checked)}
-                  />
-                  I reviewed the team assignments
-                </label>
-              )}
-            </>
+              ) : workflow === "research_team" &&
+                !sourceIds.length &&
+                !webEnabled ? (
+                <p className="agent-fine" role="status">
+                  Select at least one approved source for the research team.
+                </p>
+              ) : workflow === "research_team" && !researchReady ? (
+                <p className="agent-fine" role="status">
+                  Generate and review a valid team plan with an available model
+                  connection before starting.
+                </p>
+              ) : workflow === "study_revision" && !noteIds.length ? (
+                <p className="agent-fine" role="status">
+                  Select one or more notes to build a targeted revision plan.
+                </p>
+              ) : null}
+            </details>
           )}
-          <button
-            className="primary-button"
-            disabled={
-              busy ||
-              !state.revision ||
-              (!sourceIds.length &&
-                !(workflow === "research_team" && webEnabled)) ||
-              (workflow === "research_team" && !researchReady) ||
-              (workflow === "research_synthesis" && sourceIds.length < 2) ||
-              (workflow === "study_revision" && !noteIds.length) ||
-              !prompt.trim() ||
-              state.runs.some(
-                (r) => r.status === "queued" || r.status === "running",
-              )
-            }
-            onClick={() =>
-              void act(async () => {
-                const queued = await apiJSON<WorkflowRun>(`${root}/run`, {
-                  notebookId,
-                  workflow,
-                  prompt,
-                  sourceIds,
-                  noteIds,
-                  includeProgress: progress,
-                  ...(workflow === "research_team"
-                    ? {
-                        executionRoute: "application",
-                        teamPlan,
-                        webEnabled,
-                        researchPrompts,
-                      }
-                    : {}),
-                });
-                setSelectedTraceId(queued.traceId ?? queued.id);
-                setFocusRunId(queued.id);
-                setComposeOpen(false);
-              })
-            }
-          >
-            {workflow === "research_team"
-              ? "Start research"
-              : "Create proposal"}
-          </button>
-          {workflow === "research_synthesis" && sourceIds.length < 2 ? (
-            <p className="agent-fine" role="status">
-              Select at least two sources to compare papers.
-            </p>
-          ) : workflow === "research_team" &&
-            !sourceIds.length &&
-            !webEnabled ? (
-            <p className="agent-fine" role="status">
-              Select at least one approved source for the research team.
-            </p>
-          ) : workflow === "research_team" && !researchReady ? (
-            <p className="agent-fine" role="status">
-              Generate and review a valid team plan with an available model
-              connection before starting.
-            </p>
-          ) : workflow === "study_revision" && !noteIds.length ? (
-            <p className="agent-fine" role="status">
-              Select one or more notes to build a targeted revision plan.
-            </p>
-          ) : null}
-        </details>
+        </>
       )}
       {state?.runs.map((run) => (
         <article
@@ -815,6 +830,10 @@ export function EvidenceWorkflows({
                   type="button"
                   className="text-button"
                   onClick={() => {
+                    if (onReuseRequest) {
+                      onReuseRequest?.(run.prompt);
+                      return;
+                    }
                     setWorkflow("research_team");
                     setPrompt(run.prompt);
                     setWebEnabled(!!run.webEnabled);

@@ -48,26 +48,26 @@ test("research is the default and activity stays in Dashboard without inference"
   await page.goto("/app");
   await page.getByRole("button", { name: "Agent", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "Research a question", exact: true }),
+    page.getByRole("heading", {
+      name: "What would you like to research?",
+      exact: true,
+    }),
   ).toBeVisible();
   await expect(page.getByLabel("Task type", { exact: true })).toHaveCount(0);
   await page.getByText("More", { exact: true }).click();
   await page
     .getByRole("button", { name: "Tasks & schedules", exact: true })
     .click();
+  await expect(page.getByRole("form", { name: "New agent task" })).toBeHidden();
   await expect(
-    page.getByRole("form", { name: "New agent task" }),
+    page.getByRole("button", { name: "New scheduled task", exact: true }),
   ).toBeVisible();
+  await page
+    .getByRole("button", { name: "New scheduled task", exact: true })
+    .click();
+  await expect(page.getByLabel("Repeat", { exact: true })).toBeVisible();
   await expect(page.getByRole("region", { name: "Task activity" })).toHaveCount(
     0,
-  );
-  await page.getByText("More", { exact: true }).click();
-  await page.getByRole("button", { name: "Study tools", exact: true }).click();
-  await page
-    .getByLabel("Task type", { exact: true })
-    .selectOption("research_synthesis");
-  await expect(page.getByLabel("Task type", { exact: true })).toHaveValue(
-    "research_synthesis",
   );
   await page.getByRole("button", { name: "Research", exact: true }).click();
   await expect(page.getByLabel("Task type", { exact: true })).toHaveCount(0);

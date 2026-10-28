@@ -280,3 +280,37 @@
     font-size: 22px;
   }
 }
+
+.agent-inline-sources {
+  margin: 12px 0;
+}
+.agent-inline-sources > summary {
+  cursor: pointer;
+  padding: 8px 0;
+}
+.agent-inline-sources > h3 {
+  margin-top: 16px;
+}
+.agent-inline-sources > button {
+  margin: 8px 8px 8px 0;
+}
+.agent-effective-instructions {
+  padding: 16px 20px;
+  border-top: 1px solid var(--line);
+}
+.agent-effective-instructions > summary {
+  cursor: pointer;
+  font-size: 13px;
+}
+.agent-effective-instructions pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--muted);
+}
+.agent-scheduled-list {
+  display: grid;
+  gap: 12px;
+}

@@ -1,3 +1,4 @@
+import { agentReportMarkdown } from "../lib/research-report";
 import { useEffect, useState } from "react";
 import {
   Clock3,
@@ -68,13 +69,12 @@ export function AgentPanel({
   notes: string;
   onCitation: (c: Citation) => void;
   onSave: (a: StudyArtifact) => void;
-  onSaveResearch: (run: WorkflowRun) => Promise<void>;
+  onSaveResearch: (run: WorkflowRun | AgentRun) => Promise<void>;
   savedResearchRuns: string[];
   onSettings: () => void;
 }) {
   const [data, setData] = useState<Overview>();
   const [view, setView] = useState<
-    | "study"
     | "dashboard"
     | "tasks"
     | "research"
@@ -84,7 +84,8 @@ export function AgentPanel({
     | "connections"
   >("research");
   const [inspectionTraceId, setInspectionTraceId] = useState("");
-  const [startNewResearch, setStartNewResearch] = useState(false);
+  const [scheduleRequest, setScheduleRequest] = useState(0);
+  const [reuseRequest, setReuseRequest] = useState<{ prompt: string }>();
   const [reducedMotion, setReducedMotion] = useState(() => {
     try {
       return localStorage.getItem("nemodoc.agent-reduced-motion") === "true";
@@ -157,6 +158,158 @@ export function AgentPanel({
   const runs = data.runs.filter((r) => r.notebookId === notebookId);
   const run = runId ? runs.find((r) => r.id === runId) : undefined;
   const plan = data.plans.find((p) => p.notebookId === notebookId);
+  const renderRun = (result: AgentRun) => (
+    <RunResult
+      run={result}
+      hideActivity
+      savedReport={savedResearchRuns.includes(result.id)}
+      onSaveReport={() =>
+        void act(() => onSaveResearch(result), "Report saved to Notes.")
+      }
+      onCancel={() =>
+        void act(
+          () =>
+            apiJSON("/api/agent/task/action", {
+              id: result.taskId,
+              action: "cancel",
+            }),
+          "Task cancelled.",
+        )
+      }
+      onCitation={onCitation}
+      onSave={(a) => {
+        onSave({ ...a, notebookId });
+        setMessage("Saved to this notebook’s Studio.");
+      }}
+    />
+  );
+  const sourcePermissions = (
+    <>
+      <h3>
+        <ShieldCheck size={16} />
+        Source permissions
+      </h3>
+      <p className="agent-intro">
+        Approve extracted text for this notebook. A local snapshot lets the
+        worker search while the browser is closed. Original PDFs and slides stay
+        in browser storage. Notes are a snapshot; save these permissions again
+        after editing notes.
+      </p>
+      {!!notes.trim() && (
+        <label className="check-field">
+          <input
+            type="checkbox"
+            checked={selected.includes(noteId)}
+            onChange={(e) =>
+              setSelected(
+                e.target.checked
+                  ? [...selected, noteId]
+                  : selected.filter((id) => id !== noteId),
+              )
+            }
+          />
+          Notebook notes, saved answers and annotations
+        </label>
+      )}
+      {sources.map((s) => (
+        <label className="check-field" key={s.id}>
+          <input
+            type="checkbox"
+            checked={selected.includes(s.id)}
+            onChange={(e) =>
+              setSelected(
+                e.target.checked
+                  ? [...selected, s.id]
+                  : selected.filter((id) => id !== s.id),
+              )
+            }
+          />
+          {s.name}
+        </label>
+      ))}
+      <label className="check-field agent-consent">
+        <input
+          type="checkbox"
+          checked={consent}
+          onChange={(e) => setConsent(e.target.checked)}
+        />
+        Store the selected extracted text on my local server and let my tasks
+        send retrieved passages to the chosen model provider.
+      </label>
+      <button
+        type="button"
+        className="primary-button"
+        disabled={busy || !consent}
+        onClick={() =>
+          void act(
+            () =>
+              apiJSON("/api/agent/sources", {
+                notebookId,
+                consent: true,
+                sources: [
+                  ...sources
+                    .filter((s) => selected.includes(s.id))
+                    .map(({ id, name, pages }) => ({
+                      id,
+                      notebookId,
+                      name,
+                      pages,
+                    })),
+                  ...(selected.includes(noteId) && notes.trim()
+                    ? [
+                        {
+                          id: noteId,
+                          notebookId,
+                          name: "Notebook notes",
+                          kind: "notes",
+                          pages: notes.match(/[\s\S]{1,6000}/g) || [],
+                        },
+                      ]
+                    : []),
+                ],
+              }),
+            "Source permissions updated.",
+          )
+        }
+      >
+        <Check size={14} />
+        Save source permissions
+      </button>
+      {!!approved.length && (
+        <div className="agent-source-cache">
+          <h4>Currently approved</h4>
+          {approved.map((s) => (
+            <p key={s.id}>
+              {s.name}
+              <small>
+                {s.pageCount} pages · {s.characters.toLocaleString()} text
+                characters
+              </small>
+            </p>
+          ))}
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={busy}
+            onClick={() =>
+              void act(
+                () =>
+                  apiJSON("/api/agent/sources", {
+                    notebookId,
+                    consent: true,
+                    sources: [],
+                  }),
+                "Cached text removed; affected tasks paused.",
+              )
+            }
+          >
+            <Trash2 size={14} />
+            Revoke all notebook sources
+          </button>
+        </div>
+      )}
+    </>
+  );
   return (
     <section
       className="agent-panel"
@@ -188,6 +341,7 @@ export function AgentPanel({
             aria-current={view === v ? "page" : undefined}
             onClick={() => {
               setView(v);
+              if (v === "research") setRunId("");
               setInspectionTraceId("");
               setError("");
               setMessage("");
@@ -201,29 +355,25 @@ export function AgentPanel({
             More <ChevronDown size={13} />
           </summary>
           <div>
-            {(["tasks", "study", "memory", "skills", "access"] as const).map(
-              (v) => (
-                <button
-                  key={v}
-                  className={view === v ? "active" : ""}
-                  onClick={(e) => {
-                    setView(v);
-                    setError("");
-                    setMessage("");
-                    if (v === "access") setSelected(approved.map((s) => s.id));
-                    e.currentTarget.closest("details")?.removeAttribute("open");
-                  }}
-                >
-                  {v === "tasks"
-                    ? "Tasks & schedules"
-                    : v === "study"
-                      ? "Study tools"
-                      : v === "access"
-                        ? "Sources"
-                        : v[0].toUpperCase() + v.slice(1)}
-                </button>
-              ),
-            )}
+            {(["tasks", "memory", "skills", "access"] as const).map((v) => (
+              <button
+                key={v}
+                className={view === v ? "active" : ""}
+                onClick={(e) => {
+                  setView(v);
+                  setError("");
+                  setMessage("");
+                  if (v === "access") setSelected(approved.map((s) => s.id));
+                  e.currentTarget.closest("details")?.removeAttribute("open");
+                }}
+              >
+                {v === "tasks"
+                  ? "Tasks & schedules"
+                  : v === "access"
+                    ? "Sources"
+                    : v[0].toUpperCase() + v.slice(1)}
+              </button>
+            ))}
             <label>
               <input
                 type="checkbox"
@@ -260,22 +410,24 @@ export function AgentPanel({
       {view === "dashboard" && (
         <AgentDashboard
           notebookId={notebookId}
+          renderResult={(traceId) => {
+            const result = runs.find((r) => r.traceId === traceId);
+            return result ? renderRun(result) : null;
+          }}
           onResearch={(traceId) => {
             setInspectionTraceId(traceId ?? "");
-            setStartNewResearch(!traceId);
+
             const matching = runs.find((r) => r.traceId === traceId);
-            setView(matching ? "tasks" : "research");
-            if (matching) setRunId(matching.id);
+            setView("research");
+            setRunId(matching?.id ?? "");
           }}
         />
       )}
-      {(view === "research" || view === "study") && (
+      {view === "research" && !!inspectionTraceId && !run && (
         <div className="agent-assistant-workspace">
           <EvidenceWorkflows
             key={view}
-            initialWorkflow={
-              view === "study" ? "study_revision" : "research_team"
-            }
+            initialWorkflow="research_team"
             notebookId={notebookId}
             title={notebookTitle}
             sources={sources}
@@ -286,28 +438,36 @@ export function AgentPanel({
             savedResearchRuns={savedResearchRuns}
             onConnections={() => setView("connections")}
             inspectionTraceId={inspectionTraceId}
-            startNewResearch={startNewResearch}
+            historyOnly
+            onReuseRequest={(prompt) => {
+              setReuseRequest({ prompt });
+              setInspectionTraceId("");
+              setView("research");
+            }}
           />
         </div>
       )}
-      <div className="agent-assistant-workspace" hidden={view !== "tasks"}>
+      <div
+        className="agent-assistant-workspace"
+        hidden={view !== "research" || (!!inspectionTraceId && !run)}
+      >
         <header className="agent-assistant-heading">
-          <h3>What would you like to work on?</h3>
+          <h3>What would you like to research?</h3>
         </header>
         <AgentTaskComposer
           key={notebookId}
           notebookId={notebookId}
-          active={view === "tasks"}
+          active={view === "research"}
           skills={data.skills}
           sources={approved}
           files={files}
           web={web}
           busy={busy}
           onSettings={onSettings}
-          onSources={() => {
-            setView("access");
-            setSelected(sources.map((s) => s.id));
-          }}
+          sourcePicker={sourcePermissions}
+          onOpenSources={() => setSelected(approved.map((s) => s.id))}
+          scheduleRequest={scheduleRequest}
+          reuseRequest={reuseRequest}
           onUpload={async (file) => {
             let saved: AgentFile | undefined;
             await act(async () => {
@@ -326,141 +486,153 @@ export function AgentPanel({
                 ? "Task scheduled."
                 : "Task queued. The local worker will begin shortly.",
             );
-            if (ok) setRunId("");
+            if (ok) {
+              setRunId("");
+              setView("dashboard");
+            }
             return ok;
           }}
         />
-        {run && view === "tasks" && (
-          <RunResult
-            run={run}
-            onCancel={() =>
-              void act(
-                () =>
-                  apiJSON("/api/agent/task/action", {
-                    id: run.taskId,
-                    action: "cancel",
-                  }),
-                "Task cancelled.",
-              )
-            }
-            onCitation={onCitation}
-            onSave={(a) => {
-              onSave({ ...a, notebookId });
-              setMessage("Saved to this notebook’s Studio.");
-            }}
-          />
-        )}
-        <details className="agent-scheduled-list">
-          <summary>Saved tasks & schedules · {tasks.length}</summary>
-          {tasks.map((t) => (
-            <article className="agent-task" key={t.id}>
-              <div>
-                <h4>{t.title}</h4>
-                <span className={`agent-status ${t.status}`}>{t.status}</span>
-              </div>
-              <p>
-                {t.schedule
-                  ? `Mon–Fri ${t.schedule.time} (${t.schedule.timeZone}) · `
-                  : t.repeatHours
-                    ? `Every ${t.repeatHours} hours · `
-                    : ""}
-                {t.status === "active" && t.dueAt !== Number.MAX_SAFE_INTEGER
-                  ? `Due ${at(t.dueAt)}`
-                  : t.status === "active"
-                    ? "Queued / running"
-                    : `Created ${at(t.createdAt)}`}
-              </p>
-              <small>
-                {t.deliveries
-                  ?.map((d) => `${d.channel} → ${d.recipient}`)
-                  .join(" · ")}
-                {!!t.deliveries?.length && <br />}
-                {t.connection.model} · {t.sourceIds.length} approved source
-                {t.sourceIds.length === 1 ? "" : "s"}
-              </small>
-              <div className="agent-task-actions">
-                {t.status !== "cancelled" && (
-                  <>
-                    <button
-                      disabled={
-                        busy ||
-                        runs.some(
-                          (r) => r.taskId === t.id && r.status === "running",
-                        )
-                      }
-                      onClick={() =>
-                        void act(
-                          () =>
-                            apiJSON("/api/agent/task/action", {
-                              id: t.id,
-                              action: "run",
-                            }),
-                          "Queued for another run.",
-                        )
-                      }
-                    >
-                      <Play size={13} />
-                      Run now
-                    </button>
-                    <button
-                      disabled={busy}
-                      onClick={() =>
-                        void act(() =>
-                          apiJSON("/api/agent/task/action", {
-                            id: t.id,
-                            action: t.status === "active" ? "pause" : "resume",
-                          }),
-                        )
-                      }
-                    >
-                      {t.status === "active" ? (
-                        <Pause size={13} />
-                      ) : (
-                        <Play size={13} />
-                      )}{" "}
-                      {t.status === "active" ? "Pause" : "Resume"}
-                    </button>
-                    <button
-                      disabled={busy}
-                      onClick={() =>
-                        void act(
-                          () =>
-                            apiJSON("/api/agent/task/action", {
-                              id: t.id,
-                              action: "cancel",
-                            }),
-                          "Task cancelled.",
-                        )
-                      }
-                    >
-                      <X size={13} />
-                      Cancel
-                    </button>
-                  </>
-                )}
-              </div>
-            </article>
-          ))}
-
-          <p className="agent-fine">
-            <Clock3 size={13} /> Keep the local server running for scheduled
-            tasks. Interrupted runs are never replayed automatically.
-          </p>
-        </details>
-        {plan && (
-          <details className="agent-result">
-            <summary>Your current study plan</summary>
-            <div className="markdown">
-              <ReactMarkdown
-                disallowedElements={["img"]}
-                remarkPlugins={[remarkGfm]}
-              >
-                {plan.text}
-              </ReactMarkdown>
-            </div>
-          </details>
-        )}
+        {run && view === "research" && renderRun(run)}
       </div>
+      {view === "tasks" && (
+        <section
+          className="agent-assistant-workspace"
+          aria-label="Tasks & schedules"
+        >
+          <header className="agent-assistant-heading">
+            <h3>Tasks & schedules</h3>
+            <button
+              className="primary-button"
+              onClick={() => {
+                setInspectionTraceId("");
+                setRunId("");
+                setScheduleRequest((n) => n + 1);
+                setView("research");
+              }}
+            >
+              <Plus size={14} />
+              New scheduled task
+            </button>
+          </header>
+          {!tasks.length && (
+            <p>
+              No saved jobs yet. Create a task in Research and choose when it
+              should run.
+            </p>
+          )}
+          <div className="agent-scheduled-list">
+            {tasks.map((t) => (
+              <article className="agent-task" key={t.id}>
+                <div>
+                  <h4>{t.title}</h4>
+                  <span className={`agent-status ${t.status}`}>{t.status}</span>
+                </div>
+                <p>
+                  {t.schedule
+                    ? `Mon–Fri ${t.schedule.time} (${t.schedule.timeZone}) · `
+                    : t.repeatHours
+                      ? `Every ${t.repeatHours} hours · `
+                      : ""}
+                  {t.status === "active" && t.dueAt !== Number.MAX_SAFE_INTEGER
+                    ? `Due ${at(t.dueAt)}`
+                    : t.status === "active"
+                      ? "Queued / running"
+                      : `Created ${at(t.createdAt)}`}
+                </p>
+                <small>
+                  {t.deliveries
+                    ?.map((d) => `${d.channel} → ${d.recipient}`)
+                    .join(" · ")}
+                  {!!t.deliveries?.length && <br />}
+                  {t.connection.model} · {t.sourceIds.length} approved source
+                  {t.sourceIds.length === 1 ? "" : "s"}
+                </small>
+                <div className="agent-task-actions">
+                  {t.status !== "cancelled" && (
+                    <>
+                      <button
+                        disabled={
+                          busy ||
+                          runs.some(
+                            (r) => r.taskId === t.id && r.status === "running",
+                          )
+                        }
+                        onClick={() =>
+                          void act(
+                            () =>
+                              apiJSON("/api/agent/task/action", {
+                                id: t.id,
+                                action: "run",
+                              }),
+                            "Queued for another run.",
+                          )
+                        }
+                      >
+                        <Play size={13} />
+                        Run now
+                      </button>
+                      <button
+                        disabled={busy}
+                        onClick={() =>
+                          void act(() =>
+                            apiJSON("/api/agent/task/action", {
+                              id: t.id,
+                              action:
+                                t.status === "active" ? "pause" : "resume",
+                            }),
+                          )
+                        }
+                      >
+                        {t.status === "active" ? (
+                          <Pause size={13} />
+                        ) : (
+                          <Play size={13} />
+                        )}{" "}
+                        {t.status === "active" ? "Pause" : "Resume"}
+                      </button>
+                      <button
+                        disabled={busy}
+                        onClick={() =>
+                          void act(
+                            () =>
+                              apiJSON("/api/agent/task/action", {
+                                id: t.id,
+                                action: "cancel",
+                              }),
+                            "Task cancelled.",
+                          )
+                        }
+                      >
+                        <X size={13} />
+                        Cancel
+                      </button>
+                    </>
+                  )}
+                </div>
+              </article>
+            ))}
+
+            <p className="agent-fine">
+              <Clock3 size={13} /> Keep the local server running for scheduled
+              tasks. Interrupted runs are never replayed automatically.
+            </p>
+          </div>
+          {plan && (
+            <details className="agent-result">
+              <summary>Your current study plan</summary>
+              <div className="markdown">
+                <ReactMarkdown
+                  disallowedElements={["img"]}
+                  remarkPlugins={[remarkGfm]}
+                >
+                  {plan.text}
+                </ReactMarkdown>
+              </div>
+            </details>
+          )}
+        </section>
+      )}
       {view === "memory" && (
         <>
           <div className="agent-section-title">
@@ -667,127 +839,7 @@ export function AgentPanel({
       )}
       {view === "access" && (
         <>
-          <h3>
-            <ShieldCheck size={16} />
-            Source permissions
-          </h3>
-          <p className="agent-intro">
-            Approve extracted text for this notebook. A local snapshot lets the
-            worker search while the browser is closed. Original PDFs and slides
-            stay in browser storage. Notes are a snapshot; save these
-            permissions again after editing notes.
-          </p>
-          {!!notes.trim() && (
-            <label className="check-field">
-              <input
-                type="checkbox"
-                checked={selected.includes(noteId)}
-                onChange={(e) =>
-                  setSelected(
-                    e.target.checked
-                      ? [...selected, noteId]
-                      : selected.filter((id) => id !== noteId),
-                  )
-                }
-              />
-              Notebook notes, saved answers and annotations
-            </label>
-          )}
-          {sources.map((s) => (
-            <label className="check-field" key={s.id}>
-              <input
-                type="checkbox"
-                checked={selected.includes(s.id)}
-                onChange={(e) =>
-                  setSelected(
-                    e.target.checked
-                      ? [...selected, s.id]
-                      : selected.filter((id) => id !== s.id),
-                  )
-                }
-              />
-              {s.name}
-            </label>
-          ))}
-          <label className="check-field agent-consent">
-            <input
-              type="checkbox"
-              checked={consent}
-              onChange={(e) => setConsent(e.target.checked)}
-            />
-            Store the selected extracted text on my local server and let my
-            tasks send retrieved passages to the chosen model provider.
-          </label>
-          <button
-            className="primary-button"
-            disabled={busy || !consent}
-            onClick={() =>
-              void act(
-                () =>
-                  apiJSON("/api/agent/sources", {
-                    notebookId,
-                    consent: true,
-                    sources: [
-                      ...sources
-                        .filter((s) => selected.includes(s.id))
-                        .map(({ id, name, pages }) => ({
-                          id,
-                          notebookId,
-                          name,
-                          pages,
-                        })),
-                      ...(selected.includes(noteId) && notes.trim()
-                        ? [
-                            {
-                              id: noteId,
-                              notebookId,
-                              name: "Notebook notes",
-                              kind: "notes",
-                              pages: notes.match(/[\s\S]{1,6000}/g) || [],
-                            },
-                          ]
-                        : []),
-                    ],
-                  }),
-                "Source permissions updated.",
-              )
-            }
-          >
-            <Check size={14} />
-            Save source permissions
-          </button>
-          {!!approved.length && (
-            <div className="agent-source-cache">
-              <h4>Currently approved</h4>
-              {approved.map((s) => (
-                <p key={s.id}>
-                  {s.name}
-                  <small>
-                    {s.pageCount} pages · {s.characters.toLocaleString()} text
-                    characters
-                  </small>
-                </p>
-              ))}
-              <button
-                className="secondary-button"
-                disabled={busy}
-                onClick={() =>
-                  void act(
-                    () =>
-                      apiJSON("/api/agent/sources", {
-                        notebookId,
-                        consent: true,
-                        sources: [],
-                      }),
-                    "Cached text removed; affected tasks paused.",
-                  )
-                }
-              >
-                <Trash2 size={14} />
-                Revoke all notebook sources
-              </button>
-            </div>
-          )}
+          {sourcePermissions}
           <div className="privacy-note">
             <ShieldCheck size={18} />
             <p>
@@ -864,8 +916,14 @@ function RunResult({
   onCancel,
   onCitation,
   onSave,
+  hideActivity = false,
+  savedReport = false,
+  onSaveReport,
 }: {
   run: AgentRun;
+  hideActivity?: boolean;
+  savedReport?: boolean;
+  onSaveReport?: () => void;
   onCancel: () => void;
   onCitation: (c: Citation) => void;
   onSave: (a: Omit<StudyArtifact, "notebookId">) => void;
@@ -904,12 +962,14 @@ function RunResult({
         </p>
       )}
       {run.error && <p className="form-error">{run.error}</p>}
-      <AgentActivityFeed
-        key={run.id}
-        notebookId={run.notebookId}
-        traceId={run.traceId}
-        run={run}
-      />
+      {!hideActivity && (
+        <AgentActivityFeed
+          key={run.id}
+          notebookId={run.notebookId}
+          traceId={run.traceId}
+          run={run}
+        />
+      )}
       {run.answer && (
         <div className="markdown">
           <ReactMarkdown
@@ -918,6 +978,28 @@ function RunResult({
           >
             {run.answer}
           </ReactMarkdown>
+        </div>
+      )}
+      {run.status === "completed" && run.answer && (
+        <div className="workflow-buttons">
+          <button
+            className="primary-button"
+            disabled={savedReport}
+            onClick={onSaveReport}
+          >
+            {savedReport ? "Saved to Notes" : "Save report to Notes"}
+          </button>
+          <button
+            className="secondary-button"
+            onClick={() =>
+              download(
+                new Blob([agentReportMarkdown(run)], { type: "text/markdown" }),
+                `research-${run.id}.md`,
+              )
+            }
+          >
+            Download report
+          </button>
         </div>
       )}
       {run.status === "completed" && <AgentDelivery key={run.id} run={run} />}

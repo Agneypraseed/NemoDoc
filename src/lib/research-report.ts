@@ -1,3 +1,4 @@
+import type { AgentRun } from "../agent-types";
 import type { Notebook, Source } from "../types";
 import type { WorkflowRun } from "../workspace-types";
 import { citationReferences } from "./citations";
@@ -58,7 +59,7 @@ export function researchReportMarkdown(
 
 export function saveResearchToNotes(
   notebook: Notebook,
-  run: WorkflowRun,
+  run: WorkflowRun | AgentRun,
   sources: Source[],
 ) {
   if (
@@ -81,11 +82,43 @@ export function saveResearchToNotes(
       ),
     ),
   };
-  const text = researchReportMarkdown(scoped);
+  const text =
+    "workflow" in scoped
+      ? researchReportMarkdown(scoped)
+      : agentReportMarkdown({
+          ...run,
+          citations: run.citations.filter(
+            (c) =>
+              ("kind" in c && !!c.kind) ||
+              scoped.citations.some((valid) => valid.id === c.id),
+          ),
+        } as AgentRun);
   return {
     ...notebook,
     notes: `${notebook.notes.trimEnd()}${notebook.notes.trimEnd() ? "\n\n" : ""}${text}\n`,
     notesUpdatedAt: Date.now(),
     savedResearchRuns: [...(notebook.savedResearchRuns ?? []), run.id],
   };
+}
+
+export function agentReportMarkdown(run: AgentRun) {
+  const cited = new Set(citationReferences(run.answer, run.citations));
+  return [
+    "## Research report",
+    "",
+    run.sent.prompt,
+    "",
+    `Run: ${run.id} / ${run.status} / ${run.connection.model}`,
+    "",
+    run.answer,
+    "",
+    "### Cited evidence",
+    "",
+    ...run.citations
+      .filter((c) => cited.has(c.id))
+      .map(
+        (c) =>
+          `- [${c.id}] ${c.sourceName}${c.kind === "web" ? `: ${c.url}` : c.kind === "file" ? " (text file)" : `, page ${c.page}`}\n\n  > ${c.text.trim().replace(/\r?\n/g, "\n  > ")}`,
+      ),
+  ].join("\n");
 }
