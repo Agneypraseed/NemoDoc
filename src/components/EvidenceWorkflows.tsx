@@ -384,7 +384,7 @@ export function EvidenceWorkflows({
         </h2>
         {workflow === "research_team" && (
           <p className="agent-fine">
-            Choose evidence, review how the agents will work, then start your
+            Choose sources, review how the agents will work, then start your
             research.
           </p>
         )}
@@ -413,7 +413,7 @@ export function EvidenceWorkflows({
       )}
       <details className="agent-form research-evidence" open={!state?.revision}>
         <summary>
-          1 · Choose your evidence
+          1 · Sources
           {state?.revision ? (
             <span className="research-selection-count">
               {state.sources.length} shared

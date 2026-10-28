@@ -50,3 +50,9 @@ Add separate editable Quick and Deep conversation system prompts in Settings, pe
 - Validation: 20 research API tests pass; typecheck, lint and production build pass. Both research browser journeys passed, including model routing, saved reports and Dashboard inspection; the final single research journey also passed after prompt-display refinements and mobile editor coverage. These use deterministic providers, not live inference.
 - Evidence: `output/agent-research-instructions.png`, `output/agent-research-instructions-mobile.png`, `output/agent-research-plan.png`, `output/research-flow-final-verification.log`; verification report/traces in `output/verification/`.
 - Final navigation browser journey passed: default Research, no primary task-type selector, Tasks & schedules and Study tools reachable through More, Dashboard status filters, and zero inference on navigation. Log: `output/agent-navigation-verification.log`. Production build includes the final prompt editors and shared prompt contract. No live model calls or deliveries were made.
+
+## Follow-up: label research sources
+
+- Goal: rename the first Research step to “Sources” per the browser comment.
+- Change: the step is now “1 · Sources,” and the page intro says “Choose sources.” Added a browser assertion for the visible step title.
+- Validation: `npm run check` and `npm run lint` passed. The `verify:agents` production build passed, but its browser runner remained silent after startup warnings; the run was interrupted without a test result. No live model calls were made.

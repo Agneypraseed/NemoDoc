@@ -359,6 +359,9 @@ for (const multiModel of [false, true]) {
       const approvalDocuments = flow
         .getByRole("group", { name: "Documents", exact: true })
         .getByRole("checkbox");
+      await expect(
+        flow.locator(".research-evidence > summary"),
+      ).toContainText("1 · Sources");
       await expect(approvalDocuments).toHaveCount(2);
       await approvalDocuments.last().check();
       await flow
