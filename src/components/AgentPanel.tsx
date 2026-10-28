@@ -18,7 +18,6 @@ import { apiJSON } from "../lib/api";
 import { citationReferences } from "../lib/citations";
 import { download } from "../lib/storage";
 import { AgentConnections } from "./AgentConnections";
-import { AgentOverview } from "./AgentOverview";
 import { AgentDelivery } from "./AgentDelivery";
 import { EvidenceWorkflows } from "./EvidenceWorkflows";
 import { AgentDashboard } from "./AgentDashboard";
@@ -75,7 +74,7 @@ export function AgentPanel({
 }) {
   const [data, setData] = useState<Overview>();
   const [view, setView] = useState<
-    | "agents"
+    | "study"
     | "dashboard"
     | "tasks"
     | "research"
@@ -83,7 +82,7 @@ export function AgentPanel({
     | "skills"
     | "access"
     | "connections"
-  >("tasks");
+  >("research");
   const [inspectionTraceId, setInspectionTraceId] = useState("");
   const [startNewResearch, setStartNewResearch] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(() => {
@@ -156,7 +155,7 @@ export function AgentPanel({
     .slice()
     .reverse();
   const runs = data.runs.filter((r) => r.notebookId === notebookId);
-  const run = runs.find((r) => r.id === runId) || runs[0];
+  const run = runId ? runs.find((r) => r.id === runId) : undefined;
   const plan = data.plans.find((p) => p.notebookId === notebookId);
   return (
     <section
@@ -182,7 +181,7 @@ export function AgentPanel({
         className="agent-subtabs agent-primary-nav"
         aria-label="Agent sections"
       >
-        {(["tasks", "research", "dashboard"] as const).map((v) => (
+        {(["research", "dashboard"] as const).map((v) => (
           <button
             key={v}
             className={view === v ? "active" : ""}
@@ -194,11 +193,7 @@ export function AgentPanel({
               setMessage("");
             }}
           >
-            {v === "tasks"
-              ? "Assistant"
-              : v === "research"
-                ? "Research team"
-                : "Dashboard"}
+            {v === "research" ? "Research" : "Dashboard"}
           </button>
         ))}
         <details className="agent-more-nav">
@@ -206,21 +201,29 @@ export function AgentPanel({
             More <ChevronDown size={13} />
           </summary>
           <div>
-            {(["agents", "memory", "skills", "access"] as const).map((v) => (
-              <button
-                key={v}
-                className={view === v ? "active" : ""}
-                onClick={(e) => {
-                  setView(v);
-                  setError("");
-                  setMessage("");
-                  if (v === "access") setSelected(approved.map((s) => s.id));
-                  e.currentTarget.closest("details")?.removeAttribute("open");
-                }}
-              >
-                {v === "access" ? "Sources" : v[0].toUpperCase() + v.slice(1)}
-              </button>
-            ))}
+            {(["tasks", "study", "memory", "skills", "access"] as const).map(
+              (v) => (
+                <button
+                  key={v}
+                  className={view === v ? "active" : ""}
+                  onClick={(e) => {
+                    setView(v);
+                    setError("");
+                    setMessage("");
+                    if (v === "access") setSelected(approved.map((s) => s.id));
+                    e.currentTarget.closest("details")?.removeAttribute("open");
+                  }}
+                >
+                  {v === "tasks"
+                    ? "Tasks & schedules"
+                    : v === "study"
+                      ? "Study tools"
+                      : v === "access"
+                        ? "Sources"
+                        : v[0].toUpperCase() + v.slice(1)}
+                </button>
+              ),
+            )}
             <label>
               <input
                 type="checkbox"
@@ -266,17 +269,13 @@ export function AgentPanel({
           }}
         />
       )}
-      {view === "agents" && (
-        <AgentOverview
-          key={notebookId}
-          notebookId={notebookId}
-          onConnections={() => setView("connections")}
-          onTasks={() => setView("tasks")}
-        />
-      )}
-      {view === "research" && (
+      {(view === "research" || view === "study") && (
         <div className="agent-assistant-workspace">
           <EvidenceWorkflows
+            key={view}
+            initialWorkflow={
+              view === "study" ? "study_revision" : "research_team"
+            }
             notebookId={notebookId}
             title={notebookTitle}
             sources={sources}
@@ -331,57 +330,26 @@ export function AgentPanel({
             return ok;
           }}
         />
-        <section
-          className="agent-assistant-activity"
-          aria-label="Task activity"
-        >
-          <h3>Activity</h3>
-          {!!runs.length && (
-            <>
-              <label className="field-label">
-                Run history
-                <select
-                    aria-label="Run history"
-                  value={run?.id || ""}
-                  onChange={(e) => setRunId(e.target.value)}
-                >
-                  {runs.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.title} · {r.status} · {at(r.startedAt)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {run && view === "tasks" && (
-                <RunResult
-                  run={run}
-                  onCancel={() =>
-                    void act(
-                      () =>
-                        apiJSON("/api/agent/task/action", {
-                          id: run.taskId,
-                          action: "cancel",
-                        }),
-                      "Task cancelled.",
-                    )
-                  }
-                  onCitation={onCitation}
-                  onSave={(a) => {
-                    onSave({ ...a, notebookId });
-                    setMessage("Saved to this notebook’s Studio.");
-                  }}
-                />
-              )}
-            </>
-          )}
-
-          {!runs.length && (
-            <p className="agent-assistant-empty">
-              Your agent’s actions and results will appear here. You can return
-              to any run from this notebook’s dashboard.
-            </p>
-          )}
-        </section>
+        {run && view === "tasks" && (
+          <RunResult
+            run={run}
+            onCancel={() =>
+              void act(
+                () =>
+                  apiJSON("/api/agent/task/action", {
+                    id: run.taskId,
+                    action: "cancel",
+                  }),
+                "Task cancelled.",
+              )
+            }
+            onCitation={onCitation}
+            onSave={(a) => {
+              onSave({ ...a, notebookId });
+              setMessage("Saved to this notebook’s Studio.");
+            }}
+          />
+        )}
         <details className="agent-scheduled-list">
           <summary>Saved tasks & schedules · {tasks.length}</summary>
           {tasks.map((t) => (
@@ -928,8 +896,8 @@ function RunResult({
       </small>
       {run.toolAccess && (
         <p className="agent-tool-scope">
-          <ShieldCheck size={15} /> Access ·{" "}
-          {run.toolAccess.fileIds.length} selected file
+          <ShieldCheck size={15} /> Access · {run.toolAccess.fileIds.length}{" "}
+          selected file
           {run.toolAccess.fileIds.length === 1 ? "" : "s"}
           {run.toolAccess.web && " · public web"}
           {run.toolAccess.writeFiles && " · new output files"}

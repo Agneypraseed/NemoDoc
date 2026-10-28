@@ -351,7 +351,7 @@ for (const multiModel of [false, true]) {
         );
       }
       await pageUI
-        .getByRole("button", { name: "Research team", exact: true })
+        .getByRole("button", { name: "Research", exact: true })
         .click();
       const flow = pageUI.getByRole("region", { name: "Evidence workflows" });
       await expect(flow).toBeVisible();
@@ -363,35 +363,57 @@ for (const multiModel of [false, true]) {
       await approvalDocuments.last().check();
       await flow
         .getByLabel(
-          "I approve storing these selected snapshots on this server.",
+          "Keep a copy of this selected text on the server for research.",
         )
         .check();
       await flow
-        .getByRole("button", { name: "Approve snapshots", exact: true })
+        .getByRole("button", { name: "Use selected sources", exact: true })
         .click();
-      await flow
-        .getByLabel("Task type", { exact: true })
-        .selectOption("research_team");
-      await flow
-        .getByLabel("Request", { exact: true })
-        .fill("Compare the PCA evidence and its limitations.");
-      await flow
-        .getByLabel("Task type", { exact: true })
-        .selectOption("study_revision");
-      await expect(flow.getByLabel("Request", { exact: true })).toHaveValue(
-        "Compare the PCA evidence and its limitations.",
+      await expect(flow.getByLabel("Task type", { exact: true })).toHaveCount(
+        0,
       );
       await flow
-        .getByLabel("Task type", { exact: true })
-        .selectOption("research_team");
+        .getByLabel("What would you like to investigate?", { exact: true })
+        .fill("Compare the PCA evidence and its limitations.");
+      const plannerInstructions = flow.getByLabel("Planner instructions", {
+        exact: true,
+      });
+      await expect(plannerInstructions).toHaveValue(
+        /Plan research assignments only/,
+      );
+      await plannerInstructions.fill(
+        (await plannerInstructions.inputValue()) +
+          "\nPlan focused complementary assignments.",
+      );
+      await plannerInstructions.scrollIntoViewIfNeeded();
+      await pageUI.screenshot({
+        path: "output/agent-research-instructions.png",
+      });
+      await pageUI.setViewportSize({ width: 390, height: 844 });
+      await expect(plannerInstructions).toBeVisible();
+      await plannerInstructions.scrollIntoViewIfNeeded();
+      expect(
+        await flow.evaluate((el) => el.scrollWidth <= el.clientWidth + 1),
+      ).toBe(true);
+      await pageUI.screenshot({
+        path: "output/agent-research-instructions-mobile.png",
+      });
+      await pageUI.setViewportSize({ width: 1440, height: 1000 });
       await flow.getByLabel("Enable web research", { exact: true }).check();
       await flow
-        .getByRole("button", { name: "Generate team plan", exact: true })
+        .getByRole("button", { name: "Plan research", exact: true })
         .click();
+      await flow.locator(".research-assignment-card > summary").first().click();
       await expect(
         flow.getByLabel("Agent 1 name", { exact: true }),
       ).toHaveValue("Definitions researcher");
       if (multiModel) {
+        await flow
+          .locator(
+            ".research-assignment-card .research-model-options > summary",
+          )
+          .first()
+          .click();
         await expect(
           flow.getByLabel("Agent 1 model", { exact: true }),
         ).toHaveValue(profileIds[0]);
@@ -409,10 +431,7 @@ for (const multiModel of [false, true]) {
       await flow
         .getByLabel("Agent 1 assignment", { exact: true })
         .fill("Investigate definitions and assumptions");
-      const firstAssignment = flow.getByRole("article", {
-        name: "Assignment 1",
-        exact: true,
-      });
+      const firstAssignment = flow.locator(".research-assignment-card").first();
       await expect(
         firstAssignment.getByLabel("How this agent should work", {
           exact: true,
@@ -444,25 +463,35 @@ for (const multiModel of [false, true]) {
       await flow
         .getByRole("button", { name: "Add researcher", exact: true })
         .click();
-      await expect(
-        flow.getByRole("article", { name: /^Assignment/ }),
-      ).toHaveCount(4);
+      await expect(flow.locator(".research-assignment-card")).toHaveCount(4);
       await flow
-        .getByRole("article", { name: "Assignment 3", exact: true })
+        .locator(".research-assignment-card")
+        .nth(2)
+        .locator(":scope > summary")
+        .click();
+      await flow
+        .locator(".research-assignment-card")
+        .nth(2)
         .getByRole("button", { name: "Remove researcher" })
         .click();
       await flow.getByLabel("I reviewed the team assignments").check();
+      await firstAssignment.scrollIntoViewIfNeeded();
+      await pageUI.screenshot({ path: "output/agent-research-plan.png" });
       const start = flow.getByRole("button", {
-        name: "Start research team",
+        name: "Start research",
         exact: true,
       });
       const originalRequest = await flow
-        .getByLabel("Request", { exact: true })
+        .getByLabel("What would you like to investigate?", { exact: true })
         .inputValue();
-      await flow.getByLabel("Request", { exact: true }).fill("Changed request");
+      await flow
+        .getByLabel("What would you like to investigate?", { exact: true })
+        .fill("Changed request");
       await expect(start).toBeDisabled();
       await expect(flow).toContainText("Regenerate the team plan");
-      await flow.getByLabel("Request", { exact: true }).fill(originalRequest);
+      await flow
+        .getByLabel("What would you like to investigate?", { exact: true })
+        .fill(originalRequest);
       await expect(start).toBeEnabled();
       await start.click();
       await expect(flow.locator("article[data-run-id]")).toHaveCount(1);
@@ -562,7 +591,7 @@ for (const multiModel of [false, true]) {
           .getByRole("button", { name: "Agent", exact: true })
           .click();
         await pageUI
-          .getByRole("button", { name: "Research team", exact: true })
+          .getByRole("button", { name: "Research", exact: true })
           .click();
         await expect(flow).toContainText("Manual choice");
         await expect(flow).toContainText("Model: review");

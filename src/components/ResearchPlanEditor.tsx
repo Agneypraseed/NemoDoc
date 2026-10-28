@@ -1,3 +1,5 @@
+import { DEFAULT_RESEARCH_PROMPTS } from "../research-prompt-types";
+import { ChevronDown } from "lucide-react";
 import type { ResearchPlan } from "../workspace-types";
 import type { ResearchModelCatalog } from "../research-model-types";
 import { ResearchInstructions } from "./ResearchInstructions";
@@ -6,10 +8,12 @@ export function ResearchPlanEditor({
   plan,
   onChange,
   models,
+  researcherInstructions = DEFAULT_RESEARCH_PROMPTS.researcher,
 }: {
   plan: ResearchPlan;
   onChange: (plan: ResearchPlan) => void;
   models?: ResearchModelCatalog;
+  researcherInstructions?: string;
 }) {
   const update = (
     index: number,
@@ -23,16 +27,26 @@ export function ResearchPlanEditor({
     });
   return (
     <fieldset className="research-plan-editor">
-      <legend>Review team assignments</legend>
+      <legend>3 - Review your team</legend>
       <p className="agent-fine">
         Give each agent a question to answer and any instructions to follow.
       </p>
       {plan.agents.map((agent, index) => (
-        <article
-          className="agent-form"
+        <details
+          className="agent-form research-assignment-card"
           key={agent.id}
           aria-label={`Assignment ${index + 1}`}
         >
+          <summary>
+            <strong>{agent.name || "New researcher"}</strong>
+            <span>
+              {agent.role === "reviewer" ? "Review & final report" : "Research"}
+            </span>
+            <ChevronDown size={16} aria-hidden="true" />
+            <span className="research-assignment-preview">
+              {agent.assignment || "Open to add an assignment"}
+            </span>
+          </summary>
           <label className="field-label">
             Agent name
             <input
@@ -74,7 +88,8 @@ export function ResearchPlanEditor({
             content={agent.instructions ?? ""}
             onChange={(instructions) => update(index, { instructions })}
           />
-          <>
+          <details className="research-model-options">
+            <summary>Model settings</summary>
             <label className="field-label">
               Assigned model
               <select
@@ -104,7 +119,7 @@ export function ResearchPlanEditor({
                 ? ` · ${agent.modelReason}`
                 : " · Uses the current agent connection"}
             </p>
-          </>
+          </details>
           {agent.role !== "reviewer" && (
             <button
               type="button"
@@ -120,7 +135,7 @@ export function ResearchPlanEditor({
               Remove researcher
             </button>
           )}
-        </article>
+        </details>
       ))}
       <button
         type="button"
@@ -134,6 +149,7 @@ export function ResearchPlanEditor({
               {
                 id: crypto.randomUUID(),
                 name: "Additional researcher",
+                instructions: researcherInstructions,
                 assignment: "",
                 role: "researcher",
               },

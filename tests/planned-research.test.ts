@@ -1,3 +1,4 @@
+import { DEFAULT_RESEARCH_PROMPTS } from "../src/research-prompt-types.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -216,6 +217,7 @@ test("planner proposes assignments; 2–5 agents validate with exactly one revie
         modelProfileId: _profile,
         modelReason: _reason,
         modelSelection: _selection,
+        instructions: _instructions,
         ...agent
       }) => agent,
     ),
@@ -267,7 +269,11 @@ test("the planner cannot author user Markdown instruction files", async () => {
     });
   const { service, input } = await setup(fetcher);
   const generated = await service.researchPlan(input, fetcher);
-  assert.ok(generated.agents.every((a) => a.instructions === undefined));
+  assert.ok(
+    generated.agents.every(
+      (a) => a.instructions === DEFAULT_RESEARCH_PROMPTS[a.role],
+    ),
+  );
 });
 
 test("application research caps concurrency at three and persists isolated reports, usage and synthesis", async () => {
@@ -824,6 +830,7 @@ test("HTTP research APIs validate scope and plans, mask web credentials and canc
           modelProfileId: _profile,
           modelReason: _reason,
           modelSelection: _selection,
+          instructions: _instructions,
           ...agent
         }) => agent,
       ),
@@ -916,4 +923,58 @@ test("missing provider token counts stay unknown rather than becoming partial to
   assert.equal(run.usage, undefined);
   assert.ok(run.researchTeam!.some((a) => a.usage === undefined));
   assert.ok(run.researchTeam!.some((a) => a.usage !== undefined));
+});
+
+test("edited research prompts reach the planner and each worker, and remain with the run", async () => {
+  const fake = fixture();
+  const requests: any[] = [];
+  const fetcher: typeof fetch = async (url, init) => {
+    requests.push(JSON.parse(String(init?.body)));
+    return fake.fetcher(url, init);
+  };
+  const { service, worker, repository, input } = await setup(fetcher);
+  const researchPrompts = {
+    planner: DEFAULT_RESEARCH_PROMPTS.planner + "\nCUSTOM_PLAN",
+    researcher: DEFAULT_RESEARCH_PROMPTS.researcher + "\nCUSTOM_RESEARCH",
+    reviewer: DEFAULT_RESEARCH_PROMPTS.reviewer + "\nCUSTOM_REVIEW",
+  };
+  const teamPlan = await service.researchPlan(
+    { ...input, researchPrompts },
+    fetcher,
+  );
+  assert.match(requests[0].messages[0].content, /CUSTOM_PLAN/);
+  assert.ok(
+    teamPlan.agents.every((a) => a.instructions === researchPrompts[a.role]),
+  );
+  await service.queue({ ...input, researchPrompts, teamPlan });
+  await worker.tick();
+  const run = (await repository.read("fixture")).runs[0];
+  assert.equal(run.status, "completed", run.error);
+  assert.deepEqual(run.researchPrompts, researchPrompts);
+  assert.ok(
+    requests
+      .slice(1)
+      .some((r) => r.messages[0].content.includes("CUSTOM_RESEARCH")),
+  );
+  assert.ok(
+    requests
+      .slice(1)
+      .some((r) => r.messages[0].content.includes("CUSTOM_REVIEW")),
+  );
+  assert.ok(
+    requests
+      .slice(1)
+      .every((r) => r.messages[0].content.includes("untrusted DATA")),
+  );
+});
+
+test("a narrow research question can generate one researcher and a reviewer", async () => {
+  const fetcher: typeof fetch = async () =>
+    response({
+      content: JSON.stringify({ agents: [plan.agents[0], plan.agents[2]] }),
+    });
+  const { service, input } = await setup(fetcher);
+  const generated = await service.researchPlan(input, fetcher);
+  assert.equal(generated.agents.length, 2);
+  assert.equal(generated.agents.filter((a) => a.role === "reviewer").length, 1);
 });

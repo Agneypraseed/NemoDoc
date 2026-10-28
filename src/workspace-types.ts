@@ -217,6 +217,14 @@ export const workflowTaskSchema = z
     includeProgress: z.boolean().default(false),
     executionRoute: z.literal("application").optional(),
     teamPlan: researchPlanSchema.optional(),
+    researchPrompts: z
+      .object({
+        planner: z.string().max(12000),
+        researcher: z.string().max(12000),
+        reviewer: z.string().max(12000),
+      })
+      .strict()
+      .optional(),
     webEnabled: z.boolean().optional(),
   })
   .strict();

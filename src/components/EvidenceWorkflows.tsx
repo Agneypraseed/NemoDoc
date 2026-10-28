@@ -36,6 +36,11 @@ import type {
   TraceEventPage,
 } from "../trace-types";
 import { activityLabels } from "../lib/agent-activity";
+import { ResearchPromptEditor } from "./ResearchPromptEditor";
+import {
+  DEFAULT_RESEARCH_PROMPTS,
+  type ResearchPrompts,
+} from "../research-prompt-types";
 import { ResearchPlanEditor } from "./ResearchPlanEditor";
 import { ResearchInstructions } from "./ResearchInstructions";
 import type { ResearchModelCatalog } from "../research-model-types";
@@ -82,6 +87,7 @@ export function EvidenceWorkflows({
   onConnections,
   inspectionTraceId,
   startNewResearch = false,
+  initialWorkflow = "research_team",
 }: {
   notebookId: string;
   title: string;
@@ -94,6 +100,7 @@ export function EvidenceWorkflows({
   onConnections: () => void;
   inspectionTraceId?: string;
   startNewResearch?: boolean;
+  initialWorkflow?: EvidenceWorkflow;
 }) {
   const [state, setState] = useState<WorkspaceState>();
   const [focusRunId, setFocusRunId] = useState("");
@@ -136,7 +143,27 @@ export function EvidenceWorkflows({
   const [teamPlan, setTeamPlan] = useState<ResearchPlan>();
   const [planKey, setPlanKey] = useState("");
   const [reviewed, setReviewed] = useState(false);
-  const [workflow, setWorkflow] = useState<EvidenceWorkflow>("research_team");
+  const [workflow, setWorkflow] = useState<EvidenceWorkflow>(initialWorkflow);
+  const [researchPrompts, setResearchPrompts] = useState<ResearchPrompts>(
+    () => {
+      try {
+        const stored = JSON.parse(
+          localStorage.getItem("nemodoc-research-prompts") || "null",
+        );
+        return Object.fromEntries(
+          Object.entries(DEFAULT_RESEARCH_PROMPTS).map(([key, fallback]) => [
+            key,
+            typeof stored?.[key] === "string" && stored[key].length <= 12000
+              ? stored[key]
+              : fallback,
+          ]),
+        ) as ResearchPrompts;
+      } catch {
+        return { ...DEFAULT_RESEARCH_PROMPTS };
+      }
+    },
+  );
+  const [promptSaveError, setPromptSaveError] = useState(false);
   const [composeOpen, setComposeOpen] = useState(true);
   const initializedNotebook = useRef("");
   const [prompt, setPrompt] = useState("");
@@ -334,6 +361,7 @@ export function EvidenceWorkflows({
     webEnabled,
     state?.revision,
     modelCatalog?.revision,
+    researchPrompts,
   ]);
   const validPlan = teamPlan && researchPlanSchema.safeParse(teamPlan).success;
   const routeReady = teamPlan?.agents.every((agent) =>
@@ -351,28 +379,38 @@ export function EvidenceWorkflows({
       aria-label="Evidence workflows"
     >
       <div className="research-heading">
-        <h2>Research</h2>
+        <h2>
+          {workflow === "research_team" ? "Research a question" : "Study tools"}
+        </h2>
+        {workflow === "research_team" && (
+          <p className="agent-fine">
+            Choose evidence, review how the agents will work, then start your
+            research.
+          </p>
+        )}
       </div>
       {error && (
         <p className="form-error" role="alert">
           {error}
         </p>
       )}
-      <label className="field-label research-task-type">
-        Task type
-        <select
-          aria-label="Task type"
-          value={workflow}
-          onChange={(e) => {
-            setWorkflow(e.target.value as EvidenceWorkflow);
-            setComposeOpen(true);
-          }}
-        >
-          <option value="research_team">Research team</option>
-          <option value="study_revision">Revision plan</option>
-          <option value="research_synthesis">Research synthesis</option>
-        </select>
-      </label>
+      {initialWorkflow !== "research_team" && (
+        <label className="field-label research-task-type">
+          Task type
+          <select
+            aria-label="Task type"
+            value={workflow}
+            onChange={(e) => {
+              setWorkflow(e.target.value as EvidenceWorkflow);
+              setComposeOpen(true);
+            }}
+          >
+            <option value="research_team">Research team</option>
+            <option value="study_revision">Revision plan</option>
+            <option value="research_synthesis">Research synthesis</option>
+          </select>
+        </label>
+      )}
       <details className="agent-form research-evidence" open={!state?.revision}>
         <summary>
           1 · Choose your evidence
@@ -383,7 +421,8 @@ export function EvidenceWorkflows({
           ) : null}
         </summary>
         <p className="agent-fine">
-          Share selected extracted page text and notes with the agent workspace.
+          Save extracted document text and selected notes for research runs.
+          Updates in your notebook are included when you refresh this copy.
           Original files remain in this browser.
         </p>
         <fieldset>
@@ -439,7 +478,7 @@ export function EvidenceWorkflows({
             checked={consent}
             onChange={(e) => setConsent(e.target.checked)}
           />
-          I approve storing these selected snapshots on this server.
+          Keep a copy of this selected text on the server for research.
         </label>
         <div className="workflow-buttons">
           <button
@@ -466,8 +505,8 @@ export function EvidenceWorkflows({
             }
           >
             {state?.revision
-              ? "Refresh approved snapshots"
-              : "Approve snapshots"}
+              ? "Update research sources"
+              : "Use selected sources"}
           </button>
           {state?.revision && (
             <button
@@ -484,7 +523,7 @@ export function EvidenceWorkflows({
           )}
         </div>
       </details>
-      {state?.revision && (
+      {state && (
         <details
           className="agent-form research-compose"
           open={composeOpen}
@@ -492,13 +531,13 @@ export function EvidenceWorkflows({
         >
           <summary>
             {workflow === "research_team"
-              ? "2 · New research"
+              ? "2 · Your research question"
               : "Run with approved evidence"}
           </summary>
           <label className="field-label">
-            Request
+            What would you like to investigate?
             <textarea
-              aria-label="Request"
+              aria-label="What would you like to investigate?"
               placeholder="What would you like to investigate in these sources?"
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
@@ -507,10 +546,27 @@ export function EvidenceWorkflows({
           </label>
           {workflow === "research_team" && (
             <>
-              <p className="agent-fine">
-                Tell the team what to investigate. You’ll review the assignments
-                before it starts.
-              </p>
+              <ResearchPromptEditor
+                value={researchPrompts}
+                onChange={(next) => {
+                  setResearchPrompts(next);
+                  try {
+                    localStorage.setItem(
+                      "nemodoc-research-prompts",
+                      JSON.stringify(next),
+                    );
+                    setPromptSaveError(false);
+                  } catch {
+                    setPromptSaveError(true);
+                  }
+                }}
+              />
+              {promptSaveError && (
+                <p role="status" className="form-error">
+                  Instructions apply to this session, but could not be saved in
+                  this browser.
+                </p>
+              )}
               <details className="research-options">
                 <summary>Research models</summary>
                 <button
@@ -582,6 +638,7 @@ export function EvidenceWorkflows({
                 className="secondary-button"
                 disabled={
                   busy ||
+                  !state.revision ||
                   !prompt.trim() ||
                   (!sourceIds.length && !webEnabled) ||
                   !modelCatalog?.profiles.some(
@@ -601,6 +658,7 @@ export function EvidenceWorkflows({
                         noteIds,
                         webEnabled,
                         executionRoute: "application",
+                        researchPrompts,
                       },
                     );
                     setTeamPlan(plan);
@@ -609,12 +667,13 @@ export function EvidenceWorkflows({
                   })
                 }
               >
-                {teamPlan ? "Regenerate team plan" : "Generate team plan"}
+                {teamPlan ? "Regenerate assignments" : "Plan research"}
               </button>
               {teamPlan && (
                 <ResearchPlanEditor
                   plan={teamPlan}
                   models={modelCatalog}
+                  researcherInstructions={researchPrompts.researcher}
                   onChange={(plan) => {
                     setTeamPlan(plan);
                     setReviewed(false);
@@ -644,6 +703,7 @@ export function EvidenceWorkflows({
             className="primary-button"
             disabled={
               busy ||
+              !state.revision ||
               (!sourceIds.length &&
                 !(workflow === "research_team" && webEnabled)) ||
               (workflow === "research_team" && !researchReady) ||
@@ -664,7 +724,12 @@ export function EvidenceWorkflows({
                   noteIds,
                   includeProgress: progress,
                   ...(workflow === "research_team"
-                    ? { executionRoute: "application", teamPlan, webEnabled }
+                    ? {
+                        executionRoute: "application",
+                        teamPlan,
+                        webEnabled,
+                        researchPrompts,
+                      }
                     : {}),
                 });
                 setSelectedTraceId(queued.traceId ?? queued.id);
@@ -674,7 +739,7 @@ export function EvidenceWorkflows({
             }
           >
             {workflow === "research_team"
-              ? "Start research team"
+              ? "Start research"
               : "Create proposal"}
           </button>
           {workflow === "research_synthesis" && sourceIds.length < 2 ? (

@@ -243,15 +243,6 @@
 .agent-composer > .form-error {
   padding: 0 20px;
 }
-.agent-assistant-activity {
-  margin-top: 26px;
-  padding-top: 22px;
-  border-top: 1px solid var(--line);
-}
-.agent-assistant-activity > h3 {
-  font-size: 16px;
-  margin: 0 0 16px;
-}
 .agent-scheduled-list {
   margin-top: 24px;
   border-top: 1px solid var(--line);
@@ -260,15 +251,6 @@
 .agent-scheduled-list > summary {
   font-size: 13px;
   cursor: pointer;
-}
-.agent-assistant-activity .agent-result {
-  background: transparent;
-}
-.agent-assistant-empty {
-  padding: 22px 0;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.7;
 }
 @media (max-width: 600px) {
   .agent-panel {

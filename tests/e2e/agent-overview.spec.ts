@@ -1,6 +1,6 @@
 import { test, expect } from "./fixtures";
 
-test("local agent activity shows tasks and filters without inference", async ({
+test("research is the default and activity stays in Dashboard without inference", async ({
   page,
 }) => {
   let inferenceCalls = 0;
@@ -8,56 +8,98 @@ test("local agent activity shows tasks and filters without inference", async ({
     inferenceCalls++;
     await route.abort();
   });
-  await page.route("**/api/agent/overview?*", (route) =>
-    route.fulfill({
+  await page.route("**/api/agent/workspace/*/dashboard?*", (route) => {
+    const now = Date.now();
+    return route.fulfill({
       json: {
-        connection: {
-          mode: "notebook",
-          model: "nvidia/test-nemotron",
-          tested: true,
-        },
-        notebookActivity: [
+        notebookId: "fixture",
+        since: now - 86400000,
+        until: now,
+        generatedAt: now,
+        persistence: "local",
+        truncated: false,
+        traces: [
           {
-            id: "research-1",
-            agentId: "researcher",
-            kind: "workflow",
-            title: "Research · Definitions",
+            traceId: "research-1",
+            name: "Definitions research",
             status: "completed",
-            summary: "Reviewed approved source passages",
-            updatedAt: 1000,
-            model: "nvidia/test-nemotron",
-            steps: [{ tool: "read_passage", summary: "Read page 1", at: 900 }],
-            pendingApproval: false,
+            createdAt: now,
+            kind: "research",
+            models: [],
+            toolCalls: 0,
+            citationChecksPassed: 0,
+            citationChecksFailed: 0,
           },
           {
-            id: "task-1",
-            agentId: "notebook-agent",
-            kind: "task",
-            title: "Morning revision",
+            traceId: "task-1",
+            name: "Morning revision",
             status: "queued",
-            summary: "Waiting for the worker",
-            updatedAt: 500,
-            model: "nvidia/test-nemotron",
-            steps: [],
-            pendingApproval: false,
+            createdAt: now,
+            kind: "task",
+            models: [],
+            toolCalls: 0,
+            citationChecksPassed: 0,
+            citationChecksFailed: 0,
           },
         ],
       },
-    }),
-  );
+    });
+  });
   await page.goto("/app");
   await page.getByRole("button", { name: "Agent", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Research a question", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Task type", { exact: true })).toHaveCount(0);
   await page.getByText("More", { exact: true }).click();
-  await page.getByRole("button", { name: "Agents", exact: true }).click();
-  const activity = page.getByRole("region", { name: "Agent activity" });
-  await expect(activity.getByText("Research · Definitions")).toBeVisible();
-  await expect(activity.getByText("Morning revision")).toBeVisible();
-  await activity.getByLabel("Search activity").fill("definitions");
-  await expect(activity.getByText("Morning revision")).toHaveCount(0);
-  await expect(activity.getByText("Research · Definitions")).toBeVisible();
-  await activity.getByLabel("Search activity").fill("");
-  await activity.getByLabel("Status").selectOption("queued");
-  await expect(activity.getByText("Morning revision")).toBeVisible();
-  await expect(activity.getByText("Research · Definitions")).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Tasks & schedules", exact: true })
+    .click();
+  await expect(
+    page.getByRole("form", { name: "New agent task" }),
+  ).toBeVisible();
+  await expect(page.getByRole("region", { name: "Task activity" })).toHaveCount(
+    0,
+  );
+  await page.getByText("More", { exact: true }).click();
+  await page.getByRole("button", { name: "Study tools", exact: true }).click();
+  await page
+    .getByLabel("Task type", { exact: true })
+    .selectOption("research_synthesis");
+  await expect(page.getByLabel("Task type", { exact: true })).toHaveValue(
+    "research_synthesis",
+  );
+  await page.getByRole("button", { name: "Research", exact: true }).click();
+  await expect(page.getByLabel("Task type", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Dashboard", exact: true }).click();
+  const dashboard = page.getByRole("region", {
+    name: "Agent dashboard",
+    exact: true,
+  });
+  await expect(
+    dashboard.getByRole("button", {
+      name: "Inspect Definitions research",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    dashboard.getByRole("button", {
+      name: "Inspect Morning revision",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await dashboard.getByLabel("Status", { exact: true }).selectOption("queued");
+  await expect(
+    dashboard.getByRole("button", {
+      name: "Inspect Morning revision",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    dashboard.getByRole("button", {
+      name: "Inspect Definitions research",
+      exact: true,
+    }),
+  ).toHaveCount(0);
   expect(inferenceCalls).toBe(0);
 });

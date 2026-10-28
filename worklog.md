@@ -9,8 +9,8 @@ Add separate editable Quick and Deep conversation system prompts in Settings, pe
 - Owner: `/root` (single-agent; do not delegate unless the user asks).
 - Work in `D:\Me\NemoDoc`; preserve browser notebook data and existing workflows.
 - Keep source excerpts, citation provenance, and required grounding behavior attached to chat requests.
-- Do not run or add tests unless the user asks to test or verify the implementation.
-- Do not commit, push, or modify ignored `data/` and `output/` content.
+- Run focused checks for changes per the updated developer instructions; use isolated fixtures for agent verification.
+- Make a coherent local commit after validation per AGENTS.md; do not push. Keep private data out of Git. Isolated verification may write ignored fixture artifacts under `output/`.
 
 ## Decisions
 
@@ -32,3 +32,21 @@ Add separate editable Quick and Deep conversation system prompts in Settings, pe
 - Cause: the header's glass backdrop creates a stacking context; the menu's local `z-index` cannot outrank later reader content, so toolbar icons can show through/overlap when the menu extends below the header.
 - Change: raise the header stacking order while the notebook actions popover is open.
 - Verification: source inspection only; no tests or browser verification run.
+
+## Follow-up: Agent activity placement
+
+- Goal: keep the task activity list in the Dashboard, as requested.
+- Change: removed the duplicate activity heading, run-history picker, and empty state from Assistant. Opening a personal-agent run from Dashboard still opens its detailed result in Assistant; scheduled tasks remain in Assistant.
+- Verification: `git diff --check` passed; no tests or browser verification run.
+
+## Current goal: simplify research and expose instructions
+
+- Owner: /root. Complete. No remaining implementation work.
+- Make Research the default Agent entry, with Dashboard for activity. Preserve tasks/schedules and revision/synthesis as secondary tools under More.
+- Remove task-type selection from the primary research journey. Expose planner, researcher and reviewer instructions, plus required evidence rules. Persist editable defaults in browser storage; store the selected instruction snapshot with the queued run.
+- Keep per-agent assignment/instruction edits and model selection, source approval, citations and previous runs.
+- Use the verify-nemodoc skill for isolated browser evidence; run focused API tests and type/build checks.
+- Research is the default entry with editable Planner / Researcher / Reviewer instructions, browser-local defaults, visible fixed evidence rules, and per-agent instruction/assignment cards. Generated plans choose 1–4 researchers plus one reviewer within the existing run budget. New researchers inherit the generic researcher instructions rather than another agent's custom edits.
+- Validation: 20 research API tests pass; typecheck, lint and production build pass. Both research browser journeys passed, including model routing, saved reports and Dashboard inspection; the final single research journey also passed after prompt-display refinements and mobile editor coverage. These use deterministic providers, not live inference.
+- Evidence: `output/agent-research-instructions.png`, `output/agent-research-instructions-mobile.png`, `output/agent-research-plan.png`, `output/research-flow-final-verification.log`; verification report/traces in `output/verification/`.
+- Final navigation browser journey passed: default Research, no primary task-type selector, Tasks & schedules and Study tools reachable through More, Dashboard status filters, and zero inference on navigation. Log: `output/agent-navigation-verification.log`. Production build includes the final prompt editors and shared prompt contract. No live model calls or deliveries were made.
