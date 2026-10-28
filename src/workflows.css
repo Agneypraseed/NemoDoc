@@ -332,13 +332,6 @@
     transform: translateY(0);
   }
 }
-.agent-panel[data-reduced-motion="true"] *,
-.agent-panel[data-reduced-motion="true"] *::before,
-.agent-panel[data-reduced-motion="true"] *::after {
-  animation: none !important;
-  transition: none !important;
-  scroll-behavior: auto !important;
-}
 @media (prefers-reduced-motion: reduce) {
   .agent-panel *,
   .agent-panel *::before,

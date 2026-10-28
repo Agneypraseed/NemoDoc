@@ -307,10 +307,3 @@
     transition: none;
   }
 }
-[data-reduced-motion="true"] .agent-feed-live svg,
-[data-reduced-motion="true"] .agent-feed-spinner {
-  animation: none;
-}
-[data-reduced-motion="true"] .agent-feed-chevron {
-  transition: none;
-}

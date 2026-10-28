@@ -65,3 +65,9 @@ Add separate editable Quick and Deep conversation system prompts in Settings, pe
 - Validation: typecheck, lint and production build passed. All 13 delegation API tests passed in the host runtime (the sandbox blocks two fixture-file renames). Five report/persistence tests passed, including automatic-team notes, cited evidence filtering, deduplication, and preservation of edited notes/messages. All three isolated browser journeys passed: source approval plus future scheduling/pause/resume, dynamic notebook/web delegation with persisted traces and mobile checks, and unified navigation with zero inference. Final focused browser coverage also passed: save automatic research to Notes and retain the saved marker after reload. One standalone attempt stopped during search-fixture setup before UI execution; retry passed without a product-code change. Logs: `output/unified-agent-report-save.log` and `output/unified-agent-report-save-retry.log`. Logs: `output/unified-agent-verification-final.log`; screenshots: `output/unified-agent-desktop.png`, `output/unified-agent-mobile.png`, `output/unified-agent-schedules.png`. No live model calls or deliveries were made.
 
 - Final UI review: desktop/mobile composer and saved-job list fit their panels. Existing notebook notes, messages, source files and historical reports are retained. All new work uses the same personal-agent task runtime, with dynamic delegation enabled by default; saved-job actions use the existing scheduler. No remaining implementation work. Local commit required; no push authorized.
+
+## Follow-up: remove Agent reduced-motion control
+
+- Goal: remove the Agent menu toggle at the user's request because it has no useful purpose in that menu.
+- Change: removed the toggle, browser preference, and custom data-attribute CSS. Device-level `prefers-reduced-motion` support remains.
+- Validation: source search and `git diff --check`; no tests run for this small reversible UI removal.

@@ -86,13 +86,6 @@ export function AgentPanel({
   const [inspectionTraceId, setInspectionTraceId] = useState("");
   const [scheduleRequest, setScheduleRequest] = useState(0);
   const [reuseRequest, setReuseRequest] = useState<{ prompt: string }>();
-  const [reducedMotion, setReducedMotion] = useState(() => {
-    try {
-      return localStorage.getItem("nemodoc.agent-reduced-motion") === "true";
-    } catch {
-      return false;
-    }
-  });
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState("");
@@ -315,7 +308,6 @@ export function AgentPanel({
       className="agent-panel"
       aria-label="Personal agent"
       data-dashboard={view === "dashboard"}
-      data-reduced-motion={reducedMotion}
     >
       <header className="agent-workspace-heading">
         <div>
@@ -374,24 +366,6 @@ export function AgentPanel({
                     : v[0].toUpperCase() + v.slice(1)}
               </button>
             ))}
-            <label>
-              <input
-                type="checkbox"
-                checked={reducedMotion}
-                onChange={(e) => {
-                  setReducedMotion(e.target.checked);
-                  try {
-                    localStorage.setItem(
-                      "nemodoc.agent-reduced-motion",
-                      String(e.target.checked),
-                    );
-                  } catch {
-                    /* Session setting still works. */
-                  }
-                }}
-              />
-              Reduce motion
-            </label>
           </div>
         </details>
       </nav>
