@@ -121,3 +121,10 @@ Add separate editable Quick and Deep conversation system prompts in Settings, pe
 - Owner: /root. Add All notebooks at the top alongside Create a notebook.
 - Change: secondary homepage link opens the existing library via `/app?library=1` after browser storage loads. Consume the launch parameter so closing/reloading does not reopen the modal. Keep the create action primary; wrap both controls on narrow screens.
 - Verification: all three existing homepage/library browser journeys pass, including navigating from the homepage to three persisted notebooks and opening one on mobile. Production build/TypeScript and lint pass. Desktop/mobile screenshots were inspected: `output/home-notebooks-desktop.png`, `output/home-notebooks-mobile.png`. Log: `output/home-notebooks-verification.log`. No live inference used.
+
+## Follow-up: browse before opening a notebook
+
+- User clarified that All notebooks must show only the library, without opening the sample/last workspace. Empty libraries must offer creation and never seed the sample merely by browsing.
+- Replace the modal-on-workspace link with a standalone `/notebooks` page that reads existing records without loading App, sources, models or demo initialization. Explicit row selection opens that notebook; shared creation dialog opens only a newly created notebook. Cancel remains on the library. Old `/app?library=1` links resolve to the standalone page before App mounts.
+- Reuse search/sort/library controls; add a real empty state and creation action. Keep homepage creation available.
+- Verification complete: TypeScript, lint and production build pass. Both homepage browser journeys passed; all three library journeys pass after correcting an initially ambiguous test submit selector. Coverage confirms saved list selection, empty-state creation, cancellation/reload without demo creation or API requests, and legacy/trailing-slash links. Desktop, mobile and empty-state screenshots were visually reviewed. Logs: `output/notebook-list-verification.log`, `output/notebook-list-recheck.log`. No live provider requests or user notebook data used.

@@ -84,10 +84,92 @@ test("library searches, sorts, creates and reopens persisted notebooks", async (
   ).toBe(true);
   await page.screenshot({ path: "output/home-notebooks-mobile.png" });
   await page.getByRole("link", { name: "All notebooks", exact: true }).click();
-  await expect(library).toBeVisible();
-  await expect(library.locator(".library-row")).toHaveCount(3);
-  await library.getByRole("button", { name: /Zoology/ }).click();
+  await expect(page).toHaveURL(/\/notebooks$/);
+  const listing = page.getByRole("region", {
+    name: "Notebook library",
+    exact: true,
+  });
+  await expect(listing).toBeVisible();
+  await expect(listing.locator(".library-row")).toHaveCount(3);
+  await expect(page.locator(".reader-stage")).toHaveCount(0);
+  await expect(listing.locator('[aria-current="page"]')).toHaveCount(0);
+  await page.screenshot({ path: "output/notebook-list-mobile.png" });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.screenshot({ path: "output/notebook-list-desktop.png" });
+  await listing.getByRole("button", { name: /Zoology/ }).click();
   await expect(
     page.getByRole("heading", { name: "Zoology", exact: true }),
   ).toBeVisible();
+});
+
+test("an empty library invites creation and cancellation never opens or seeds a notebook", async ({
+  page,
+}) => {
+  const apiRequests: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.startsWith("/api/"))
+      apiRequests.push(request.url());
+  });
+  await page.goto("/");
+  await page.getByRole("link", { name: "All notebooks", exact: true }).click();
+  await expect(page).toHaveURL(/\/notebooks$/);
+  const listing = page.getByRole("region", {
+    name: "Notebook library",
+    exact: true,
+  });
+  await expect(listing).toContainText("No notebooks yet.");
+  await expect(page.locator(".reader-stage, .workspace-header")).toHaveCount(0);
+  await page.screenshot({ path: "output/notebook-list-empty.png" });
+  await listing
+    .getByRole("button", { name: "Create notebook", exact: true })
+    .click();
+  await page
+    .getByRole("textbox", { name: "Notebook title", exact: true })
+    .fill("Unsubmitted draft");
+  await page.getByRole("button", { name: "Close dialog", exact: true }).click();
+  await expect(page).toHaveURL(/\/notebooks$/);
+  await page.reload();
+  await expect(listing).toContainText("No notebooks yet.");
+  await expect(listing.locator(".library-row")).toHaveCount(0);
+  expect(apiRequests).toEqual([]);
+  await listing
+    .getByRole("button", { name: "Create notebook", exact: true })
+    .click();
+  await expect(
+    page.getByRole("textbox", { name: "Notebook title", exact: true }),
+  ).toHaveValue("");
+  await page
+    .getByRole("textbox", { name: "Notebook title", exact: true })
+    .fill("My first notebook");
+  await page
+    .getByRole("dialog", { name: "New notebook", exact: true })
+    .getByRole("button", { name: "Create notebook", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/app$/);
+  await expect(
+    page.getByRole("heading", { name: "My first notebook", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: /^All notebooks/ }).click();
+  const library = page.getByRole("dialog", {
+    name: "Your notebooks",
+    exact: true,
+  });
+  await expect(library.locator(".library-row")).toHaveCount(1);
+  await expect(library).not.toContainText("Sample notebook");
+});
+test("legacy library links and trailing slashes use the standalone library", async ({
+  page,
+}) => {
+  await page.goto("/app?library=1");
+  await expect(page).toHaveURL(/\/notebooks$/);
+  await expect(
+    page.getByRole("region", { name: "Notebook library", exact: true }),
+  ).toContainText("No notebooks yet.");
+  await expect(page.locator(".reader-stage")).toHaveCount(0);
+  await page.goto("/notebooks/");
+  await expect(
+    page.getByRole("heading", { name: "All notebooks", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".library-row")).toHaveCount(0);
+  await expect(page.locator(".reader-stage")).toHaveCount(0);
 });

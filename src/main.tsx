@@ -12,10 +12,23 @@ import "./settings.css";
 import "./glass.css";
 
 const App = lazy(() => import("./App"));
+const NotebookLibraryPage = lazy(
+  () => import("./components/NotebookLibraryPage"),
+);
+const libraryRequested =
+  /^\/notebooks\/?$/.test(window.location.pathname) ||
+  (window.location.pathname === "/app" &&
+    new URLSearchParams(window.location.search).get("library") === "1");
+if (libraryRequested && window.location.pathname !== "/notebooks")
+  window.history.replaceState(window.history.state, "", "/notebooks");
 
 createRoot(document.getElementById("root")!).render(
   window.location.pathname === "/" ? (
     <HomePage />
+  ) : libraryRequested ? (
+    <Suspense fallback={<p role="status">Loading notebooks…</p>}>
+      <NotebookLibraryPage />
+    </Suspense>
   ) : (
     <Suspense fallback={<p role="status">Opening your notebook…</p>}>
       <App />

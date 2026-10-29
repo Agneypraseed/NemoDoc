@@ -1,0 +1,61 @@
+.notebook-library-page {
+  min-height: 100dvh;
+  background: var(--background);
+  color: var(--ink);
+}
+.notebook-library-page > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: min(960px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 28px 0;
+  border-bottom: 1px solid var(--line);
+}
+.notebook-library-page > header a {
+  display: inline-flex;
+  gap: 9px;
+  align-items: center;
+  color: var(--text);
+  font-size: 13px;
+}
+.notebook-library-page > header .library-home {
+  font-size: 19px;
+  font-weight: 650;
+  color: var(--ink);
+}
+.notebook-library-page > main {
+  width: min(860px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 46px 0 64px;
+}
+.notebook-library-page h1 {
+  margin: 0 0 10px;
+  font-size: clamp(30px, 4vw, 40px);
+  letter-spacing: -0.04em;
+}
+.library-page-intro {
+  margin: 0 0 24px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.notebook-library-page .notebook-library {
+  padding: 8px 22px 22px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+.notebook-library-page .library-empty {
+  padding: 32px 0;
+  text-align: center;
+}
+@media (max-width: 520px) {
+  .notebook-library-page > main {
+    padding-top: 30px;
+  }
+  .notebook-library-page .notebook-library {
+    padding: 4px 14px 18px;
+  }
+}

@@ -36,7 +36,7 @@ export function NotebookLibrary({
     );
   return (
     <section className="notebook-library" aria-label="Notebook library">
-      <div className="library-controls">
+      <div className="library-controls" hidden={!notebooks.length}>
         <label className="library-search">
           <Search size={17} aria-hidden="true" />
           <input
@@ -99,8 +99,27 @@ export function NotebookLibrary({
       {!visible.length && (
         <div className="library-empty">
           <p>
-            {query.trim() ? "No notebooks match your search." : "No notebooks."}
+            {query.trim()
+              ? "No notebooks match your search."
+              : "No notebooks yet."}
           </p>
+          {!query.trim() && (
+            <>
+              <p>
+                Create your first notebook to start collecting sources and
+                notes.
+              </p>
+              <button
+                type="button"
+                className="primary-button"
+                disabled={busy}
+                onClick={onCreate}
+              >
+                <Plus size={16} />
+                Create notebook
+              </button>
+            </>
+          )}
           {query.trim() && (
             <button type="button" onClick={() => setQuery("")}>
               Clear search

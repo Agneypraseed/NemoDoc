@@ -1,50 +1,11 @@
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { ArrowRight, Plus } from "lucide-react";
-import { Modal } from "../components/Modal";
-import { storage } from "../lib/storage";
-import type { Notebook } from "../types";
+import { NotebookCreateDialog } from "../components/NotebookCreateDialog";
 import { ProductPreview } from "./ProductPreview";
 import "./home.css";
 
 export default function HomePage() {
   const [createOpen, setCreateOpen] = useState(false);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState("");
-
-  const closeCreate = () => {
-    setCreateOpen(false);
-    setTitle("");
-    setDescription("");
-    setCreateError("");
-  };
-
-  const createNotebook = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!title.trim() || creating) return;
-    setCreating(true);
-    setCreateError("");
-    const notebook: Notebook = {
-      id: crypto.randomUUID(),
-      title: title.trim(),
-      description: description.trim(),
-      createdAt: Date.now(),
-      notes: "",
-      messages: [],
-    };
-    try {
-      await storage.notebook(notebook);
-      window.location.assign(
-        `/app?notebook=${encodeURIComponent(notebook.id)}`,
-      );
-    } catch {
-      setCreating(false);
-      setCreateError(
-        "Could not save the notebook. Check browser storage and try again.",
-      );
-    }
-  };
 
   return (
     <div className="home-page">
@@ -72,14 +33,13 @@ export default function HomePage() {
         <section className="home-hero">
           <h1>Your personal notebook</h1>
           <div className="home-hero-actions">
-            <a className="home-secondary-link" href="/app?library=1">
+            <a className="home-secondary-link" href="/notebooks">
               All notebooks
             </a>
             <button
               className="home-primary-link"
               type="button"
               onClick={() => {
-                setCreateError("");
                 setCreateOpen(true);
               }}
             >
@@ -145,48 +105,10 @@ export default function HomePage() {
         </a>
       </footer>
       {createOpen && (
-        <Modal
-          title="New notebook"
+        <NotebookCreateDialog
           className="home-create-modal"
-          onClose={closeCreate}
-        >
-          <form onSubmit={(event) => void createNotebook(event)}>
-            <label className="form-label">
-              Notebook title
-              <input
-                autoFocus
-                data-modal-autofocus
-                placeholder="Notebook title"
-                maxLength={80}
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                required
-              />
-            </label>
-            <label className="form-label">
-              Description <span>optional</span>
-              <input
-                placeholder="Description (optional)"
-                maxLength={160}
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-              />
-            </label>
-            {createError && (
-              <p className="home-create-error" role="alert">
-                {createError}
-              </p>
-            )}
-            <button
-              className="primary-button modal-submit"
-              type="submit"
-              disabled={!title.trim() || creating}
-            >
-              <Plus size={16} />
-              {creating ? "Creating…" : "Create notebook"}
-            </button>
-          </form>
-        </Modal>
+          onClose={() => setCreateOpen(false)}
+        />
       )}
     </div>
   );
