@@ -115,3 +115,9 @@ Add separate editable Quick and Deep conversation system prompts in Settings, pe
 - Completion audit is `docs/PRODUCT_CAPABILITIES.md`, with every numbered capability and the integration/personalization requirements mapped to current code and direct tests. It concludes that implementation is complete; live model factual quality and a formal usability study are not claimed.
 - The final audit additionally found manually written internal citation links could still look clickable without an available source. Chat, saved-answer and Studio renderers now label them unavailable. The new regression initially caught the saved-answer fallback, which was corrected; the final three browser cases all passed (`output/product-provenance-recheck.log`). Current production build/type checks also passed in that run.
 - All required implementation and verification is complete. This source/provenance stage and the requirement-by-requirement audit are delivered in the final local stage commit. Confirm its clean-worktree state, then mark goal accounting complete. No push or live inference authorized/required.
+
+## Follow-up: homepage notebook library entry
+
+- Owner: /root. Add All notebooks at the top alongside Create a notebook.
+- Change: secondary homepage link opens the existing library via `/app?library=1` after browser storage loads. Consume the launch parameter so closing/reloading does not reopen the modal. Keep the create action primary; wrap both controls on narrow screens.
+- Verification: all three existing homepage/library browser journeys pass, including navigating from the homepage to three persisted notebooks and opening one on mobile. Production build/TypeScript and lint pass. Desktop/mobile screenshots were inspected: `output/home-notebooks-desktop.png`, `output/home-notebooks-mobile.png`. Log: `output/home-notebooks-verification.log`. No live inference used.

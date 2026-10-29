@@ -68,4 +68,26 @@ test("library searches, sorts, creates and reopens persisted notebooks", async (
   await expect(
     page.getByRole("heading", { name: "Algebra", exact: true }),
   ).toBeVisible();
+  await page.goto("/");
+  await expect(
+    page.getByRole("link", { name: "All notebooks", exact: true }),
+  ).toBeVisible();
+  await page.screenshot({ path: "output/home-notebooks-desktop.png" });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(
+    page.getByRole("button", { name: "Create a notebook", exact: true }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({ path: "output/home-notebooks-mobile.png" });
+  await page.getByRole("link", { name: "All notebooks", exact: true }).click();
+  await expect(library).toBeVisible();
+  await expect(library.locator(".library-row")).toHaveCount(3);
+  await library.getByRole("button", { name: /Zoology/ }).click();
+  await expect(
+    page.getByRole("heading", { name: "Zoology", exact: true }),
+  ).toBeVisible();
 });

@@ -72,6 +72,9 @@ export default function HomePage() {
         <section className="home-hero">
           <h1>Your personal notebook</h1>
           <div className="home-hero-actions">
+            <a className="home-secondary-link" href="/app?library=1">
+              All notebooks
+            </a>
             <button
               className="home-primary-link"
               type="button"

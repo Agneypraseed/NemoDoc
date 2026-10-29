@@ -575,16 +575,19 @@ export default function App() {
     if (!ready) return;
     const url = new URL(window.location.href);
     const openCreateDialog = url.searchParams.get("create") === "notebook";
+    const openLibrary = url.searchParams.get("library") === "1";
     const hasNotebookTarget = url.searchParams.has("notebook");
-    if (!openCreateDialog && !hasNotebookTarget) return;
+    if (!openCreateDialog && !openLibrary && !hasNotebookTarget) return;
     url.searchParams.delete("create");
     url.searchParams.delete("notebook");
+    url.searchParams.delete("library");
     window.history.replaceState(
       window.history.state,
       "",
       `${url.pathname}${url.search}${url.hash}`,
     );
     if (openCreateDialog) setModal("new");
+    else if (openLibrary) setModal("library");
   }, [ready]);
   useEffect(() => {
     if (!ready || (createNotebookOnLaunch.current && !activeId)) return;
