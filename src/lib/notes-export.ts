@@ -8,7 +8,8 @@ import type {
   Source,
 } from "../types";
 
-type ExportSource = Pick<Source, "id" | "name" | "kind">;
+type ExportSource = Pick<Source, "id" | "name" | "kind"> &
+  Partial<Pick<Source, "pages">>;
 
 function blockquote(value: string) {
   return value
@@ -19,7 +20,7 @@ function blockquote(value: string) {
 }
 
 function sourceLabel(source: ExportSource | undefined, page: number) {
-  const name = source?.name ?? "Source";
+  const name = source?.name ?? "Unavailable source";
   const kind = source?.kind === "pptx" ? "Slide" : "Page";
   return `\`${name.replaceAll("`", "'")}\` · ${kind} ${page}`;
 }
@@ -38,7 +39,17 @@ function appendAnswer(
   if (!message.content.trim() || message.incomplete || message.cancelled)
     return;
   lines.push(message.content.trim());
-  const citations = citationsFor(message);
+  const references = citationsFor(message);
+  const citations = references.filter((c) => {
+    const source = sources.get(c.sourceId);
+    return (
+      source &&
+      Number.isInteger(c.page) &&
+      c.page >= 1 &&
+      (!source.pages || c.page <= source.pages.length)
+    );
+  });
+  const unavailable = references.filter((c) => !citations.includes(c));
   if (citations.length) {
     lines.push(
       `**Sources:** ${citations
@@ -49,6 +60,10 @@ function appendAnswer(
         .join("; ")}`,
     );
   }
+  if (unavailable.length)
+    lines.push(
+      `**Unavailable source references:** ${unavailable.map((c) => `[${c.id}] ${c.sourceName}, page ${c.page} (source page unavailable)`).join("; ")}`,
+    );
   lines.push("");
 }
 

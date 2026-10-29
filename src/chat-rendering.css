@@ -172,3 +172,5 @@
   font-family: inherit;
   font-size: 17px;
 }
+
+.citation-unavailable { color: var(--muted); font-size: 12px; line-height: 1.6; }

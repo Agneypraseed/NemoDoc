@@ -1,3 +1,5 @@
+import { citationMarkdown } from "../lib/citations";
+import { studyEvidence, exportStudyMaterial } from "../lib/study-export";
 import { LearningProgress } from "./LearningProgress";
 import {
   localQuizAttemptSchema,
@@ -34,6 +36,7 @@ const kinds = [
 export function StudyStudio({
   notebookId,
   sources,
+  availableSources = sources,
   artifacts,
   onSave,
   onDelete,
@@ -49,6 +52,7 @@ export function StudyStudio({
   focusId?: string;
   notebookId: string;
   sources: Source[];
+  availableSources?: Source[];
   artifacts: StudyArtifact[];
   onSave: (a: StudyArtifact) => void;
   onDelete: (id: string) => void;
@@ -120,10 +124,11 @@ export function StudyStudio({
       setBusy("");
     }
   };
+  const validCitations = active ? studyEvidence(active, availableSources) : [];
   const cites = (ids: number[]) => (
     <div className="study-citations">
       {ids.map((id) => {
-        const c = active?.citations.find((c) => c.id === id);
+        const c = validCitations.find((c) => c.id === id);
         return (
           c && (
             <button key={id} title={c.text} onClick={() => onCitation(c)}>
@@ -148,10 +153,7 @@ export function StudyStudio({
   };
   const exportArtifact = () => {
     if (!active) return;
-    const text =
-      active.kind === "guide"
-        ? `# ${active.title}\n\n${active.content}\n\n${active.citations.map((c) => `[${c.id}] ${c.sourceName}, page ${c.page}`).join("\n")}`
-        : JSON.stringify(active, null, 2);
+    const text = exportStudyMaterial(active, availableSources);
     download(
       new Blob([text], {
         type: active.kind === "guide" ? "text/markdown" : "application/json",
@@ -300,31 +302,31 @@ export function StudyStudio({
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
                   components={{
-                    a: ({ href, children }) =>
-                      href?.startsWith("#citation-") ? (
-                        <button
-                          className="inline-citation"
-                          onClick={() => {
-                            const c = active.citations.find(
-                              (c) => c.id === Number(href.slice(10)),
-                            );
-                            if (c) onCitation(c);
-                          }}
-                        >
-                          {children}
-                        </button>
-                      ) : (
+                    a: ({ href, children }) => {
+                      if (href?.startsWith("#citation-")) {
+                        const citation = validCitations.find(
+                          (c) => c.id === Number(href.slice(10)),
+                        );
+                        return citation ? (
+                          <button
+                            className="inline-citation"
+                            onClick={() => onCitation(citation)}
+                          >
+                            {children}
+                          </button>
+                        ) : (
+                          <span>{children} (source unavailable)</span>
+                        );
+                      }
+                      return (
                         <a href={href} target="_blank" rel="noreferrer">
                           {children}
                         </a>
-                      ),
+                      );
+                    },
                   }}
                 >
-                  {active.content.replace(/\[(\d+)\](?!\()/g, (_, n) =>
-                    active.citations.some((c) => c.id === Number(n))
-                      ? `[${n}](#citation-${n})`
-                      : `[${n}]`,
-                  )}
+                  {citationMarkdown(active.content, validCitations)}
                 </ReactMarkdown>
               </div>
             ))}
@@ -590,6 +592,23 @@ export function StudyStudio({
               onSave={onSave}
               cites={cites}
             />
+          )}
+          {active.citations.some(
+            (c) =>
+              !availableSources.some(
+                (s) =>
+                  s.notebookId === notebookId &&
+                  s.id === c.sourceId &&
+                  Number.isInteger(c.page) &&
+                  c.page > 0 &&
+                  c.page <= s.pages.length,
+              ),
+          ) && (
+            <p className="study-save">
+              Some original source pages are unavailable. Your material is
+              preserved; unavailable pages cannot be opened as supporting
+              evidence.
+            </p>
           )}
           <small className="study-save">
             <CheckSaved />

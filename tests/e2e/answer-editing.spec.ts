@@ -81,11 +81,12 @@ test("edited answers stay consistent across chat, Notes, tables, export and relo
   await saved.getByRole("button", { name: "Edit answer", exact: true }).click();
   await saved
     .getByRole("textbox", { name: "Answer text", exact: true })
-    .fill("Third revision. [1]");
+    .fill("Third revision. [1] [Unknown](#citation-999)");
   await saved
     .getByRole("button", { name: "Save changes", exact: true })
     .click();
   await expect(saved.getByRole("status")).toContainText("preserved");
+  await expect(saved).toContainText("Unknown (source unavailable)");
   const event = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "Notebook actions", exact: true })
@@ -98,6 +99,7 @@ test("edited answers stay consistent across chat, Notes, tables, export and relo
   await page.reload();
   await page.getByRole("button", { name: "Chat", exact: true }).click();
   await expect(answer).toContainText("Third revision");
+  await expect(answer).toContainText("Unknown (source unavailable)");
   await page.getByRole("button", { name: "Notes", exact: true }).click();
   await page.getByRole("button", { name: "Notebook", exact: true }).click();
   await expect(notes).toHaveValue(/My separate notebook wording/);

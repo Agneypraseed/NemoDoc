@@ -70,9 +70,14 @@ export const storage = {
       if (previous.find((n) => n.id === a.id) !== a) await tx.store.put(a);
     await tx.done;
   },
-  async removeSource(id: string) {
+  async removeSource(id: string, preservedNotebook?: Notebook) {
     const database = await db;
-    const tx = database.transaction(["sources", "annotations"], "readwrite");
+    const tx = database.transaction(
+      ["sources", "annotations", "notebooks"],
+      "readwrite",
+    );
+    if (preservedNotebook)
+      await tx.objectStore("notebooks").put(preservedNotebook);
     await tx.objectStore("sources").delete(id);
     for (const annotation of await tx.objectStore("annotations").getAll())
       if (annotation.sourceId === id)

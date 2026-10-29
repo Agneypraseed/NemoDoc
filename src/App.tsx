@@ -1,3 +1,5 @@
+import { preserveSourceNotes, restoreSourceNotes } from "./lib/source-notes";
+import { availableCitations } from "./lib/source-citations";
 import { AnswerEditor } from "./components/AnswerEditor";
 import { NotebookGraph } from "./components/NotebookGraph";
 import { ConversationComposer } from "./components/ConversationComposer";
@@ -214,6 +216,8 @@ function SavedAnswerCard({
                     >
                       {children}
                     </button>
+                  ) : href?.startsWith("#citation-") ? (
+                    <span>{children} (source unavailable)</span>
                   ) : (
                     <a href={href} target="_blank" rel="noreferrer">
                       {children}
@@ -273,6 +277,8 @@ export default function App() {
   const [notebooks, setNotebooks] = useState<Notebook[]>([]),
     [sources, setSources] = useState<Source[]>([]),
     [annotations, setAnnotations] = useState<Annotation[]>([]);
+  const latestNotebookData = useRef({ notebooks, annotations });
+  latestNotebookData.current = { notebooks, annotations };
   const [activeId, setActiveId] = useState(""),
     [sourceId, setSourceId] = useState(""),
     [page, setPage] = useState(1);
@@ -916,29 +922,40 @@ export default function App() {
       reportStorageError();
     }
   };
+  const removingSources = useRef(new Set<string>());
   const removeSource = async (value: Source) => {
-    const savedAnnotations = annotations.filter((a) => a.sourceId === value.id);
-    const savedPassageNotes =
-      notebooks
-        .find((item) => item.id === value.notebookId)
-        ?.passageNotes?.filter((note) => note.sourceId === value.id) ?? [];
+    if (removingSources.current.has(value.id)) return;
+    removingSources.current.add(value.id);
+    abort.current?.abort();
+    let savedAnnotations: Annotation[] = [];
+    let savedPassageNotes: PassageNote[] = [];
+    let preservedBlock = "";
     try {
       await apiJSON("/api/agent/sources/revoke", {
         id: value.id,
         notebookId: value.notebookId,
       });
-      await storage.removeSource(value.id);
+      const current = latestNotebookData.current.notebooks.find(
+        (n) => n.id === value.notebookId,
+      );
+      if (!current) return;
+      savedAnnotations = latestNotebookData.current.annotations.filter(
+        (a) => a.sourceId === value.id,
+      );
+      const preserved = preserveSourceNotes(current, value, savedAnnotations);
+      savedPassageNotes = preserved.passages;
+      preservedBlock = preserved.block;
+      await storage.removeSource(value.id, preserved.notebook);
+      abort.current?.abort();
       setSources((list) => list.filter((s) => s.id !== value.id));
       setAnnotations((list) => list.filter((a) => a.sourceId !== value.id));
       setNotebooks((list) =>
         list.map((item) => {
           if (item.id !== value.notebookId) return item;
-          const updated = {
-            ...item,
-            passageNotes: (item.passageNotes ?? []).filter(
-              (note) => note.sourceId !== value.id,
-            ),
-          };
+          const preserved = preserveSourceNotes(item, value, savedAnnotations);
+          savedPassageNotes = preserved.passages;
+          preservedBlock = preserved.block;
+          const updated = preserved.notebook;
           void storage.notebook(updated).catch(reportStorageError);
           return updated;
         }),
@@ -949,7 +966,7 @@ export default function App() {
       if (compareId === value.id) setCompareId("");
       if (sourceId === value.id)
         openSource(notebookSources.find((s) => s.id !== value.id)?.id ?? "");
-      notify("Source removed; agent access revoked", () => {
+      notify("Source removed; notes preserved; agent access revoked", () => {
         void (async () => {
           await storage.source(value);
           for (const a of savedAnnotations) await storage.annotation(a);
@@ -958,22 +975,11 @@ export default function App() {
           setNotebooks((list) =>
             list.map((item) => {
               if (item.id !== value.notebookId) return item;
-              const known = new Set(
-                (item.passageNotes ?? []).map((note) => note.id),
+              const updated = restoreSourceNotes(
+                item,
+                savedPassageNotes,
+                preservedBlock,
               );
-              const updated = {
-                ...item,
-                passageNotes: [
-                  ...(item.passageNotes ?? []),
-                  ...savedPassageNotes
-                    .filter((note) => !known.has(note.id))
-                    .map((note) => ({
-                      ...note,
-                      active: false,
-                      collapsed: true,
-                    })),
-                ],
-              };
               void storage.notebook(updated).catch(reportStorageError);
               return updated;
             }),
@@ -983,6 +989,8 @@ export default function App() {
       });
     } catch {
       reportStorageError();
+    } finally {
+      removingSources.current.delete(value.id);
     }
   };
   const removeAnnotation = async (value: Annotation) => {
@@ -2358,6 +2366,7 @@ export default function App() {
                 }
                 notebookId={activeId}
                 sources={enabledSources}
+                availableSources={notebookSources}
                 artifacts={artifacts}
                 onSave={saveArtifact}
                 onDelete={deleteArtifact}
@@ -2373,6 +2382,11 @@ export default function App() {
                   ) : (
                     <div className="messages" aria-live="polite">
                       {panelMessages.map((m) => {
+                        const currentCitations = availableCitations(
+                          m.citations ?? [],
+                          notebookSources,
+                          activeId,
+                        );
                         const passageNote = notebook?.passageNotes?.find(
                           (note) =>
                             note.messages.some(
@@ -2450,21 +2464,28 @@ export default function App() {
                                     ],
                                   ]}
                                   components={{
-                                    a: ({ href, children }) =>
-                                      href?.startsWith("#citation-") ? (
-                                        <button
-                                          className="inline-citation"
-                                          onClick={() => {
-                                            const c = m.citations?.find(
-                                              (c) =>
-                                                c.id === Number(href.slice(10)),
-                                            );
-                                            if (c) showCitation(c);
-                                          }}
-                                        >
-                                          {children}
-                                        </button>
-                                      ) : (
+                                    a: ({ href, children }) => {
+                                      if (href?.startsWith("#citation-")) {
+                                        const citation = currentCitations.find(
+                                          (c) =>
+                                            c.id === Number(href.slice(10)),
+                                        );
+                                        return citation ? (
+                                          <button
+                                            className="inline-citation"
+                                            onClick={() =>
+                                              showCitation(citation)
+                                            }
+                                          >
+                                            {children}
+                                          </button>
+                                        ) : (
+                                          <span>
+                                            {children} (source unavailable)
+                                          </span>
+                                        );
+                                      }
+                                      return (
                                         <a
                                           href={href}
                                           target="_blank"
@@ -2472,12 +2493,13 @@ export default function App() {
                                         >
                                           {children}
                                         </a>
-                                      ),
+                                      );
+                                    },
                                   }}
                                 >
                                   {citationMarkdown(
                                     m.content,
-                                    m.citations ?? [],
+                                    currentCitations,
                                   )}
                                 </ReactMarkdown>
                               </AnswerEditor>
@@ -2498,10 +2520,30 @@ export default function App() {
                               </div>
                             )}
                             {m.role === "assistant" &&
+                              m.citations?.some(
+                                (c) =>
+                                  usesCitation(
+                                    m.content,
+                                    c,
+                                    m.citations ?? [],
+                                  ) &&
+                                  !currentCitations.some(
+                                    (valid) => valid.id === c.id,
+                                  ),
+                              ) && (
+                                <p
+                                  className="citation-unavailable"
+                                  role="status"
+                                >
+                                  Some cited source pages are unavailable. Your
+                                  answer is preserved.
+                                </p>
+                              )}
+                            {m.role === "assistant" &&
                               m.content &&
                               !!m.citations?.length && (
                                 <div className="citation-list">
-                                  {m.citations
+                                  {currentCitations
                                     .filter((c) =>
                                       usesCitation(
                                         m.content,
