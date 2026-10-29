@@ -30,7 +30,7 @@ const modes = [
 ] as const;
 const agentSteps = [
   { label: "Selected notes are ready", status: "queued" },
-  { label: "Reading selected notes", status: "running" },
+  { label: "Reading source passages", status: "running" },
   { label: "Drafting a revision summary", status: "running" },
   { label: "Ready for your review", status: "waiting" },
 ] satisfies { label: string; status: AgentActivityStatus }[];
@@ -274,6 +274,7 @@ export function ProductPreview() {
                   name="Example study partner"
                   status={agentSteps[step].status}
                   motion={motion}
+                  stage={step}
                 />
                 <button
                   type="button"
