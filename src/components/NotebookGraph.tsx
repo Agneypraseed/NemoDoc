@@ -12,7 +12,11 @@ export function NotebookGraph({
   artifacts,
   onCitation,
   onNote,
+  onStudy,
+  onSource,
 }: {
+  onStudy: (id: string) => void;
+  onSource: (id: string) => void;
   notebookId: string;
   title: string;
   sources: Source[];
@@ -226,6 +230,22 @@ export function NotebookGraph({
       <section className="graph-inspector" aria-label="Selected connection">
         <h3>{active.label}</h3>
         <p className="graph-detail">{active.text}</p>
+        {active.kind === "study" && (
+          <button
+            type="button"
+            onClick={() => onStudy(active.id.slice("study:".length))}
+          >
+            Open in Studio
+          </button>
+        )}
+        {active.kind === "source" && (
+          <button
+            type="button"
+            onClick={() => onSource(active.id.slice("source:".length))}
+          >
+            Open source
+          </button>
+        )}
         {active.note && (
           <button type="button" onClick={() => onNote(active.note!)}>
             Open note

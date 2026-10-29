@@ -30,6 +30,8 @@ const message = z.object({
   showPages: z.boolean().optional(),
   savedToNotes: z.boolean().optional(),
   savedAt: z.number().nonnegative().optional(),
+  editedAt: z.number().nonnegative().optional(),
+  savedNoteText: z.string().optional(),
   incomplete: z.boolean().optional(),
   error: z.string().optional(),
   cancelled: z.boolean().optional(),

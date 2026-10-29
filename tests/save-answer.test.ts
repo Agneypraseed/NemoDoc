@@ -1,10 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  editNotebookAnswer,
   mergeStreamMessages,
   saveAnswerToNotes,
 } from "../src/lib/save-answer.ts";
-import type { Message, Source } from "../src/types.ts";
+import type { Message, Source, Notebook } from "../src/types.ts";
 
 const sources = [
   {
@@ -163,5 +164,136 @@ test("unfinished answers and invalid source pages cannot become saved evidence",
   assert.doesNotMatch(
     saveAnswerToNotes("", messages, "a", sources)!.notes,
     /### Sources/,
+  );
+});
+
+const editMessages: Message[] = [
+  { id: "q", role: "user", content: "Explain attention" },
+  {
+    id: "a",
+    role: "assistant",
+    content: "Original words [1].",
+    citations: [
+      {
+        id: 1,
+        sourceId: "paper",
+        sourceName: "Research.pdf",
+        page: 1,
+        text: "Original evidence",
+      },
+    ],
+  },
+];
+function savedNotebook(): Notebook {
+  const saved = saveAnswerToNotes("My own notes", editMessages, "a", sources)!;
+  return {
+    id: "notebook",
+    title: "Book",
+    description: "",
+    createdAt: 1,
+    ...saved,
+  };
+}
+test("editing a saved answer updates only its appended block and survives stale streaming snapshots", () => {
+  const notebook = savedNotebook();
+  const changed = editNotebookAnswer(
+    notebook,
+    "a",
+    "Revised words [1].",
+    sources,
+  )!;
+  assert.equal(changed.noteUpdated, true);
+  assert.match(changed.notebook.notes, /My own notes/);
+  assert.match(changed.notebook.notes, /Revised words/);
+  assert.doesNotMatch(changed.notebook.notes, /Original words/);
+  assert.deepEqual(
+    changed.notebook.messages[1].citations,
+    editMessages[1].citations,
+  );
+  const merged = mergeStreamMessages(changed.notebook.messages, [
+    ...editMessages,
+    {
+      id: "stream",
+      role: "assistant",
+      content: "New partial",
+      incomplete: true,
+    },
+  ]);
+  assert.equal(merged[1].content, "Revised words [1].");
+  assert.equal(merged[1].savedToNotes, true);
+  assert.equal(merged[1].editedAt, changed.notebook.messages[1].editedAt);
+});
+test("editing preserves a separately changed notebook copy and updates duplicate passage messages", () => {
+  const notebook = savedNotebook();
+  notebook.notes = notebook.notes.replace(
+    "Original words",
+    "My separate revision",
+  );
+  notebook.passageNotes = [
+    {
+      id: "passage",
+      sourceId: "paper",
+      page: 1,
+      quote: "Original evidence",
+      rects: [],
+      question: "Explain attention",
+      answerMode: "quick",
+      model: "fixture",
+      createdAt: 1,
+      messages: notebook.messages,
+    },
+  ];
+  const changed = editNotebookAnswer(
+    notebook,
+    "a",
+    "New answer [1].",
+    sources,
+  )!;
+  assert.equal(changed.noteUpdated, false);
+  assert.equal(changed.notebook.notes, notebook.notes);
+  assert.equal(
+    changed.notebook.passageNotes![0].messages[1].content,
+    "New answer [1].",
+  );
+  assert.equal(editNotebookAnswer(notebook, "a", "  ", sources), undefined);
+  assert.equal(
+    editNotebookAnswer(
+      {
+        ...notebook,
+        messages: [{ ...notebook.messages[1], incomplete: true }],
+      },
+      "a",
+      "Edits",
+      sources,
+    ),
+    undefined,
+  );
+});
+test("edited-answer metadata survives backup restore and legacy saved answers can be edited", async () => {
+  const { createBackup, readBackup } = await import("../src/lib/backup.ts");
+  const notebook = savedNotebook();
+  delete notebook.messages[1].savedNoteText;
+  const changed = editNotebookAnswer(
+    notebook,
+    "a",
+    "Edited legacy answer [1].",
+    sources,
+  )!.notebook;
+  assert.match(changed.notes, /Edited legacy answer/);
+  const restored = await readBackup(
+    await createBackup({
+      notebooks: [changed],
+      sources,
+      annotations: [],
+      artifacts: [],
+    }),
+  );
+  assert.equal(
+    restored.notebooks[0].messages[1].editedAt,
+    changed.messages[1].editedAt,
+  );
+  assert.equal(
+    restored.notebooks[0].messages[1].savedNoteText,
+    changed.messages[1].savedNoteText,
   );
 });

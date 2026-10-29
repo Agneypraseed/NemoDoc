@@ -1,3 +1,4 @@
+import { AnswerEditor } from "./components/AnswerEditor";
 import { NotebookGraph } from "./components/NotebookGraph";
 import { ConversationComposer } from "./components/ConversationComposer";
 import { SupportingPages } from "./components/SupportingPages";
@@ -45,7 +46,11 @@ import { download, storage } from "./lib/storage";
 import { streamChat } from "./lib/chat";
 import { citationMarkdown, usesCitation } from "./lib/citations";
 import { exportNotebookNotes } from "./lib/notes-export";
-import { mergeStreamMessages, saveAnswerToNotes } from "./lib/save-answer";
+import {
+  editNotebookAnswer,
+  mergeStreamMessages,
+  saveAnswerToNotes,
+} from "./lib/save-answer";
 import { saveResearchToNotes } from "./lib/research-report";
 import type { WorkflowRun } from "./workspace-types";
 import { createBackup, readBackup } from "./lib/backup";
@@ -125,7 +130,11 @@ function SavedAnswerCard({
   sources,
   passage,
   onCitation,
+  onEdit,
+  notesText,
 }: {
+  notesText: string;
+  onEdit: (text: string) => void;
   number: number;
   question: Message;
   answer: Message;
@@ -185,33 +194,37 @@ function SavedAnswerCard({
         </div>
         <div className="saved-answer-response message assistant">
           <span className="saved-answer-label">Answer</span>
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm, remarkMath]}
-            rehypePlugins={[
-              [rehypeKatex, { trust: false, maxExpand: 1000, maxSize: 20 }],
-            ]}
-            components={{
-              a: ({ href, children }) => {
-                const citation = href?.startsWith("#citation-")
-                  ? citations.find((item) => item.id === Number(href.slice(10)))
-                  : undefined;
-                return citation ? (
-                  <button
-                    className="inline-citation"
-                    onClick={() => onCitation(citation)}
-                  >
-                    {children}
-                  </button>
-                ) : (
-                  <a href={href} target="_blank" rel="noreferrer">
-                    {children}
-                  </a>
-                );
-              },
-            }}
-          >
-            {citationMarkdown(answer.content, citations)}
-          </ReactMarkdown>
+          <AnswerEditor message={answer} onSave={onEdit} savedNotes={notesText}>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm, remarkMath]}
+              rehypePlugins={[
+                [rehypeKatex, { trust: false, maxExpand: 1000, maxSize: 20 }],
+              ]}
+              components={{
+                a: ({ href, children }) => {
+                  const citation = href?.startsWith("#citation-")
+                    ? citations.find(
+                        (item) => item.id === Number(href.slice(10)),
+                      )
+                    : undefined;
+                  return citation ? (
+                    <button
+                      className="inline-citation"
+                      onClick={() => onCitation(citation)}
+                    >
+                      {children}
+                    </button>
+                  ) : (
+                    <a href={href} target="_blank" rel="noreferrer">
+                      {children}
+                    </a>
+                  );
+                },
+              }}
+            >
+              {citationMarkdown(answer.content, citations)}
+            </ReactMarkdown>
+          </AnswerEditor>
           {!!citations.length && (
             <div className="citation-list">
               {citations.map((citation) => (
@@ -243,6 +256,7 @@ function SavedAnswerCard({
 
 export default function App() {
   const { theme, setTheme } = useAppearance();
+  const [focusedArtifactId, setFocusedArtifactId] = useState("");
   const [compactLayout, setCompactLayout] = useState(
     () => window.matchMedia("(max-width: 960px)").matches,
   );
@@ -1030,6 +1044,19 @@ export default function App() {
     );
     notify("Notebook notes exported");
   };
+  const editAnswer = (answerId: string, content: string) => {
+    if (!notebook || answerId === streamingMessageId) return;
+    const target = notebook.id;
+    setNotebooks((list) =>
+      list.map((current) => {
+        if (current.id !== target) return current;
+        const changed = editNotebookAnswer(current, answerId, content, sources);
+        if (!changed) return current;
+        void storage.notebook(changed.notebook).catch(reportStorageError);
+        return changed.notebook;
+      }),
+    );
+  };
   const saveAnswer = (answerId: string) => {
     if (!notebook || answerId === streamingMessageId) return;
     const target = notebook.id;
@@ -1054,7 +1081,10 @@ export default function App() {
             ...note,
             messages: note.messages.map((message) =>
               message.id === answerId
-                ? { ...message, savedToNotes: true, savedAt: Date.now() }
+                ? {
+                    ...message,
+                    ...saved.messages.find((m) => m.id === answerId),
+                  }
                 : message,
             ),
           })),
@@ -2235,6 +2265,11 @@ export default function App() {
                 notes={searchableNotes(notebook, notebookAnnotations)}
                 artifacts={artifacts}
                 onCitation={showCitation}
+                onSource={(id) => openSource(id)}
+                onStudy={(id) => {
+                  setFocusedArtifactId(id);
+                  setTab("studio");
+                }}
                 onNote={(note) => {
                   if (note.kind === "passage") {
                     openPassageNote(note.id);
@@ -2289,6 +2324,7 @@ export default function App() {
               />
             ) : tab === "studio" ? (
               <StudyStudio
+                focusId={focusedArtifactId}
                 notebookId={activeId}
                 sources={enabledSources}
                 artifacts={artifacts}
@@ -2365,46 +2401,55 @@ export default function App() {
                                 }
                               </p>
                             ) : m.content ? (
-                              <ReactMarkdown
-                                remarkPlugins={[remarkGfm, remarkMath]}
-                                rehypePlugins={[
-                                  [
-                                    rehypeKatex,
-                                    {
-                                      trust: false,
-                                      maxExpand: 1000,
-                                      maxSize: 20,
-                                    },
-                                  ],
-                                ]}
-                                components={{
-                                  a: ({ href, children }) =>
-                                    href?.startsWith("#citation-") ? (
-                                      <button
-                                        className="inline-citation"
-                                        onClick={() => {
-                                          const c = m.citations?.find(
-                                            (c) =>
-                                              c.id === Number(href.slice(10)),
-                                          );
-                                          if (c) showCitation(c);
-                                        }}
-                                      >
-                                        {children}
-                                      </button>
-                                    ) : (
-                                      <a
-                                        href={href}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                      >
-                                        {children}
-                                      </a>
-                                    ),
-                                }}
+                              <AnswerEditor
+                                savedNotes={notebook?.notes}
+                                message={m}
+                                onSave={(text) => editAnswer(m.id, text)}
                               >
-                                {citationMarkdown(m.content, m.citations ?? [])}
-                              </ReactMarkdown>
+                                <ReactMarkdown
+                                  remarkPlugins={[remarkGfm, remarkMath]}
+                                  rehypePlugins={[
+                                    [
+                                      rehypeKatex,
+                                      {
+                                        trust: false,
+                                        maxExpand: 1000,
+                                        maxSize: 20,
+                                      },
+                                    ],
+                                  ]}
+                                  components={{
+                                    a: ({ href, children }) =>
+                                      href?.startsWith("#citation-") ? (
+                                        <button
+                                          className="inline-citation"
+                                          onClick={() => {
+                                            const c = m.citations?.find(
+                                              (c) =>
+                                                c.id === Number(href.slice(10)),
+                                            );
+                                            if (c) showCitation(c);
+                                          }}
+                                        >
+                                          {children}
+                                        </button>
+                                      ) : (
+                                        <a
+                                          href={href}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                        >
+                                          {children}
+                                        </a>
+                                      ),
+                                  }}
+                                >
+                                  {citationMarkdown(
+                                    m.content,
+                                    m.citations ?? [],
+                                  )}
+                                </ReactMarkdown>
+                              </AnswerEditor>
                             ) : m.error ? (
                               <div className="form-error" role="alert">
                                 {m.error}
@@ -2583,6 +2628,8 @@ export default function App() {
                           <SavedAnswerCard
                             key={answer.id}
                             number={index + 1}
+                            notesText={notebook?.notes ?? ""}
+                            onEdit={(text) => editAnswer(answer.id, text)}
                             question={question}
                             answer={answer}
                             sources={notebookSources}

@@ -1,5 +1,5 @@
 import { usesCitation } from "./citations";
-import type { Message, Source, PassageNote } from "../types";
+import type { Message, Source, PassageNote, Notebook } from "../types";
 
 export interface SavedAnswer {
   notes: string;
@@ -12,6 +12,10 @@ export function mergeStreamMessages(current: Message[], streamed: Message[]) {
     const existing = current.find((candidate) => candidate.id === message.id);
     return {
       ...message,
+      ...(existing?.editedAt && existing.editedAt >= (message.editedAt ?? 0)
+        ? { content: existing.content, editedAt: existing.editedAt }
+        : {}),
+      savedNoteText: existing?.savedNoteText ?? message.savedNoteText,
       savedToNotes: existing?.savedToNotes ?? message.savedToNotes,
       originalPrompt: existing?.originalPrompt ?? message.originalPrompt,
       savedAt: existing?.savedAt ?? message.savedAt,
@@ -101,8 +105,88 @@ export function saveAnswerToNotes(
       : `${section}\n`,
     messages: messages.map((message) =>
       message.id === answerId
-        ? { ...message, savedToNotes: true, savedAt: Date.now() }
+        ? {
+            ...message,
+            savedToNotes: true,
+            savedAt: Date.now(),
+            savedNoteText: section,
+          }
         : message,
     ),
+  };
+}
+
+/** Update the canonical answer and its passage copy. Replace an appended note only
+ * when its exact saved snapshot still exists uniquely; preserve separate note edits. */
+export function editNotebookAnswer(
+  notebook: Notebook,
+  answerId: string,
+  content: string,
+  sources: Source[],
+) {
+  const answer = notebook.messages.find((m) => m.id === answerId);
+  if (
+    !answer ||
+    answer.role !== "assistant" ||
+    answer.incomplete ||
+    answer.cancelled ||
+    !content.trim()
+  )
+    return;
+  const passage = notebook.passageNotes?.find((n) =>
+    n.messages.some((m) => m.id === answerId),
+  );
+  const localSources = sources.filter((s) => s.notebookId === notebook.id);
+  const sectionFor = (text: string) =>
+    saveAnswerToNotes(
+      "",
+      notebook.messages.map((m) =>
+        m.id === answerId ? { ...m, content: text, savedToNotes: false } : m,
+      ),
+      answerId,
+      localSources,
+      passage,
+    )?.messages.find((m) => m.id === answerId)?.savedNoteText;
+  const oldSection = answer.savedNoteText ?? sectionFor(answer.content);
+  const newSection = sectionFor(content);
+  const index = oldSection ? notebook.notes.indexOf(oldSection) : -1;
+  const noteUpdated = !!(
+    answer.savedToNotes &&
+    oldSection &&
+    newSection &&
+    index >= 0 &&
+    index === notebook.notes.lastIndexOf(oldSection)
+  );
+  const editedAt = Date.now();
+  const update = (m: Message): Message =>
+    m.id === answerId
+      ? {
+          ...m,
+          content,
+          editedAt,
+          ...(answer.savedToNotes && oldSection
+            ? { savedNoteText: noteUpdated ? newSection : oldSection }
+            : {}),
+        }
+      : m;
+  return {
+    noteUpdated,
+    notebook: {
+      ...notebook,
+      ...(noteUpdated
+        ? {
+            notes:
+              notebook.notes.slice(0, index) +
+              newSection +
+              notebook.notes.slice(index + oldSection!.length),
+            notesUpdatedAt: editedAt,
+          }
+        : {}),
+      messages: notebook.messages.map(update),
+      passageNotes: notebook.passageNotes?.map((n) => ({
+        ...n,
+        messages: n.messages.map(update),
+      })),
+    },
   };
 }

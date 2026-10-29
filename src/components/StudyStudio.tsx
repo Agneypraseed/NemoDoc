@@ -32,7 +32,9 @@ export function StudyStudio({
   onSave,
   onDelete,
   onCitation,
+  focusId,
 }: {
+  focusId?: string;
   notebookId: string;
   sources: Source[];
   artifacts: StudyArtifact[];
@@ -58,6 +60,9 @@ export function StudyStudio({
     abort.current?.abort();
     setError("");
   }, [notebookId]);
+  useEffect(() => {
+    if (focusId) setActiveId(focusId);
+  }, [focusId, notebookId]);
   useEffect(() => {
     setIndex(0);
     setFlipped(false);

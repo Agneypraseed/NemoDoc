@@ -1,0 +1,59 @@
+.answer-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.answer-edit-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  padding: 6px 9px;
+  border-radius: 7px;
+  color: var(--ink);
+  background: var(--surface);
+  cursor: pointer;
+}
+.answer-editor {
+  min-width: 0;
+  margin: 12px 0;
+}
+.answer-editor label {
+  display: grid;
+  gap: 7px;
+  font-size: 13px;
+}
+.answer-editor textarea {
+  width: 100%;
+  min-height: 240px;
+  resize: vertical;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface-quiet);
+  color: var(--ink);
+  font: inherit;
+  line-height: 1.65;
+}
+.answer-editor p {
+  font-size: 12px;
+  color: var(--muted);
+}
+.answer-editor > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.message:has(.answer-editor) > .save-answer,
+.message:has(.answer-editor) > .passage-message-actions {
+  display: none;
+}
+.answer-note-preserved {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}

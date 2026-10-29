@@ -71,6 +71,8 @@ export interface Message {
   showPages?: boolean;
   savedToNotes?: boolean;
   savedAt?: number;
+  editedAt?: number;
+  savedNoteText?: string;
   incomplete?: boolean;
   error?: string;
   cancelled?: boolean;
