@@ -158,3 +158,18 @@ Add separate editable Quick and Deep conversation system prompts in Settings, pe
 - Owner: /root. Remove the plain “Opening your notebook…” Suspense fallback and use the existing NemoDoc notebook loader instead.
 - Extract the shared brand mark and `Loading notebook…` screen into lightweight components. Use the same loader for App's initial data wait and its lazy-loaded Suspense fallback.
 - Verification: source diff review and `git diff --check`; no test suite run per current developer instruction. No model calls or notebook data access.
+
+## Revision: README PCA/Nemotron demo video
+
+- User rejected the synthetic model fixture video and requested the existing PCA/ViT demo or a new one using NVIDIA models. The existing browser notebook ID is not available through the browser bridge; the user explicitly allowed creating a new demo.
+- Create a transparently labeled synthetic PCA/ViT activation lab note, run it through the already tested NVIDIA Nemotron 3.5 Lightning connection (hosted via Nebius), and capture real model-driven delegation, evidence reading, cited synthesis, and save-to-notes. Do not access unrelated browser notebook data.
+- Replace the current README MP4, retaining the same first media block only. Use the app's branded `Loading notebook…` state if shown; avoid the previous unstyled opening/loading screen and title-card intro.
+- The separate loader UI change is complete in local commit `49f19c4`.
+- Status: complete. The publishable capture used a fresh synthetic PCA activation lab and the configured live `nvidia/Nemotron-3_5-Lightning` model through Nebius. Two delegated researchers completed; the agent used 7 model calls total, cited both PDF pages, and saved the answer to Notes.
+- Independently checked values before publishing: covariance `[[5.6, 11.2, 0], [11.2, 22.4, 0], [0, 0, 2.4]]`; PC1 eigenvalue 28.0 / 92.1%, PC2 2.4 / 7.9%, PC3 0 from B=2A. The result explicitly says the constructed data is synthetic and cannot establish real ViT behavior or causality.
+- Replaced `docs/demo/nemodoc-agent-flow.mp4` with the 37.8-second live capture encoded as 1280×800 H.264 MP4 (~1.15 MiB). README retains its existing video element and fallback link, now labeled for the live Nemotron PCA demo. Representative frames were reviewed; the clip opens on the research form and ends on the cited saved result, with no plain “Opening your notebook…” screen.
+- `ffprobe` confirms duration, codec and dimensions; `git diff --check` and production build passed (the build ran after the shared loader change). No test suite was run. The only source PDF and browser profile were synthetic and temporary; no unrelated notebook data was opened. No push was made.
+
+- Earlier unpublished attempt: validation caught an arithmetic error in the model answer (incorrect covariance/eigenvalues), so that capture was discarded and replaced with the independently checked final run above.
+
+- Second unpublished attempt: the second researcher returned correct values, but the lead retried an invalid optional study-material tool until the main-call cap. That capture was discarded. The publishable run above used a demo-only concise research skill and targeted specialist assignments, then its citations and results were checked before capture.

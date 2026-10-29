@@ -4,11 +4,11 @@
 
 NemoDoc helps you read, annotate, and understand your course materials. Ask questions about a passage or your notebook, get answers grounded in source citations, and turn what you read into study aids.
 
-<video controls preload="metadata" width="100%" title="NemoDoc agent research demo">
+<video controls preload="metadata" width="100%" title="Live NVIDIA Nemotron PCA research demo">
   <source src="docs/demo/nemodoc-agent-flow.mp4" type="video/mp4" />
 </video>
 
-[Watch the 47-second NemoDoc agent flow demo](docs/demo/nemodoc-agent-flow.mp4)
+[Watch the 38-second live Nemotron PCA research demo](docs/demo/nemodoc-agent-flow.mp4)
 
 ## What you can do
 
