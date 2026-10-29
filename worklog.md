@@ -142,3 +142,13 @@ Add separate editable Quick and Deep conversation system prompts in Settings, pe
 - Replaced the worker cartoon and paper-colored inset with a compact three-step study-partner activity card, using the home preview's dark olive surfaces, warm accent, sage completion color, and existing queued/running/waiting/terminal states. The motion switch now gates its running indicator, with system reduced-motion still respected. Kept the activity figure's accessible name and caption.
 - TypeScript check passes. Inspected the live homepage's accessible UI tree at 5173 after hot reload; it exposes the updated task-progress card and retains the workflow controls. No tests were added or run per current developer instruction.
 - User asked whether the Preview animations control visibly works. In the shown queued state, CSS only animated the running state; add a soft queued-step pulse tied to `data-motion="on"`, so Pause/Play changes the current preview too. Verification: source-level review only; no tests per current developer instruction.
+
+## Follow-up: README agent demo video
+
+- Owner: /root. Replace only the first README screenshot with a sub-two-minute walkthrough of the unified agent flow and its result. Use a deterministic, synthetic task; never transmit notebook data or use live credentials.
+- Capture the editable task/instructions, automatic delegation, notebook and web researcher activity, cited synthesis, and save-to-notes outcome. Keep the MP4 below GitHub's common 10 MB attachment limit if practical. Check final duration and README diff. No test suite requested or needed.
+- Status: complete; recording, README replacement, and artifact review are finished.
+- Capture complete: `docs/demo/nemodoc-agent-flow.mp4` is a 46.92-second H.264 video at 1280×800, about 0.82 MiB. It shows the editable task and role instructions, selected synthetic brief, notebook/web researcher activity, opened evidence, cited synthesis, and Save to Notes.
+- Replaced only the README's opening screenshot with a video element and direct MP4 fallback link; the remaining screenshots and README copy are untouched.
+- The isolated capture used deterministic model/search fixtures and a temporary browser profile. No live provider call or personal notebook data was used. Production build completed successfully; no test suite was run.
+- GitHub's inline player requires a hosted attachment URL. This README points to the checked-in local MP4 and keeps a direct link for renderers that strip local video elements; inline GitHub playback still requires an authorized GitHub upload. No push was made.
