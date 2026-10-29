@@ -1,3 +1,4 @@
+import { NotebookGraph } from "./components/NotebookGraph";
 import { ConversationComposer } from "./components/ConversationComposer";
 import { SupportingPages } from "./components/SupportingPages";
 import {
@@ -291,7 +292,9 @@ export default function App() {
   const lastEdit = useRef({ key: "", time: 0 });
   const backupInput = useRef<HTMLInputElement>(null);
   const [enabled, setEnabled] = useState<Set<string>>(new Set()),
-    [tab, setTab] = useState<"chat" | "notes" | "studio" | "agent">("chat");
+    [tab, setTab] = useState<"chat" | "notes" | "studio" | "agent" | "graph">(
+      "chat",
+    );
   const [status, setStatus] = useState<AIStatus>({
     configured: false,
     model: "nvidia/nemotron-3.5-lightning-30b-a3b",
@@ -2181,7 +2184,7 @@ export default function App() {
             geometryKey={activePassageNote?.id ?? `${activeId}:${tab}`}
             movable={tab === "chat" && Boolean(activePassageNote)}
             resizable={tab === "chat" && Boolean(activePassageNote)}
-            expandable={tab === "agent"}
+            expandable={tab === "agent" || tab === "graph"}
             onGeometryChange={(card) => {
               if (activePassageNote)
                 setPassageNote(activeId, activePassageNote.id, (note) => ({
@@ -2211,7 +2214,9 @@ export default function App() {
                   ? "Notes"
                   : tab === "studio"
                     ? "Studio"
-                    : "Agent"
+                    : tab === "graph"
+                      ? "Graph"
+                      : "Agent"
             }
             aria-label="Notebook assistant"
             onKeyDown={(event) => {
@@ -2221,7 +2226,40 @@ export default function App() {
               }
             }}
           >
-            {tab === "agent" ? (
+            {tab === "graph" && notebook ? (
+              <NotebookGraph
+                key={activeId}
+                notebookId={activeId}
+                title={notebook.title}
+                sources={notebookSources}
+                notes={searchableNotes(notebook, notebookAnnotations)}
+                artifacts={artifacts}
+                onCitation={showCitation}
+                onNote={(note) => {
+                  if (note.kind === "passage") {
+                    openPassageNote(note.id);
+                    return;
+                  }
+                  setTab("notes");
+                  setPanelOpen(true);
+                  setNotesView(
+                    note.kind === "answer"
+                      ? "answers"
+                      : note.kind === "highlight"
+                        ? "highlights"
+                        : "scratchpad",
+                  );
+                  setAnnotationFilter("");
+                  setSearchNoteTarget(
+                    note.kind === "answer"
+                      ? `saved-answer-${note.id}`
+                      : note.kind === "highlight"
+                        ? `annotation-${note.id}`
+                        : "notebook-note",
+                  );
+                }}
+              />
+            ) : tab === "agent" ? (
               <AgentPanel
                 key={activeId}
                 notebookId={activeId}

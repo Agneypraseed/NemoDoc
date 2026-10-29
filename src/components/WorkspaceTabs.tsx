@@ -1,6 +1,6 @@
-import { MessageSquare, NotebookPen, Layers, Bot } from "lucide-react";
+import { MessageSquare, NotebookPen, Layers, Bot, Network } from "lucide-react";
 
-export type WorkspaceTab = "chat" | "notes" | "studio" | "agent";
+export type WorkspaceTab = "chat" | "notes" | "studio" | "agent" | "graph";
 
 export function WorkspaceTabs({
   active,
@@ -19,6 +19,7 @@ export function WorkspaceTabs({
           ["notes", "Notes", NotebookPen],
           ["studio", "Studio", Layers],
           ["agent", "Agent", Bot],
+          ["graph", "Graph", Network],
         ] as const
       ).map(([value, label, Icon]) => (
         <button
