@@ -173,3 +173,9 @@ Add separate editable Quick and Deep conversation system prompts in Settings, pe
 - Earlier unpublished attempt: validation caught an arithmetic error in the model answer (incorrect covariance/eigenvalues), so that capture was discarded and replaced with the independently checked final run above.
 
 - Second unpublished attempt: the second researcher returned correct values, but the lead retried an invalid optional study-material tool until the main-call cap. That capture was discarded. The publishable run above used a demo-only concise research skill and targeted specialist assignments, then its citations and results were checked before capture.
+
+## Follow-up: make the README demo the agent showcase
+
+- Owner: /root. Replace the remaining README screenshots and the old “Autonomous tools” walkthrough with the live PCA/Nemotron video.
+- Moved the existing live demo into the section replacing “Autonomous tools,” removed both outdated screenshot embeds, and retained a concise link to the permissions/audit guide. Updated the research-team summary to describe dynamic delegation rather than a fixed three-agent plan.
+- Verified the README has no stale screenshot embeds, one demo video, and a clean `git diff --check`. No tests were run for this documentation-only change.

@@ -4,12 +4,6 @@
 
 NemoDoc helps you read, annotate, and understand your course materials. Ask questions about a passage or your notebook, get answers grounded in source citations, and turn what you read into study aids.
 
-<video controls preload="metadata" width="100%" title="Live NVIDIA Nemotron PCA research demo">
-  <source src="docs/demo/nemodoc-agent-flow.mp4" type="video/mp4" />
-</video>
-
-[Watch the 38-second live Nemotron PCA research demo](docs/demo/nemodoc-agent-flow.mp4)
-
 ## What you can do
 
 - Read and annotate PDFs and slides, including OCR for scanned pages.
@@ -17,28 +11,21 @@ NemoDoc helps you read, annotate, and understand your course materials. Ask ques
 - Save notes and answers, then create flashcards, quizzes, study guides, and mind maps.
 - Use a personal agent for tasks based on sources you approve.
 
-## Autonomous tools
+## PCA research demo
 
-Nemotron chooses which tools to call, reads each result, and decides what to do next. A personal task can search approved notebook sources, read selected text files, search and read public web pages, and create a cited output file. Enable web access and file creation separately for each task; configure Tavily, Exa, or Firecrawl in **Settings → Search** for web research.
+Watch a live `nvidia/Nemotron-3_5-Lightning` run delegate two source-reading assignments, check PCA claims against a synthetic PDF, and save a cited answer to Notes. The activation data is synthetic and is not from a trained Vision Transformer.
 
-Open **Agent → Research → Scheduled tasks & activity inbox → New task**, choose **Research and write a file**, upload and select a brief, and grant the tools it needs. For example: “Read my brief, find and read official NVIDIA documentation, and write a cited Markdown summary.” Download the result from **Created files** and inspect each action in **Action history**.
+<video controls preload="metadata" width="100%" title="Live NVIDIA Nemotron PCA research demo">
+  <source src="docs/demo/nemodoc-agent-flow.mp4" type="video/mp4" />
+</video>
 
-The server validates tool names, arguments, source/file scope, citations and search connection revisions. File access uses a dedicated notebook workspace with opaque IDs; new writes never overwrite originals. Search results become evidence only after page extraction. Tool attempts and outcomes are audited in redacted local JSONL/PostgreSQL traces; tool execution stops if its audit entry cannot be saved. See [tool permissions, limits and verification](docs/AUTONOMOUS_TOOLS.md).
+[Watch the 38-second live Nemotron PCA research demo](docs/demo/nemodoc-agent-flow.mp4)
 
-![Live Nemotron agent reading a selected brief, researching a public page and creating a cited output file](docs/screenshots/autonomous-tools-live.png)
-
-_Live Nemotron and Tavily workflow with a public synthetic brief. Security rejection cases are verified separately with deterministic tests._
-
-<details>
-<summary>See a rejected file write (deterministic security fixture)</summary>
-
-![Agent rejecting a traversal filename before creating a valid output file](docs/screenshots/autonomous-tools-security.png)
-
-</details>
+For tool permissions and audit details, see [tool permissions, limits and verification](docs/AUTONOMOUS_TOOLS.md).
 
 ## Research teams
 
-Review a plan for three agents: two researchers work in parallel, then a reviewer checks their findings against source excerpts and writes a cited report. Edit each role’s instructions before starting. Use different tested models by role, and optionally enable Tavily, Exa, or Firecrawl search in **Settings → Search**.
+Review the lead's plan before starting. The lead delegates one to four researchers plus a reviewer as needed, checks their findings against source excerpts, and writes a cited report. Edit each role’s instructions and models before launch; optionally enable Tavily, Exa, or Firecrawl search in **Settings → Search**.
 
 ## Work traces
 
