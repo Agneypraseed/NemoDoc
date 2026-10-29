@@ -364,13 +364,117 @@ test("Nebius passage questions pin the selected page and omit stale history in b
     fetcher,
   );
 });
+test("chat continues a truncated answer with the same evidence and streams one complete response", async () => {
+  const requests: any[] = [];
+  const fetcher = (async (_url, init) => {
+    requests.push(JSON.parse(String(init?.body)));
+    const part = requests.length === 1 ? "The formula is $y" : " = 1$. [1]";
+    const finish = requests.length === 1 ? "length" : "stop";
+    return new Response(
+      `data: ${JSON.stringify({ choices: [{ delta: { content: part }, finish_reason: finish }] })}\n\ndata: [DONE]\n\n`,
+    );
+  }) as typeof fetch;
+  await withApp(
+    { ...config, apiKey: "isolated-test-key" },
+    async (url) => {
+      const response = await fetch(url + "/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const output = await response.text();
+      assert.equal(requests.length, 2);
+      assert.equal(
+        requests[1].messages[0].content,
+        requests[0].messages[0].content,
+      );
+      assert.equal(requests[1].messages.at(-2).content, "The formula is $y");
+      assert.match(
+        requests[1].messages.at(-1).content,
+        /Continue the unfinished answer/,
+      );
+      const events = output.split("\n\n");
+      const text = events
+        .filter((x) => x.startsWith("event: delta"))
+        .map((x) => JSON.parse(x.split("data: ")[1]))
+        .join("");
+      assert.equal(text, "The formula is $y = 1$. [1]");
+      assert.equal(
+        events.filter((x) => x.startsWith("event: sources")).length,
+        1,
+      );
+      assert.match(output, /event: done/);
+      assert.doesNotMatch(output, /event: error/);
+    },
+    fetcher,
+  );
+});
+
+test("reasoning tags split across continuations remain hidden", async () => {
+  let calls = 0;
+  const fetcher = (async () => {
+    calls++;
+    const content =
+      calls === 1 ? "Answer <thi" : "nk>private</think>complete. [1]";
+    return new Response(
+      `data: ${JSON.stringify({ choices: [{ delta: { content }, finish_reason: calls === 1 ? "length" : "stop" }] })}\n\ndata: [DONE]\n\n`,
+    );
+  }) as typeof fetch;
+  await withApp(
+    { ...config, apiKey: "isolated-test-key" },
+    async (url) => {
+      const response = await fetch(url + "/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const output = await response.text();
+      assert.equal(calls, 2);
+      assert.doesNotMatch(output, /private|think>/);
+      assert.match(output, /complete/);
+      assert.match(output, /event: done/);
+    },
+    fetcher,
+  );
+});
+
+test("a failed continuation preserves the partial answer and reports the provider error", async () => {
+  let calls = 0;
+  const fetcher = (async () => {
+    calls++;
+    if (calls > 1) return new Response("", { status: 429 });
+    return new Response(
+      `data: ${JSON.stringify({ choices: [{ delta: { content: "Partial answer" }, finish_reason: "length" }] })}\n\ndata: [DONE]\n\n`,
+    );
+  }) as typeof fetch;
+  await withApp(
+    { ...config, apiKey: "isolated-test-key" },
+    async (url) => {
+      const response = await fetch(url + "/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const output = await response.text();
+      assert.equal(calls, 2);
+      assert.match(output, /Partial answer/);
+      assert.match(output, /event: error/);
+      assert.match(output, /rate limiting/);
+      assert.doesNotMatch(output, /event: done/);
+    },
+    fetcher,
+  );
+});
 test("reasoning inside content is hidden and truncated outputs cannot complete", async () => {
   for (const finishReason of ["stop", "length"]) {
-    const fetcher = (async () =>
-      new Response(
+    let calls = 0;
+    const fetcher = (async () => {
+      calls++;
+      return new Response(
         'data: {"choices":[{"delta":{"content":"<thi"}}]}\n\ndata: {"choices":[{"delta":{"content":"nk>private analysis</think>Attention is finite. [1]"}}]}\n\n' +
           `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: finishReason }] })}\n\ndata: [DONE]\n\n`,
-      )) as typeof fetch;
+      );
+    }) as typeof fetch;
     await withApp(
       { ...config, apiKey: "isolated-test-key" },
       async (url) => {
@@ -383,9 +487,13 @@ test("reasoning inside content is hidden and truncated outputs cannot complete",
         assert.doesNotMatch(output, /private analysis|think>/);
         assert.match(output, /Attention is finite/);
         if (finishReason === "length") {
+          assert.equal(calls, 3);
           assert.match(output, /event: error/);
           assert.doesNotMatch(output, /event: done/);
-        } else assert.match(output, /event: done/);
+        } else {
+          assert.equal(calls, 1);
+          assert.match(output, /event: done/);
+        }
       },
       fetcher,
     );

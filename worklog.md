@@ -71,3 +71,9 @@ Add separate editable Quick and Deep conversation system prompts in Settings, pe
 - Goal: remove the Agent menu toggle at the user's request because it has no useful purpose in that menu.
 - Change: removed the toggle, browser preference, and custom data-attribute CSS. Device-level `prefers-reduced-motion` support remains.
 - Validation: source search and `git diff --check`; no tests run for this small reversible UI removal.
+
+## Follow-up: continue truncated chat answers
+
+- Owner: /root. User reported chat answers stopping mid-formula with the output-limit error.
+- Change: when a provider reports a length limit, continue the same streamed answer with the existing source excerpts and partial output, up to two continuation calls. Preserve partial output and show an error if continuation fails or remains incomplete. Quick/Deep prompts and per-call limits stay unchanged.
+- Verification: 13 focused API tests passed, including continuation using the same evidence and partial answer, preservation of partial output when the provider rate-limits a continuation, reasoning tags split across continuation requests, and at most three total provider calls. Typecheck and lint passed. Fixture providers were used; no live model request was made. Continuations are extra provider requests and may increase usage.
