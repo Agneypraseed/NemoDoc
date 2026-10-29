@@ -2325,6 +2325,37 @@ export default function App() {
             ) : tab === "studio" ? (
               <StudyStudio
                 focusId={focusedArtifactId}
+                attempts={notebook?.quizAttempts ?? []}
+                onAttempt={(attempt) =>
+                  setNotebooks((list) =>
+                    list.map((current) => {
+                      if (
+                        current.id !== attempt.notebookId ||
+                        current.quizAttempts?.some((a) => a.id === attempt.id)
+                      )
+                        return current;
+                      const updated = {
+                        ...current,
+                        quizAttempts: [
+                          ...(current.quizAttempts ?? []),
+                          attempt,
+                        ],
+                      };
+                      void storage.notebook(updated).catch(reportStorageError);
+                      return updated;
+                    }),
+                  )
+                }
+                onClearProgress={() =>
+                  setNotebooks((list) =>
+                    list.map((current) => {
+                      if (current.id !== activeId) return current;
+                      const updated = { ...current, quizAttempts: [] };
+                      void storage.notebook(updated).catch(reportStorageError);
+                      return updated;
+                    }),
+                  )
+                }
                 notebookId={activeId}
                 sources={enabledSources}
                 artifacts={artifacts}

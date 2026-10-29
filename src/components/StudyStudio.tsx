@@ -1,3 +1,9 @@
+import { LearningProgress } from "./LearningProgress";
+import {
+  localQuizAttemptSchema,
+  type LocalQuizAttempt,
+  type StudyFocus,
+} from "../study-progress-types";
 import { useEffect, useRef, useState } from "react";
 import {
   BookOpen,
@@ -33,7 +39,13 @@ export function StudyStudio({
   onDelete,
   onCitation,
   focusId,
+  attempts = [],
+  onAttempt,
+  onClearProgress,
 }: {
+  attempts?: LocalQuizAttempt[];
+  onAttempt: (attempt: LocalQuizAttempt) => void;
+  onClearProgress: () => void;
   focusId?: string;
   notebookId: string;
   sources: Source[];
@@ -52,6 +64,10 @@ export function StudyStudio({
     [checked, setChecked] = useState(false);
   const [progressSaved, setProgressSaved] = useState(false),
     [progressBusy, setProgressBusy] = useState(false);
+  const artifactPanel = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (activeId) artifactPanel.current?.scrollIntoView({ block: "start" });
+  }, [activeId]);
   const abort = useRef<AbortController>(null);
   const attempt = useRef<QuizAttempt | null>(null);
   useEffect(() => () => abort.current?.abort(), []);
@@ -73,7 +89,7 @@ export function StudyStudio({
   }, [activeId]);
   const list = artifacts.filter((a) => a.notebookId === notebookId),
     active = list.find((a) => a.id === activeId);
-  const generate = async (kind: StudyArtifact["kind"]) => {
+  const generate = async (kind: StudyArtifact["kind"], focus?: StudyFocus) => {
     const controller = new AbortController();
     abort.current = controller;
     setBusy(kind);
@@ -85,6 +101,7 @@ export function StudyStudio({
         "/api/study",
         {
           kind,
+          focus,
           sources: sources.map(({ id, name, pages }) => ({ id, name, pages })),
         },
         controller.signal,
@@ -150,6 +167,15 @@ export function StudyStudio({
           {sources.length === 1 ? "source" : "sources"}.
         </p>
       </div>
+      <LearningProgress
+        notebookId={notebookId}
+        attempts={attempts}
+        sources={sources}
+        busy={!!busy}
+        onReview={(kind, focus) => void generate(kind, focus)}
+        onCitation={onCitation}
+        onClear={onClearProgress}
+      />
       <div className="studio-create">
         {kinds.map(([kind, Icon, label]) => (
           <button
@@ -204,7 +230,25 @@ export function StudyStudio({
         </label>
       )}
       {active && (
-        <section className="study-artifact" aria-label="Study material">
+        <section
+          ref={artifactPanel}
+          className="study-artifact"
+          aria-label="Study material"
+        >
+          {!!active.focusQuestions?.length && (
+            <details className="study-review-focus">
+              <summary>Personalized review focus</summary>
+              <ul>
+                {active.focusQuestions.map((question, i) => (
+                  <li key={i}>{question}</li>
+                ))}
+              </ul>
+              <p>
+                Based on your recorded missed questions and the cited source
+                excerpts.
+              </p>
+            </details>
+          )}
           <div className="study-heading">
             {editing ? (
               <input
@@ -467,6 +511,19 @@ export function StudyStudio({
                       })),
                     };
                   else attempt.current = null;
+                  if (!checked && attempt.current) {
+                    const parsed = localQuizAttemptSchema.safeParse(
+                      attempt.current,
+                    );
+                    if (!parsed.success) {
+                      setError(
+                        "Answer all current quiz questions before recording a result.",
+                      );
+                      attempt.current = null;
+                      return;
+                    }
+                    onAttempt(parsed.data);
+                  }
                   if (checked) setAnswers({});
                   setChecked(!checked);
                   setProgressSaved(false);

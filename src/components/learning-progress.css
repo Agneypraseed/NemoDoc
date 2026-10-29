@@ -1,0 +1,44 @@
+.learning-progress {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-quiet);
+  padding: 16px;
+  margin: 0 0 20px;
+}
+.learning-progress h3 {
+  margin: 0 0 10px;
+  font-size: 17px;
+}
+.learning-progress p,
+.learning-progress small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.learning-progress details {
+  margin: 12px 0;
+  font-size: 13px;
+}
+.learning-progress summary {
+  cursor: pointer;
+}
+.learning-progress article {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+.learning-progress article > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.learning-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.learning-progress li {
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+}

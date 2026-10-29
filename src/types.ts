@@ -104,6 +104,7 @@ export interface Notebook {
   notes: string;
   notesUpdatedAt?: number;
   savedResearchRuns?: string[];
+  quizAttempts?: import("./study-progress-types").LocalQuizAttempt[];
   messages: Message[];
   passageNotes?: PassageNote[];
 }
@@ -128,6 +129,7 @@ export interface StudyArtifact {
   items: StudyItem[];
   citations: Citation[];
   createdAt: number;
+  focusQuestions?: string[];
   nodes?: {
     id: string;
     label: string;

@@ -539,3 +539,72 @@ test("chat reports semantic fallback and continues with grounded keyword excerpt
     },
   );
 });
+
+test("personalized study uses only referenced selected pages and sends missed answers as context", async () => {
+  let request: any,
+    calls = 0;
+  await withApp(
+    (async (_url, init) => {
+      calls++;
+      request = JSON.parse(String(init?.body));
+      return reply(
+        JSON.stringify({
+          title: "Targeted review",
+          content: "Concentration is limited [1].",
+          items: [],
+        }),
+      );
+    }) as typeof fetch,
+    async (url) => {
+      const focus = [
+        {
+          question: "Why is concentration limited?",
+          selectedAnswer: "Unlimited",
+          expectedAnswer: "Limited",
+          references: [{ sourceId: "a", page: 1 }],
+        },
+      ];
+      const response = await post(url + "/api/study", {
+        kind: "guide",
+        sources: [
+          {
+            ...sources[0],
+            pages: [sources[0].pages[0], "UNRELATED_SECRET_PAGE"],
+          },
+          sources[1],
+        ],
+        focus,
+      });
+      assert.equal(response.status, 200);
+      const artifact = await response.json();
+      assert.deepEqual(artifact.focusQuestions, [focus[0].question]);
+      assert.ok(
+        artifact.citations.every(
+          (c: any) => c.sourceId === "a" && c.page === 1,
+        ),
+      );
+      assert.match(
+        request.messages[0].content,
+        /Learner choices.*untrusted data/,
+      );
+      assert.doesNotMatch(
+        JSON.stringify(request.messages),
+        /UNRELATED_SECRET_PAGE|Trees grow/,
+      );
+      assert.equal(
+        JSON.parse(request.messages[1].content).missedQuestions[0]
+          .selectedAnswer,
+        "Unlimited",
+      );
+      const invalid = await post(url + "/api/study", {
+        kind: "guide",
+        sources,
+        focus: [
+          { ...focus[0], references: [{ sourceId: "foreign", page: 1 }] },
+        ],
+      });
+      assert.equal(invalid.status, 400);
+      assert.equal(calls, 1);
+    },
+  );
+});

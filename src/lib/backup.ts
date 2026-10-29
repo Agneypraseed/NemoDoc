@@ -1,3 +1,4 @@
+import { localQuizAttemptSchema } from "../study-progress-types";
 import JSZip from "jszip";
 import { z } from "zod";
 import type { Annotation, Notebook, Source, StudyArtifact } from "../types";
@@ -48,6 +49,7 @@ const manifest = z.object({
         createdAt: z.number(),
         notes: z.string(),
         notesUpdatedAt: z.number().nonnegative().optional(),
+        quizAttempts: z.array(localQuizAttemptSchema).max(10000).optional(),
         savedResearchRuns: z.array(z.string().max(100)).max(10000).optional(),
         messages: z.array(message),
         passageNotes: z
@@ -179,6 +181,7 @@ const manifest = z.object({
             citationIds: z.array(z.number()),
           }),
         ),
+        focusQuestions: z.array(z.string().max(4000)).max(10).optional(),
         nodes: z
           .array(
             z.object({
@@ -237,6 +240,9 @@ export async function readBackup(file: Blob): Promise<LibraryBackup> {
   const sourceIds = new Map(
     data.sources.map((s) => [s.id, crypto.randomUUID()]),
   );
+  const artifactIds = new Map(
+    data.artifacts.map((a) => [a.id, crypto.randomUUID()]),
+  );
   const messageIds = new Map<string, string>();
   const remapMessageId = (notebookId: string, messageId: string) => {
     const key = JSON.stringify([notebookId, messageId]);
@@ -290,6 +296,25 @@ export async function readBackup(file: Blob): Promise<LibraryBackup> {
     )
       throw new Error("An annotation refers to a missing page.");
   for (const notebook of data.notebooks)
+    for (const attempt of notebook.quizAttempts ?? []) {
+      if (
+        attempt.notebookId !== notebook.id ||
+        data.artifacts.some(
+          (a) => a.id === attempt.artifactId && a.notebookId !== notebook.id,
+        ) ||
+        attempt.answers.some((a) =>
+          a.references.some((r) =>
+            data.sources.some(
+              (s) => s.id === r.sourceId && s.notebookId !== notebook.id,
+            ),
+          ),
+        )
+      )
+        throw new Error("Quiz history refers to another notebook.");
+    }
+  if (artifactIds.size !== data.artifacts.length)
+    throw new Error("This backup contains duplicate study IDs.");
+  for (const notebook of data.notebooks)
     for (const note of notebook.passageNotes ?? []) {
       const source = data.sources.find((item) => item.id === note.sourceId);
       if (
@@ -307,6 +332,20 @@ export async function readBackup(file: Blob): Promise<LibraryBackup> {
       ...n,
       id: notebookIds.get(n.id)!,
       title: n.title + " (restored)",
+      quizAttempts: n.quizAttempts?.map((a) => ({
+        ...a,
+        id: crypto.randomUUID(),
+        notebookId: notebookIds.get(n.id)!,
+        artifactId: artifactIds.get(a.artifactId) ?? a.artifactId,
+        answers: a.answers.map((answer) => ({
+          ...answer,
+          references: answer.references.flatMap((r) =>
+            sourceIds.has(r.sourceId)
+              ? [{ ...r, sourceId: sourceIds.get(r.sourceId)! }]
+              : [],
+          ),
+        })),
+      })),
       messages: n.messages.map((m) => ({
         ...m,
         id: remapMessageId(n.id, m.id),
@@ -331,7 +370,7 @@ export async function readBackup(file: Blob): Promise<LibraryBackup> {
     })),
     artifacts: data.artifacts.map((a) => ({
       ...a,
-      id: crypto.randomUUID(),
+      id: artifactIds.get(a.id)!,
       notebookId: notebookIds.get(a.notebookId)!,
       citations: a.citations.map(remapCitation),
     })),

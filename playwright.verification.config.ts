@@ -7,6 +7,7 @@ export default defineConfig({
     "agent-overview.spec.ts",
     "notebook-graph.spec.ts",
     "answer-editing.spec.ts",
+    "learning-progress.spec.ts",
     "agent-connections.spec.ts",
     "agent-orchestration.spec.ts",
     "search-connections.spec.ts",
