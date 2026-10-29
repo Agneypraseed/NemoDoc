@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import { lazy, Suspense } from "react";
 import HomePage from "./home/HomePage";
+import { NotebookLoading } from "./components/NotebookLoading";
 import "./styles.css";
 import "./upgrade.css";
 import "./components/agent.css";
@@ -30,7 +31,7 @@ createRoot(document.getElementById("root")!).render(
       <NotebookLibraryPage />
     </Suspense>
   ) : (
-    <Suspense fallback={<p role="status">Opening your notebook…</p>}>
+    <Suspense fallback={<NotebookLoading />}>
       <App />
     </Suspense>
   ),

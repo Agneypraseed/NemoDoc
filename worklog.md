@@ -152,3 +152,9 @@ Add separate editable Quick and Deep conversation system prompts in Settings, pe
 - Replaced only the README's opening screenshot with a video element and direct MP4 fallback link; the remaining screenshots and README copy are untouched.
 - The isolated capture used deterministic model/search fixtures and a temporary browser profile. No live provider call or personal notebook data was used. Production build completed successfully; no test suite was run.
 - GitHub's inline player requires a hosted attachment URL. This README points to the checked-in local MP4 and keeps a direct link for renderers that strip local video elements; inline GitHub playback still requires an authorized GitHub upload. No push was made.
+
+## Follow-up: unify notebook loading state
+
+- Owner: /root. Remove the plain “Opening your notebook…” Suspense fallback and use the existing NemoDoc notebook loader instead.
+- Extract the shared brand mark and `Loading notebook…` screen into lightweight components. Use the same loader for App's initial data wait and its lazy-loaded Suspense fallback.
+- Verification: source diff review and `git diff --check`; no test suite run per current developer instruction. No model calls or notebook data access.

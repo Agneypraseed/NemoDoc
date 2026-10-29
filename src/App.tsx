@@ -1,6 +1,8 @@
 import { preserveSourceNotes, restoreSourceNotes } from "./lib/source-notes";
 import { availableCitations } from "./lib/source-citations";
 import { AnswerEditor } from "./components/AnswerEditor";
+import { Brand } from "./components/Brand";
+import { NotebookLoading } from "./components/NotebookLoading";
 import { NotebookGraph } from "./components/NotebookGraph";
 import { ConversationComposer } from "./components/ConversationComposer";
 import { SupportingPages } from "./components/SupportingPages";
@@ -113,16 +115,6 @@ function getVoiceRecognitionConstructor():
     webkitSpeechRecognition?: VoiceRecognitionConstructor;
   };
   return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
-}
-
-function Brand({ small = false }: { small?: boolean }) {
-  return (
-    <span className={`brand-mark ${small ? "small" : ""}`} aria-hidden="true">
-      <svg viewBox="0 0 28 28">
-        <path d="M6 21V7h3l10 14h3V7h-3v9L9 7" />
-      </svg>
-    </span>
-  );
 }
 
 function SavedAnswerCard({
@@ -1735,12 +1727,7 @@ export default function App() {
     }
   };
   if (!ready)
-    return (
-      <div className="boot">
-        <Brand />
-        <span>Loading notebook…</span>
-      </div>
-    );
+    return <NotebookLoading />;
   return (
     <div
       className={`app ${sidebarOpen ? "sidebar-open" : ""} ${panelOpen ? "" : "panel-hidden"}`}
