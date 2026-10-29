@@ -138,6 +138,12 @@
   svg {
   animation: agent-scene-spin 2.4s linear infinite;
 }
+.agent-work-scene[data-motion="on"]
+  .agent-scene-steps
+  li[data-step-state="queued"]
+  .agent-scene-marker {
+  animation: agent-scene-pulse 1.8s ease-in-out infinite;
+}
 .agent-work-scene[data-state="queued"] .agent-scene-state i {
   background: #e7aa83;
 }
@@ -157,6 +163,12 @@
 @keyframes agent-scene-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+@keyframes agent-scene-pulse {
+  50% {
+    transform: scale(1.12);
+    opacity: 0.68;
   }
 }
 @media (prefers-reduced-motion: reduce) {
