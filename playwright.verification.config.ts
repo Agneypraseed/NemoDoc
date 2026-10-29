@@ -14,6 +14,7 @@ export default defineConfig({
     "search-connections.spec.ts",
     "research-team.spec.ts",
     "research-team-live.spec.ts",
+    "long-chat-live.spec.ts",
     "autonomous-tools.spec.ts",
     "agent.spec.ts",
     "home.spec.ts",

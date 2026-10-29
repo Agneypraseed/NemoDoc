@@ -490,7 +490,7 @@ export function createApp(
                       {
                         role: "user",
                         content:
-                          "Continue the unfinished answer exactly where it stopped. Do not repeat earlier text or restart. Finish any incomplete sentence or formula, and continue to cite only the supplied source excerpts.",
+                          "Continue the unfinished answer exactly where it stopped. Do not repeat earlier text or restart. The original user request above still applies: complete all its remaining parts, sections, and any requested ending, not only the interrupted paragraph. Finish any incomplete sentence or formula, then keep going until the entire requested answer is complete. Continue to cite only the supplied source excerpts.",
                       },
                     ],
             }),

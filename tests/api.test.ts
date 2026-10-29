@@ -393,6 +393,10 @@ test("chat continues a truncated answer with the same evidence and streams one c
         requests[1].messages.at(-1).content,
         /Continue the unfinished answer/,
       );
+      assert.match(
+        requests[1].messages.at(-1).content,
+        /complete all its remaining parts, sections, and any requested ending/,
+      );
       const events = output.split("\n\n");
       const text = events
         .filter((x) => x.startsWith("event: delta"))
